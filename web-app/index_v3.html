@@ -79,7 +79,8 @@ body.dark .tab-bar{background:rgba(18,18,30,.94);border-top-color:rgba(255,255,2
 .hero-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}.hero-metrics>div{min-width:0}.hero-metrics .label{font-size:10px;color:rgba(255,255,255,.58)}.hero-metrics .num{display:block;margin-top:3px;font-size:15px;font-weight:800;color:#fff}
 .product-card{margin:8px 12px;padding:13px;border-radius:14px;background:var(--card);box-shadow:var(--shadow)}.product-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;font-size:14px;font-weight:850}.product-card-title:before{content:"";width:4px;height:15px;border-radius:3px;background:var(--brand);display:inline-block}.product-card-title span{margin-right:auto}
 .market-grid{display:grid;grid-template-columns:repeat(3,1fr);overflow:hidden}.market-grid>div{text-align:center;padding:9px 4px}.market-grid>div+div{border-left:.5px solid rgba(0,0,0,.05)}
-.fund-chip.product{min-width:118px;min-height:92px;padding:10px 8px!important;text-align:left}.chip-code{font-size:11px;color:var(--t3)}.chip-change{font-size:20px;font-weight:900;margin-top:3px}.chip-sub{font-size:12px;font-weight:800;margin-top:4px}.chip-name{font-size:10px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fund-chip.product{min-width:118px;min-height:92px;padding:10px 8px!important;text-align:left}.chip-code{font-size:11px;color:var(--t3)}.chip-change{font-size:20px;font-weight:900;margin-top:3px}.chip-sub{font-size:12px;font-weight:800;margin-top:4px}.chip-name{font-size:10px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.est-badge{display:inline-flex;align-items:center;justify-content:center;height:15px;min-width:15px;padding:0 3px;margin-right:3px;border-radius:4px;background:rgba(26,35,126,.08);color:var(--brand);font-size:10px;font-weight:800;vertical-align:2px}
+.actual-row{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}.actual-row>div{border-radius:8px;background:rgba(0,0,0,.025);padding:7px 8px}.actual-row .label{font-size:10px;color:var(--t3)}.actual-row .num{font-size:13px;font-weight:850;margin-top:2px}
 .rank-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:.5px solid rgba(0,0,0,.04)}.rank-row:first-child{border-top:none}.rank-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:750}
 .news-item{padding:9px 0;border-top:.5px solid rgba(0,0,0,.04)}.news-item:first-child{border-top:none}.news-title{font-size:13px;line-height:1.45;color:var(--t2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 @media (max-width:390px){.product-hero{margin-left:10px;margin-right:10px;padding:15px 13px}.hero-value{font-size:31px}.product-card{margin-left:10px;margin-right:10px;padding:12px}.fund-chip.product{min-width:112px;min-height:88px}.chip-change{font-size:18px}}
@@ -260,6 +261,10 @@ function shortName(f,n=8){return (f.name||f.code||'').replace(/联接C|增强C|�
 function dot(n){return n>0?'dot-red':n<0?'dot-green':'dot-gray'}
 function stateDot(s){return s==='buy'?'dot-yellow':s==='hold'?'dot-red':'dot-gray'}
 function cleanTrend(s){return (s||'--').replace(/[^\u4e00-\u9fa5A-Za-z0-9%().（）+\-\s]/g,'').trim()||'--'}
+function todayChange(f){const v=f.estimated_change??f.model_estimated_change??f.ai_prediction?.model_estimated_change;return Number.isFinite(Number(v))?Number(v):(f.daily_change||0)}
+function todayIsEstimate(f){return !!(f.estimated||f.estimated_change!=null||f.model_estimated_change!=null||f.ai_prediction?.model_estimated_change!=null)}
+function md(s){return s?String(s).slice(5).replace('-','/'):'--'}
+function smallEst(){return '<span class="est-badge">估</span>'}
 
 async function fetchD(){
   try{
@@ -278,7 +283,7 @@ function renderHome(d){
       hc++;ti+=b.cost_nav||0;tv+=f.current_nav||0;
       if((b.hold_days||0)>md)md=b.hold_days;
       // 当日预估收益：用模型预估涨跌幅
-      const est=f.ai_prediction?.model_estimated_change||f.estimated_change||0;
+      const est=todayChange(f);
       dp+=(f.current_nav||0)*(est/100);
     }
   });
@@ -299,25 +304,34 @@ function renderHome(d){
   document.getElementById('idx-0-price').textContent=iprice;
   document.getElementById('idx-0-chg').textContent=fp(ichg);
   document.getElementById('idx-0-chg').className='fs13 fw7 mt2 num '+cl(ichg);
+  const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609');
+  const kchg=k50?todayChange(k50):0;
+  document.getElementById('idx-1-price').textContent='科创跟踪';
+  document.getElementById('idx-1-chg').innerHTML=(k50&&todayIsEstimate(k50)?smallEst():'')+fp(kchg);
+  document.getElementById('idx-1-chg').className='fs13 fw7 mt2 num '+cl(kchg);
+  const bond=d.bond_index||{};
+  const bchg=bond.daily_change||0;
+  document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';
+  document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';
+  document.getElementById('idx-2-chg').className='fs13 fw7 mt2 num '+cl(bchg);
   
   // Fund chips - 三列
   const cr=document.getElementById('fund-chips');
   cr.innerHTML=fs.map(f=>{
     const b=f.buy_point||{};
     // 用预估涨跌替代昨日涨跌（如果在交易时段）
-    const est=f.ai_prediction?.model_estimated_change||f.estimated_change||0;
-    const cg=est!==0?est:f.daily_change||0;
-    const isEst=est!==0 || f.estimated_change!==0;
+    const cg=todayChange(f);
+    const isEst=todayIsEstimate(f);
     const y=b.is_holding?b.yield_pct:null;
     return '<div class="card fund-chip product" onclick="goTab(\'funds\')">'+
       '<div class="chip-code">'+f.code+'</div>'+
-      '<div class="chip-change num '+cl(cg)+'">'+(isEst?'估 ':'')+fp(cg)+'</div>'+
+      '<div class="chip-change num '+cl(cg)+'">'+(isEst?smallEst():'')+fp(cg)+'</div>'+
       '<div class="chip-sub num" style="color:'+(y!==null?(y>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(y!==null?fp(y):'未持仓')+'</div>'+
       '<div class="chip-name">'+shortName(f,8)+'</div></div>';
   }).join('');
   
   // Ranking
-  const s=[...fs].sort((a,b)=>(b.daily_change||0)-(a.daily_change||0));
+  const s=[...fs].sort((a,b)=>todayChange(b)-todayChange(a));
   const m=['<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">1</span>',
     '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#f39c12;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">2</span>',
     '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#bbb;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">3</span>'];
@@ -325,7 +339,7 @@ function renderHome(d){
     '<div class="rank-row">'+
     '<span>'+(m[i]||(i+1))+'</span>'+
     '<span class="rank-name">'+f.code+' '+shortName(f,9)+'</span>'+
-    '<span class="num '+cl(f.daily_change)+'" style="font-weight:800">'+fp(f.daily_change)+'</span></div>'
+    '<span class="num '+cl(todayChange(f))+'" style="font-weight:800">'+(todayIsEstimate(f)?smallEst():'')+fp(todayChange(f))+'</span></div>'
   ).join('');
   
   // News
@@ -342,7 +356,7 @@ function renderHome(d){
 function renderFunds(d){
   const list=document.getElementById('fund-detail-list');if(!d.funds)return;
   list.innerHTML=d.funds.map(f=>{
-    const bp=f.buy_point||{},cg=f.daily_change||0,r7=f.return_7d,r1=f.return_1m;
+    const bp=f.buy_point||{},cg=todayChange(f),actual=f.daily_change||0,r7=f.return_7d,r1=f.return_1m;
     const risk=f.ai_prediction?.risk_level||'中';
     const rsk='<span class="tag '+(risk==='高'?'tag-red':'tag-yellow')+'">风险'+risk+'</span>';
     return '<div class="card px tight-card">'+
@@ -351,12 +365,16 @@ function renderFunds(d){
       '</div>'+
       '<div class="flex-b" style="margin-bottom:6px">'+
         '<span class="fs20 fw7 num">'+(f.current_nav?fmt(f.current_nav):'--')+'</span>'+
-        '<span class="fs17 fw7 num '+cl(cg)+'">'+fp(cg)+'</span>'+
+        '<span class="fs17 fw7 num '+cl(cg)+'">'+(todayIsEstimate(f)?smallEst():'')+fp(cg)+'</span>'+
       '</div>'+
       '<div class="metric-strip">'+
         '<div><div class="muted">持有收益</div><div class="num" style="color:'+(bp.is_holding?(bp.yield_pct>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(bp.is_holding?fp(bp.yield_pct||0):'未持仓')+'</div></div>'+
         '<div><div class="muted">7日</div><div class="num" style="color:'+cc(r7)+'">'+(r7!=null?fp(r7):'--')+'</div></div>'+
         '<div><div class="muted">1月</div><div class="num" style="color:'+cc(r1)+'">'+(r1!=null?fp(r1):'--')+'</div></div>'+
+      '</div>'+
+      '<div class="actual-row">'+
+        '<div><div class="label">今日估算 '+(f.estimated_time?f.estimated_time.slice(11,16):md(d.date))+'</div><div class="num" style="color:'+cc(cg)+'">'+(todayIsEstimate(f)?smallEst():'')+fp(cg)+'</div></div>'+
+        '<div><div class="label">实际净值 '+md(f.nav_date)+'</div><div class="num" style="color:'+cc(actual)+'">'+fp(actual)+'</div></div>'+
       '</div>'+
       (bp.is_holding?
         '<div class="flex-b" style="font-size:11px;margin:6px 0 5px">'+
