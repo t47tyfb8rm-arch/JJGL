@@ -293,24 +293,46 @@ function renderHome(d) {
   }
 }
 
-// ===== Render Funds (紧凑卡片) =====
+// ===== Render Funds (完整信息紧凑版) =====
 function renderFunds(d) {
   const list = document.getElementById('fund-detail-list');
   if (!d.funds) return;
   list.innerHTML = d.funds.map(f => {
     const bp = f.buy_point || {};
     const chg = f.daily_change || 0;
-    return '<div class="card px" style="margin:4px 12px;padding:10px 12px">' +
-      '<div class="flex-between"><div><span style="font-size:11px;color:var(--text2)">' + f.code + '</span><span class="muted" style="margin-left:6px">' + (f.name||'').substring(0,10) + '</span></div>' +
-      '<div><span class="fs17 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav?fmt(f.current_nav):'--') + '</span>' +
-      '<span class="fs14 fw7 ' + cls(chg) + '" style="margin-left:8px">' + fmtPct(chg) + '</span></div></div>' +
-      (bp.is_holding ? '<div class="flex" style="margin-top:6px;padding-top:6px;border-top:.5px solid rgba(0,0,0,.03);font-size:11px;color:var(--text2)">' +
-        '<span>\u6210\u672c ' + fmt(bp.cost_nav||0) + '</span>' +
-        '<span style="margin-left:12px">\u6301\u6709 ' + (bp.hold_days||0) + '\u5929</span>' +
-        '<span style="margin-left:12px;font-weight:600;color:' + cls(bp.yield_pct||0) + '">\u6536\u76ca ' + fmtPct(bp.yield_pct||0) + '</span>' +
-        (bp.target_nav ? '<span style="margin-left:auto;font-weight:600">\u76ee\u6807 ' + fmt(bp.target_nav) + '</span>' : '') +
-      '</div>' : '<div class="muted" style="margin-top:4px;font-size:11px">\u672a\u6301\u4ed3</div>') +
-      '</div>';
+    const r7 = f.return_7d, r1 = f.return_1m;
+    const riskCls = '<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:rgba(229,57,53,.08);color:var(--up)">' + (f.ai_prediction?.risk_level || '\u4e2d') + '</span>';
+    return '<div class="card px" style="margin:4px 12px;padding:12px">' +
+      // 第一行：代码+名称 | 风险标签
+      '<div class="flex-between" style="margin-bottom:4px">' +
+        '<div><span style="font-size:11px;color:var(--text2)">' + f.code + '</span><span style="font-size:13px;font-weight:600;margin-left:6px">' + (f.name||'').substring(0,8) + '</span></div>' +
+        riskCls +
+      '</div>' +
+      // 第二行：净值 | 涨跌幅
+      '<div class="flex-between" style="margin-bottom:6px">' +
+        '<span class="fs20 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav?fmt(f.current_nav):'--') + '</span>' +
+        '<span class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</span>' +
+      '</div>' +
+      // 第三行：分三列-持有收益 / 7日 / 1月
+      '<div class="flex" style="margin-bottom:4px;padding:6px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03);text-align:center">' +
+        '<div style="flex:1"><div class="muted" style="font-size:9px">\u6301\u6709\u6536\u76ca</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct>=0?'var(--up)':'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
+        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">7\u65e5</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</div></div>' +
+        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">1\u6708</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</div></div>' +
+      '</div>' +
+      // 第四行：持有信息
+      (bp.is_holding ?
+        '<div class="flex-between" style="font-size:11px;margin-bottom:4px">' +
+          '<span class="muted">\u6210\u672c ' + fmt(bp.cost_nav||0) + '</span>' +
+          '<span class="muted">\u6301\u6709 ' + (bp.hold_days||0) + '\u5929</span>' +
+          '<span style="font-weight:600;color:' + cls(bp.yield_pct||0) + '">' + fmtPct(bp.yield_pct||0) + '</span>' +
+        '</div>' +
+        (bp.target_nav ?
+          '<div style="margin-bottom:4px"><div class="flex-between" style="font-size:10px"><span class="muted">\u76ee\u6807 ' + fmt(bp.target_nav) + '</span><span class="muted">\u8fdb\u5ea6 ' + (bp.progress_pct||0).toFixed(0) + '%</span></div>' +
+          '<div style="height:2px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));width:' + Math.min((bp.progress_pct||0),100) + '%"></div></div></div>'
+        : '') +
+        '<button class="row-btn" style="width:100%;margin-top:4px" onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')">\u786e\u8ba4\u4e70\u5165</button>'
+      : '<div class="muted" style="font-size:11px;padding:2px 0">\u672a\u6301\u4ed3</div>') +
+    '</div>';
   }).join('');
 }
 
@@ -323,34 +345,34 @@ function renderAI(d) {
     const ai = f.ai_prediction || {};
     const chg = f.daily_change || 0;
     const r7 = f.return_7d, r1 = f.return_1m, r3 = f.return_3m, r6 = f.return_6m;
-    return '<div style="padding:' + (i>0?'12px 0 4px':'0 0 4px') + ';margin-top:' + (i>0?'12px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
-      // 标题行：代码 + 名称 + 涨跌幅
+    return '<div style="padding:' + (i>0?'14px 0 0':'0 0 0') + ';margin-top:' + (i>0?'14px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
+      // 标题行
       '<div class="flex-between" style="margin-bottom:6px">' +
-        '<div><span class="fs15 fw7">' + f.code + '</span><span class="muted" style="margin-left:6px">' + (f.name||'').substring(0,8) + '</span></div>' +
-        '<div><span class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</span></div>' +
+        '<div><span class="fs15 fw7">' + f.code + '</span><span class="muted" style="margin-left:5px;font-size:11px">' + (f.name||'').substring(0,8) + '</span></div>' +
+        '<div class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</div>' +
       '</div>' +
-      // 趋势
-      '<div class="flex-between" style="margin-bottom:4px;font-size:13px">' +
+      // 趋势行
+      '<div class="flex-between" style="margin-bottom:5px;font-size:12px">' +
         '<span class="muted">\u8d8b\u52bf</span><span class="fw7">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span>' +
       '</div>' +
-      // 分析建议（完整显示）
-      '<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
+      // 分析建议（背景框）
+      '<div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
         (ai.advice || '\u6682\u65e0\u5206\u6790') +
       '</div>' +
       // 标签行
       '<div class="flex gap6" style="flex-wrap:wrap;margin-bottom:6px">' +
-        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c ' + (ai.valuation_position || '--') + '</span>' +
-        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1 ' + (ai.confidence || '--') + '</span>' +
-        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669 ' + (ai.risk_level || '--') + '</span>' +
-        (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' : '') +
-        (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
+        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c' + (ai.valuation_position || '--') + '</span>' +
+        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1' + (ai.confidence || '--') + '</span>' +
+        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669' + (ai.risk_level || '--') + '</span>' +
+        (ai.key_levels ? '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' : '') +
+        (ai.key_levels ? '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
       '</div>' +
-      // 近7日 / 1月 / 3月 / 6月 收益
-      '<div class="flex" style="font-size:11px;gap:6px">' +
+      // 收益行
+      '<div class="flex" style="font-size:11px;gap:8px">' +
         '<span class="muted">7\u65e5</span><span style="font-weight:600;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</span>' +
-        '<span class="muted" style="margin-left:4px">1\u6708</span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
-        '<span class="muted" style="margin-left:4px">3\u6708</span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
-        '<span class="muted" style="margin-left:4px">6\u6708</span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span>' +
+        '<span class="muted">1\u6708</span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
+        '<span class="muted">3\u6708</span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
+        '<span class="muted">6\u6708</span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -371,15 +393,17 @@ function renderAI(d) {
   const sig = document.getElementById('buy-signals');
   sig.innerHTML = funds.map(f => {
     const bp = f.buy_point || {};
-    const ai = f.ai_prediction || {};
     const canBuy = bp.can_buy || false;
     const holding = bp.is_holding || false;
     const pct = bp.yield_pct || 0;
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:.5px solid rgba(0,0,0,.03);font-size:13px">' +
-      '<span style="width:24px;text-align:center">' + (holding ? '\ud83d\udcc8' : (canBuy ? '\u26a0\ufe0f' : '\u274c')) + '</span>' +
-      '<span style="flex:1">' + f.code + ' ' + (f.name||'').substring(0,8) + '</span>' +
-      '<span style="font-weight:600;color:' + (holding ? (pct>=0?'var(--up)':'var(--down)') : (canBuy ? '#ff9800' : 'var(--text3)')) + '">' +
-      (holding ? '\u6301\u6709 ' + fmtPct(pct) : (canBuy ? '\u8d2d\u4e70\u4fe1\u53f7' : bp.drop_pct ? '\u8ddd\u4e70\u70b9' + bp.drop_pct + '%' : '\u65e0\u4fe1\u53f7')) + '</span></div>';
+    return '<div class="flex-between" style="padding:8px 0;font-size:12px;border-top:.5px solid rgba(0,0,0,.03)">' +
+      '<div class="flex-center gap6" style="flex:1;min-width:0">' +
+        '<span>' + (holding ? '\ud83d\udcc8' : (canBuy ? '\u26a0\ufe0f' : '\u274c')) + '</span>' +
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.code + '</span>' +
+        '<span class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">' + (f.name||'').substring(0,6) + '</span>' +
+      '</div>' +
+      '<span style="flex-shrink:0;font-weight:600;color:' + (holding ? (pct>=0?'var(--up)':'var(--down)') : (canBuy ? '#ff9800' : 'var(--text3)')) + '">' +
+      (holding ? fmtPct(pct) : (canBuy ? '\u8d2d\u4e70\u4fe1\u53f7' : bp.drop_pct ? '\u8ddd\u4e70\u70b9' + bp.drop_pct + '%' : '\u65e0\u4fe1\u53f7')) + '</span></div>';
   }).join('');
 
   // Profit benchmark
