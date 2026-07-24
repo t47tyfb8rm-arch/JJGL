@@ -1,0 +1,3764 @@
+"""
+基金管理系统 - FastAPI 后端
+从天天基金网和新浪财经获取实时数据
+"""
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse as StarletteFileResponse
+from starlette.types import Scope
+import stat
+
+class NoCacheStaticFiles(StaticFiles):
+    """静态文件挂载，强制禁止缓存"""
+    async def get_response(self, path: str, scope: Scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+from pydantic import BaseModel
+from typing import List, Optional, Dict
+import httpx
+from datetime import datetime, timedelta
+import re
+import asyncio
+import os
+import json
+import time
+
+app = FastAPI(title="基金管理系统", version="2.3.2")
+
+# === 盘中快照定时采样后台任务 ===
+SNAPSHOT_FUND_CODES = ["011609", "020741", "004746"]
+
+
+async def snapshot_scheduler():
+    """后台调度：每个 A 股交易日 10:05 / 13:05 / 14:32 触发，对所有基金采集 gsz 估值"""
+    import asyncio as _asyncio
+    # 在每个采样点后的第 2-5 分钟触发（确保 gsz 接口已更新）
+    fire_minutes = {10: 5, 13: 5, 14: 32}
+    last_fired_date = None
+    last_fired_slot = None
+    while True:
+        try:
+            now = datetime.now()
+            # 仅 A 股交易日
+            if is_trading_day(now) and now.hour in fire_minutes:
+                slot_key = (now.date(), now.hour, fire_minutes[now.hour])
+                if now.minute == fire_minutes[now.hour] and slot_key != last_fired_slot:
+                    last_fired_slot = slot_key
+                    snapshot_time = f"{now.hour:02d}:{now.minute:02d}"
+                    trade_date = now.strftime("%Y-%m-%d")
+                    print(f"[调度] 触发 {trade_date} {snapshot_time} 盘中快照采样")
+                    for code in SNAPSHOT_FUND_CODES:
+                        await take_intraday_snapshot(code, snapshot_time)
+                    last_fired_date = now.date()
+        except Exception as e:
+            print(f"[调度] 异常: {e}")
+        await _asyncio.sleep(30)  # 每 30 秒检查一次
+
+
+async def daily_model_fitter():
+    """每天 20:30 自动重跑多因子回归 + 指数残差统计
+    启动时也跑一次（冷启动 / 重启恢复）"""
+    import asyncio as _asyncio
+    last_run_date = None
+    while True:
+        try:
+            now = datetime.now()
+            today = now.date()
+            # 20:30 后跑一次/天
+            if now.hour >= 20 and now.minute >= 30 and last_run_date != today:
+                print(f"[自学习] 每日 20:30 模型自学习开始")
+                for code, cfg in FUND_SPECIFIC_MODELS.items():
+                    if cfg.get("type") == "multi_factor":
+                        try:
+                            fit_multi_factor_regression(code, days=20)
+                        except Exception as e:
+                            print(f"[自学习] {code} 回归失败: {e}")
+                last_run_date = today
+        except Exception as e:
+            print(f"[自学习] 异常: {e}")
+        await _asyncio.sleep(60)
+
+
+@app.on_event("startup")
+async def start_snapshot_scheduler():
+    """启动后台调度任务"""
+    import asyncio as _asyncio
+    _asyncio.create_task(snapshot_scheduler())
+    _asyncio.create_task(daily_model_fitter())
+    print(f"[启动] 盘中快照调度已启动，采样时点: {SNAPSHOT_TIMES}")
+    # 启动时立即跑一次多因子回归（冷启动 / 重启恢复）
+    import asyncio as _asyncio2
+    async def _initial_fit():
+        await _asyncio2.sleep(2)
+        for code, cfg in FUND_SPECIFIC_MODELS.items():
+            if cfg.get("type") == "multi_factor":
+                try:
+                    fit_multi_factor_regression(code, days=20)
+                except Exception as e:
+                    print(f"[启动] {code} 初始回归失败: {e}")
+    _asyncio2.create_task(_initial_fit())
+
+
+
+def is_trading_time() -> bool:
+    """判断当前是否为A股交易时间（工作日 9:30-15:00）"""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return False
+    if not is_trading_day():
+        return False
+    morning_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    afternoon_end = now.replace(hour=15, minute=0, second=0, microsecond=0)
+    return morning_start <= now <= afternoon_end
+
+
+def market_status() -> str:
+    """
+    市场状态（业务语义）：
+    - "trading": 工作日 9:30-15:00 → 盘中，估值在动，需要 30s 拉一次
+    - "closed": 其他时间（9:30 前 / 15:00 后 / 周末 / 节假日）
+                  → 基金当日净值已定（15:00 后披露），到下一交易日 9:30 前都没新数据
+                  → 整页缓存命中即可
+    """
+    return "trading" if is_trading_time() else "closed"
+
+
+def is_post_market() -> bool:
+    """判断当前是否为盘末（工作日 15:00 后到次日 9:30 前）
+    盘末特征：当日基金净值已定（15:00 后陆续披露），无"盘中估值"概念
+    - AI 综合分析只用 15:00 那一刻的快照数据（daily_change 实际涨跌）
+    - est_change 强制视为 0（盘末没有"实时估值"语义）
+    """
+    if not is_trading_day():
+        return True  # 周末/节假日也算盘末
+    now = datetime.now()
+    cutoff = now.replace(hour=15, minute=0, second=0, microsecond=0)
+    return now >= cutoff
+
+
+def should_fetch_estimation() -> bool:
+    """判断是否应该获取/使用估算数据（盘中 9:30-15:00）
+    盘中实时拉 fundgz 估算净值；盘末（15:00 后）不再拉，est 视为无效
+    """
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return False
+    if is_post_market():
+        return False  # 盘末不 fetch est（daily_change 才是真相）
+    morning_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    return now >= morning_start
+
+
+# 获取当前目录（backend）
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+EST_CACHE_FILE = os.path.join(current_dir, "est_cache.json")
+CORRECTION_CACHE_FILE = os.path.join(current_dir, "correction_cache.json")
+# === 盘中估值快照：每天 10:00 / 13:00 / 14:30 三个时点的 gsz 估值 ===
+INTRADAY_SNAPSHOTS_FILE = os.path.join(current_dir, "intraday_snapshots.json")
+# 采样时点（HH:MM）
+SNAPSHOT_TIMES = ["10:00", "13:00", "14:30"]
+# === A 股交易日历 ===
+TRADING_CALENDAR_FILE = os.path.join(current_dir, "trading_calendar.json")
+
+# === 基金专用模型配置 ===
+# 每只基金单独设计最优模型
+FUND_SPECIFIC_MODELS = {
+    "011609": {  # 易方达上证科创50联接C（被动指数联接基金）
+        "type": "index_following",
+        "benchmark_code": "sh000688",  # 上证科创板50成份指数
+        "benchmark_name": "科创50",
+        "description": "被动跟踪科创50指数，残差 = fund_actual - 科创50_actual"
+    },
+    "004746": {  # 易方达上证50增强C（增强型指数）
+        "type": "multi_factor",
+        "factors": [
+            {"code": "sh000016", "name": "上证50", "default_weight": 0.85},
+            {"code": "sh000300", "name": "沪深300", "default_weight": 0.10},
+            {"code": "sh000905", "name": "中证500", "default_weight": 0.05},
+        ],
+        "description": "增强型指数，多因子加权回归（α + β·上证50 + γ·沪深300 + δ·中证500）"
+    },
+    "020741": {  # 华泰保兴安悦债券C（纯债基金）
+        "type": "bond_baseline",
+        "baseline_window": 5,
+        "description": "纯债基线：5日滚动均值(短期趋势) + gsz残差修正(gsz常为0.00%的偏差)"
+    }
+}
+
+# 实时指数缓存 {code: (timestamp, data)}，60 秒复用
+REALTIME_INDEX_CACHE = {}
+REALTIME_INDEX_TTL = 60  # 秒
+# 指数残差样本（独立于 gsz 残差）
+INDEX_RESIDUAL_FILE = os.path.join(current_dir, "index_residual_cache.json")
+INDEX_RESIDUAL_CACHE = {}
+
+# 多因子回归系数缓存（每天 20:00 后用历史 N 天基金+指数实际涨跌拟合）
+# 结构: { "004746": {"alpha": -0.01, "weights": {"sh000016": 0.82, "sh000300": 0.11, "sh000905": 0.05},
+#                   "r_squared": 0.95, "sample_days": 20, "last_update": "2026-07-10"} }
+MULTI_FACTOR_FILE = os.path.join(current_dir, "multi_factor_regression.json")
+MULTI_FACTOR_REGRESSION = {}
+
+# 2026 年 A 股法定休市日（基于历史规律估算）
+A_SHARE_HOLIDAYS_2026 = {
+    "2026-01-01", "2026-01-02", "2026-01-03",       # 元旦
+    "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19",
+    "2026-02-20", "2026-02-21", "2026-02-22", "2026-02-23",  # 春节
+    "2026-02-24",
+    "2026-04-04", "2026-04-05", "2026-04-06",       # 清明
+    "2026-05-01", "2026-05-02", "2026-05-03",
+    "2026-05-04", "2026-05-05",                      # 劳动节
+    "2026-06-19", "2026-06-20", "2026-06-21",       # 端午
+    "2026-09-25", "2026-09-26", "2026-09-27",       # 中秋
+    "2026-10-01", "2026-10-02", "2026-10-03",
+    "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07",  # 国庆
+    "2026-10-08",
+}
+
+
+def load_trading_calendar() -> dict:
+    """加载交易日历配置
+    结构: {"holidays": ["2026-01-01", ...], "extra_workdays": ["2026-02-14", ...]}
+    """
+    if not os.path.exists(TRADING_CALENDAR_FILE):
+        return {"holidays": sorted(list(A_SHARE_HOLIDAYS_2026)), "extra_workdays": []}
+    try:
+        with open(TRADING_CALENDAR_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {"holidays": sorted(list(A_SHARE_HOLIDAYS_2026)), "extra_workdays": []}
+
+
+def save_trading_calendar(data: dict):
+    try:
+        with open(TRADING_CALENDAR_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def is_trading_day(d: Optional[datetime] = None) -> bool:
+    """判断指定日期是否为 A 股交易日：非周末 且 不在 holidays 列表中"""
+    if d is None:
+        d = datetime.now()
+    if d.weekday() >= 5:  # 周六周日
+        return False
+    date_str = d.strftime("%Y-%m-%d")
+    cal = load_trading_calendar()
+    if date_str in cal.get("holidays", []):
+        return False
+    return True
+
+
+# ============= 实时指数 + 基金专用模型 =============
+
+def load_index_residual_cache() -> dict:
+    """加载指数残差缓存（独立于 gsz 残差）
+    结构:
+    {
+      "_meta": {"max_samples": 60},
+      "011609": {
+        "samples": [{"date":"2026-07-10","benchmark_change":-5.53,"actual_change":-5.25,"residual":+0.28}],
+        "mean_residual": ..., "std_residual": ..., "sample_count": ...
+      }
+    }
+    """
+    if not os.path.exists(INDEX_RESIDUAL_FILE):
+        return {"_meta": {"max_samples": 60}}
+    try:
+        with open(INDEX_RESIDUAL_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {"_meta": {"max_samples": 60}}
+
+
+def save_index_residual_cache(data: dict):
+    try:
+        with open(INDEX_RESIDUAL_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+async def fetch_realtime_index(code: str) -> dict:
+    """从腾讯财经接口获取实时指数数据
+    返回: {name, current, previous, change_amt, change_pct, time_str}
+    60 秒内复用缓存
+    """
+    import time
+    now = time.time()
+    if code in REALTIME_INDEX_CACHE:
+        ts, data = REALTIME_INDEX_CACHE[code]
+        if now - ts < REALTIME_INDEX_TTL and data:
+            return data
+    try:
+        url = f"https://qt.gtimg.cn/q={code}"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            text = r.text.strip()
+        m = re.search(r'="([^"]+)"', text)
+        if not m:
+            return {}
+        parts = m.group(1).split('~')
+        if len(parts) < 33:
+            return {}
+        # 关键字段位置：name=1, code=2, current=3, previous=4, change_amt=31, change_pct=32
+        result = {
+            "code": code,
+            "name": parts[1],
+            "current": float(parts[3]),
+            "previous": float(parts[4]),
+            "change_amt": float(parts[31]),
+            "change_pct": float(parts[32]),
+            "time_str": parts[30] if len(parts) > 30 else ""
+        }
+        REALTIME_INDEX_CACHE[code] = (now, result)
+        return result
+    except Exception as e:
+        print(f"[实时指数] {code} 获取失败: {e}")
+        return {}
+
+def record_index_residual(fund_code: str, benchmark_change: float, actual_change: float, trade_date: str):
+    """记录一条指数残差样本
+    residual = actual - benchmark，正值表示基金跑赢基准
+    """
+    if abs(benchmark_change) < 0.01 or actual_change == 0:
+        return
+    if not trade_date:
+        trade_date = datetime.now().strftime("%Y-%m-%d")
+    fund_entry = INDEX_RESIDUAL_CACHE.setdefault(fund_code, {"samples": []})
+    samples = fund_entry.setdefault("samples", [])
+    # 同一天去重
+    samples = [s for s in samples if s.get("date") != trade_date]
+    samples.append({
+        "date": trade_date,
+        "benchmark_change": round(benchmark_change, 3),
+        "actual_change": round(actual_change, 3),
+        "residual": round(actual_change - benchmark_change, 3)
+    })
+    max_n = INDEX_RESIDUAL_CACHE.get("_meta", {}).get("max_samples", 60)
+    samples = samples[-max_n:]
+    fund_entry["samples"] = samples
+    # 统计
+    residuals = [s["residual"] for s in samples]
+    n = len(residuals)
+    mean_r = round(sum(residuals) / n, 4) if n > 0 else 0.0
+    if n >= 2:
+        var_r = sum((x - mean_r) ** 2 for x in residuals) / (n - 1)
+        std_r = round(var_r ** 0.5, 4)
+    else:
+        std_r = 0.0
+    if n >= 5:
+        confidence = "high"
+    elif n >= 3:
+        confidence = "medium"
+    elif n >= 1:
+        confidence = "low"
+    else:
+        confidence = "none"
+    fund_entry["mean_residual"] = mean_r
+    fund_entry["std_residual"] = std_r
+    fund_entry["sample_count"] = n
+    fund_entry["confidence"] = confidence
+    fund_entry["last_residual"] = residuals[-1] if residuals else 0
+    fund_entry["last_update"] = trade_date
+    save_index_residual_cache(INDEX_RESIDUAL_CACHE)
+
+
+def get_index_model_estimate(fund_code: str) -> dict:
+    """根据基金专用模型计算指数残差修正估值
+    返回: {enabled, model_type, estimated_change, benchmark_change, offset, sample_count, confidence}
+    """
+    model = FUND_SPECIFIC_MODELS.get(fund_code, {})
+    model_type = model.get("type", "residual_only")
+    stats = INDEX_RESIDUAL_CACHE.get(fund_code, {})
+    n = stats.get("sample_count", 0)
+    confidence = stats.get("confidence", "none")
+    mean_r = stats.get("mean_residual", 0.0)
+    enabled = n >= 3 and confidence in ("medium", "high")
+    return {
+        "model_type": model_type,
+        "enabled": enabled,
+        "offset": mean_r if enabled else 0.0,
+        "std": stats.get("std_residual", 0.0),
+        "sample_count": n,
+        "confidence": confidence
+    }
+
+
+async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_date: str):
+    """统一的基金专用模型计算入口
+    1. index_following: 实时指数 + 残差修正
+    2. multi_factor: 多指数加权 + 残差修正
+    3. residual_only: 返回 (None, None, "") 由调用方自己处理 gsz 残差
+
+    返回: (model_estimated_change, model_benchmark_change, model_benchmark_name)
+          任何字段返回 None 表示该字段未计算
+    """
+    import asyncio as _aio
+    model_config = FUND_SPECIFIC_MODELS.get(fund_code, {})
+    model_type = model_config.get("type", "residual_only")
+
+    if model_type == "residual_only":
+        return None, None, ""
+
+    if model_type == "index_following":
+        idx_code = model_config.get("benchmark_code", "")
+        bench_name = model_config.get("benchmark_name", "")
+        idx_data = await fetch_realtime_index(idx_code)
+        if not idx_data:
+            return None, None, bench_name
+        bench_change = idx_data.get("change_pct", 0.0)
+        # 20:00+ 实际净值已出，记录指数残差（仅当基准变化够大）
+        if daily_change != 0 and datetime.now().hour >= 20 and abs(bench_change) > 0.01:
+            record_index_residual(fund_code, bench_change, daily_change, nav_date)
+        model_stats = get_index_model_estimate(fund_code)
+        if model_stats["enabled"]:
+            est = round(bench_change + model_stats["offset"], 3)
+        else:
+            est = bench_change
+        return est, bench_change, bench_name
+
+    if model_type == "multi_factor":
+        # 优先用回归系数（如已拟合），否则用默认权重
+        factors = model_config.get("factors", [])
+        weights = MULTI_FACTOR_REGRESSION.get(fund_code, {}).get("weights") or {
+            f["code"]: f.get("default_weight", 0.0) for f in factors
+        }
+        # 并发拉取所有因子指数（避免串行等待）
+        idx_results = await _aio.gather(*[fetch_realtime_index(f["code"]) for f in factors])
+        weighted_change = 0.0
+        total_weight = 0.0
+        names = []
+        for f, idx in zip(factors, idx_results):
+            code = f["code"]
+            w = weights.get(code, 0.0)
+            if idx and w > 0:
+                weighted_change += w * idx.get("change_pct", 0.0)
+                total_weight += w
+                names.append(f.get("name", ""))
+        if total_weight == 0:
+            return None, None, ""
+        bench_change = round(weighted_change / total_weight, 3)
+        bench_name = "+".join(names)
+        # 20:00+ 记录指数残差
+        if daily_change != 0 and datetime.now().hour >= 20:
+            record_index_residual(fund_code, bench_change, daily_change, nav_date)
+        model_stats = get_index_model_estimate(fund_code)
+        if model_stats["enabled"]:
+            est = round(bench_change + model_stats["offset"], 3)
+        else:
+            est = bench_change
+        return est, bench_change, bench_name
+
+    if model_type == "bond_baseline":
+        # 纯债基线：5日滚动均值(短期趋势) + gsz残差修正
+        win = model_config.get("baseline_window", 5)
+        # 同步拉取最近 5 天历史（轻量）
+        recent_hist = fetch_fund_history_sync(fund_code, days=win + 2)
+        recent_changes = [h.get("daily_change") for h in recent_hist
+                          if h.get("daily_change") is not None][-win:]
+        if len(recent_changes) < 3:
+            # 数据不足时退化为残差修正
+            model_stats = get_index_model_estimate(fund_code)
+            cstats = get_correction_stats(fund_code)
+            offset = cstats.get("mean_residual", 0.0) if cstats.get("sample_count", 0) >= 3 else 0.0
+            return round(offset, 3), 0.0, "gsz残差"
+        baseline = round(sum(recent_changes) / len(recent_changes), 4)
+        # 叠加 gsz 残差（如果有 ≥3 样本）
+        cstats = get_correction_stats(fund_code)
+        residual_offset = 0.0
+        if cstats.get("sample_count", 0) >= 3:
+            residual_offset = cstats.get("mean_residual", 0.0)
+        est = round(baseline + residual_offset, 3)
+        # 用最近 N 天的标准差作为"预测区间"参考（用于 UI 显示）
+        std = round((sum((x - baseline) ** 2 for x in recent_changes) / max(1, len(recent_changes) - 1)) ** 0.5, 4)
+        return est, baseline, f"5日均值 {std:.4f}%"
+
+    return None, None, ""
+
+
+INDEX_RESIDUAL_CACHE = load_index_residual_cache()
+
+
+# ============= 多因子回归（每日 20:00 后自学习） =============
+
+def load_multi_factor() -> dict:
+    if not os.path.exists(MULTI_FACTOR_FILE):
+        return {}
+    try:
+        with open(MULTI_FACTOR_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_multi_factor(data: dict):
+    try:
+        with open(MULTI_FACTOR_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def fit_multi_factor_regression(fund_code: str, days: int = 20) -> dict:
+    """用最近 N 天的 [基金实际涨跌] vs [各指数实际涨跌] 拟合线性回归
+    返回: {alpha, weights: {code: w}, r_squared, sample_days, last_update}
+    """
+    model = FUND_SPECIFIC_MODELS.get(fund_code, {})
+    if model.get("type") != "multi_factor":
+        return {}
+    factors = model.get("factors", [])
+    if not factors:
+        return {}
+    try:
+        # 异步历史已经在外面 fetch 过，这里用同步辅助函数重新拉一次
+        from datetime import timedelta
+        fund_hist = fetch_fund_history_sync(fund_code, days=days + 5)
+        if not fund_hist or len(fund_hist) < 10:
+            return {}
+        # fund_hist: [{date, close, daily_change}]，按日期升序
+        # 收集每天的 (fund_change, {idx_code: idx_change})
+        rows = []
+        for h in fund_hist:
+            d = h.get("date", "")
+            fc = h.get("daily_change")
+            if fc is None:
+                continue
+            idx_changes = {}
+            ok = True
+            for f in factors:
+                idx_code = f["code"]
+                idx_hist = fetch_index_history_sync(idx_code, days=days + 5)
+                idx_row = next((x for x in idx_hist if x.get("date") == d), None)
+                if not idx_row or idx_row.get("change") is None:
+                    ok = False
+                    break
+                idx_changes[idx_code] = idx_row["change"]
+            if ok:
+                rows.append({"date": d, "fund": fc, "idx": idx_changes})
+        if len(rows) < 10:
+            return {}
+        # 最小二乘：fund = alpha + sum(beta_i * idx_i)
+        # 用闭式解
+        codes = [f["code"] for f in factors]
+        n = len(rows)
+        k = len(codes)
+        # 设计矩阵 X: [1, idx_1, idx_2, ...]; y: fund
+        import numpy as np
+        X = np.array([[1.0] + [r["idx"][c] for c in codes] for r in rows])
+        y = np.array([r["fund"] for r in rows])
+        # 正规方程 beta = (X'X)^-1 X'y
+        try:
+            beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+        except Exception:
+            return {}
+        alpha = float(beta[0])
+        weights = {codes[i]: round(float(beta[i + 1]), 4) for i in range(k)}
+        # R²
+        y_pred = X @ beta
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - y.mean()) ** 2))
+        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        result = {
+            "alpha": round(alpha, 4),
+            "weights": weights,
+            "r_squared": round(r2, 4),
+            "sample_days": n,
+            "last_update": datetime.now().strftime("%Y-%m-%d")
+        }
+        MULTI_FACTOR_REGRESSION[fund_code] = result
+        save_multi_factor(MULTI_FACTOR_REGRESSION)
+        print(f"[多因子回归] {fund_code} 拟合完成: alpha={alpha:.4f}, weights={weights}, R²={r2:.4f}, n={n}")
+        return result
+    except ImportError:
+        # numpy 不可用 → 用纯 Python 实现
+        return _fit_multi_factor_pure_python(fund_code, factors, days)
+    except Exception as e:
+        print(f"[多因子回归] {fund_code} 失败: {e}")
+        return {}
+
+
+def _fit_multi_factor_pure_python(fund_code: str, factors: list, days: int) -> dict:
+    """无 numpy 时的纯 Python OLS 拟合"""
+    fund_hist = fetch_fund_history_sync(fund_code, days=days + 5)
+    if not fund_hist or len(fund_hist) < 10:
+        return {}
+    rows = []
+    for h in fund_hist:
+        d = h.get("date", "")
+        fc = h.get("daily_change")
+        if fc is None:
+            continue
+        idx_changes = {}
+        ok = True
+        for f in factors:
+            idx_code = f["code"]
+            idx_hist = fetch_index_history_sync(idx_code, days=days + 5)
+            idx_row = next((x for x in idx_hist if x.get("date") == d), None)
+            if not idx_row or idx_row.get("change") is None:
+                ok = False
+                break
+            idx_changes[idx_code] = idx_row["change"]
+        if ok:
+            rows.append({"date": d, "fund": fc, "idx": idx_changes})
+    if len(rows) < 10:
+        return {}
+    codes = [f["code"] for f in factors]
+    n = len(rows)
+    k = len(codes)
+    # 用高斯消元法解正规方程 X'X β = X'y
+    # 构造 X'X (k+1)x(k+1) 和 X'y (k+1,)
+    XtX = [[0.0] * (k + 1) for _ in range(k + 1)]
+    Xty = [0.0] * (k + 1)
+    for r in rows:
+        x = [1.0] + [r["idx"][c] for c in codes]
+        y = r["fund"]
+        for i in range(k + 1):
+            Xty[i] += x[i] * y
+            for j in range(k + 1):
+                XtX[i][j] += x[i] * x[j]
+    # 高斯消元
+    def solve(A, b):
+        n = len(b)
+        for i in range(n):
+            # 选主元
+            mx = abs(A[i][i])
+            piv = i
+            for r in range(i + 1, n):
+                if abs(A[r][i]) > mx:
+                    mx = abs(A[r][i])
+                    piv = r
+            A[i], A[piv] = A[piv], A[i]
+            b[i], b[piv] = b[piv], b[i]
+            if abs(A[i][i]) < 1e-12:
+                return None
+            for r in range(i + 1, n):
+                f = A[r][i] / A[i][i]
+                for c in range(i, n):
+                    A[r][c] -= f * A[i][c]
+                b[r] -= f * b[i]
+        # 回代
+        x = [0.0] * n
+        for i in range(n - 1, -1, -1):
+            x[i] = (b[i] - sum(A[i][j] * x[j] for j in range(i + 1, n))) / A[i][i]
+        return x
+    beta = solve([row[:] for row in XtX], Xty[:])
+    if not beta:
+        return {}
+    alpha = beta[0]
+    weights = {codes[i]: round(beta[i + 1], 4) for i in range(k)}
+    # R²
+    y_mean = sum(r["fund"] for r in rows) / n
+    ss_res = 0.0
+    ss_tot = 0.0
+    for r in rows:
+        y = r["fund"]
+        y_pred = alpha + sum(weights[c] * r["idx"][c] for c in codes)
+        ss_res += (y - y_pred) ** 2
+        ss_tot += (y - y_mean) ** 2
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    result = {
+        "alpha": round(alpha, 4),
+        "weights": weights,
+        "r_squared": round(r2, 4),
+        "sample_days": n,
+        "last_update": datetime.now().strftime("%Y-%m-%d")
+    }
+    MULTI_FACTOR_REGRESSION[fund_code] = result
+    save_multi_factor(MULTI_FACTOR_REGRESSION)
+    print(f"[多因子回归-PP] {fund_code} 拟合完成: alpha={alpha:.4f}, weights={weights}, R²={r2:.4f}, n={n}")
+    return result
+
+
+# 同步辅助函数（多因子回归需要）—— 复用 fetch_fund_history 的接口但用同步 HTTP
+def fetch_fund_history_sync(fund_code: str, days: int = 30) -> list:
+    """同步拉取基金历史净值（用于多因子回归）"""
+    import requests as _req
+    url = f"http://api.fund.eastmoney.com/f10/lsjz"
+    params = {
+        "fundCode": fund_code, "pageIndex": 1, "pageSize": days,
+        "mode": "1", "_": int(datetime.now().timestamp() * 1000)
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": f"http://fundf10.eastmoney.com/jjjz_{fund_code}.html"
+    }
+    try:
+        r = _req.get(url, params=params, headers=headers, timeout=8)
+        data = r.json()
+    except Exception:
+        return []
+    rows = []
+    prev_close = None
+    for item in reversed(data.get("Data", {}).get("LSJZList", [])):
+        try:
+            nav = float(item.get("DWJZ") or item.get("NAV") or 0)
+            if nav <= 0:
+                continue
+            d = item.get("FSRQ", "")[:10]
+            daily_change = None
+            if prev_close is not None and prev_close > 0:
+                daily_change = round((nav - prev_close) / prev_close * 100, 3)
+            rows.append({"date": d, "close": nav, "daily_change": daily_change})
+            prev_close = nav
+        except Exception:
+            continue
+    return rows
+
+
+def fetch_index_history_sync(index_code: str, days: int = 30) -> list:
+    """同步拉取指数历史（日线收盘 + 当日涨跌幅）
+    使用腾讯 K 线接口（与 fetch_realtime_index 同源，更稳定）
+    返回: [{date, close, change}, ...] 升序
+    """
+    import requests as _req
+    url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param={index_code},day,,,{days + 5},qfq&r=0.1"
+    try:
+        r = _req.get(url, headers=HTTP_HEADERS, timeout=8)
+        r.raise_for_status()
+    except Exception as e:
+        print(f"[指数历史] {index_code} 拉取失败: {e}")
+        return []
+    text = r.text
+    # 复用 _parse_tencent_kline
+    raw = _parse_tencent_kline(text, index_code)
+    if not raw:
+        return []
+    # raw: [(date, close, open), ...] 升序
+    rows = []
+    for i, item in enumerate(raw):
+        if len(item) < 2:
+            continue
+        d, close = item[0], item[1]
+        if i == 0:
+            change = None
+        else:
+            prev_close = raw[i - 1][1]
+            change = round((close - prev_close) / prev_close * 100, 3) if prev_close > 0 else None
+        rows.append({"date": d, "close": close, "change": change})
+    return rows
+
+
+MULTI_FACTOR_REGRESSION = load_multi_factor()
+
+
+def load_correction_cache() -> dict:
+    """加载残差修正缓存
+    结构:
+    {
+      "_meta": {"last_update": "2026-07-10", "max_samples": 20},
+      "011609": {
+        "samples": [
+          {"date": "2026-07-09", "est_change": -0.42, "actual_change": -0.31, "residual": 0.11}
+        ],
+        "mean_residual": 0.05,
+        "std_residual": 0.03,
+        "sample_count": 8,
+        "confidence": "high"   # high(>=5) / medium(>=3) / low(<3) / none
+      }
+    }
+    """
+    if not os.path.exists(CORRECTION_CACHE_FILE):
+        return {"_meta": {"last_update": "", "max_samples": 20}}
+    try:
+        with open(CORRECTION_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {"_meta": {"last_update": "", "max_samples": 20}}
+
+
+def save_correction_cache(data: dict):
+    """保存残差修正缓存"""
+    try:
+        data.setdefault("_meta", {})["last_update"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        with open(CORRECTION_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def get_correction_stats(fund_code: str) -> dict:
+    """获取某只基金的残差修正统计"""
+    return CORRECTION_CACHE.get(fund_code, {})
+
+
+def get_last_est_change(fund_code: str) -> float:
+    """从 correction_cache 中取最近一次（非今天）的 est_change
+    用于未开盘时显示"上一交易日预估"参考
+    """
+    entry = CORRECTION_CACHE.get(fund_code, {})
+    samples = entry.get("samples", []) or []
+    if not samples:
+        return 0.0
+    today = datetime.now().strftime("%Y-%m-%d")
+    # 按 (date, time) 倒序：取最大 date，date 相同时取最大 time
+    def _key(s):
+        return (s.get("date", ""), s.get("time", ""))
+    sorted_samples = sorted(samples, key=_key, reverse=True)
+    for s in sorted_samples:
+        d = s.get("date", "")
+        if d and d != today:
+            try:
+                return round(float(s.get("est_change", 0)), 2)
+            except (ValueError, TypeError):
+                return 0.0
+    return 0.0
+
+
+def record_residual(fund_code: str, est_change: float, actual_change: float, trade_date: str, sample_time: str = ""):
+    """记录一条残差样本
+    residual = actual - est，正值表示天天基金低估了跌幅/高估了涨幅
+    est_change 因 gsz 接口精度会四舍五入到 0；actual_change 为 0 才是真无数据
+    sample_time: 快照时点（如 "10:05"），用于区分同一天多个采样点
+    020741 (纯债) 特殊：gsz 经常返回 0.00%，但 actual 可能 0.03%+
+    → 只要 actual 足够大（≥0.02%）就接受，即使 est 接近 0
+    """
+    if actual_change == 0:
+        return
+    if not trade_date:
+        trade_date = datetime.now().strftime("%Y-%m-%d")
+
+    # 纯债基金：actual 足够大就接受（gsz 四舍五入为 0 实际可能 0.03%+）
+    if fund_code == "020741":
+        if abs(actual_change) < 0.02 and abs(est_change) < 0.005:
+            return  # 两者都极小，无意义
+    else:
+        if abs(est_change) < 0.005:
+            return  # 股票基金严格要求 est 有意义
+
+    fund_entry = CORRECTION_CACHE.setdefault(fund_code, {"samples": []})
+    samples = fund_entry.setdefault("samples", [])
+
+    # 去重：同一天+同时点只保留一条（允许多时点样本共存）
+    def _same(s):
+        return s.get("date") == trade_date and (s.get("time") or "") == (sample_time or "")
+
+    samples = [s for s in samples if not _same(s)]
+    samples.append({
+        "date": trade_date,
+        "time": sample_time,  # 快照时点
+        "est_change": round(est_change, 3),
+        "actual_change": round(actual_change, 3),
+        "residual": round(actual_change - est_change, 3)
+    })
+    # 只保留最近 60 个样本（多时点+多日）
+    max_samples = CORRECTION_CACHE.get("_meta", {}).get("max_samples", 60)
+    samples = samples[-max_samples:]
+    fund_entry["samples"] = samples
+
+    # 计算均值/标准差/置信度
+    residuals = [s["residual"] for s in samples]
+    n = len(residuals)
+    mean_r = round(sum(residuals) / n, 4)
+    if n >= 2:
+        var_r = sum((x - mean_r) ** 2 for x in residuals) / (n - 1)
+        std_r = round(var_r ** 0.5, 4)
+    else:
+        std_r = 0.0
+
+    if n >= 5:
+        confidence = "high"
+    elif n >= 3:
+        confidence = "medium"
+    elif n >= 1:
+        confidence = "low"
+    else:
+        confidence = "none"
+
+    fund_entry["mean_residual"] = mean_r
+    fund_entry["std_residual"] = std_r
+    fund_entry["sample_count"] = n
+    fund_entry["confidence"] = confidence
+    fund_entry["last_residual"] = residuals[-1]
+    fund_entry["last_update"] = trade_date
+
+    save_correction_cache(CORRECTION_CACHE)
+
+
+def get_effective_correction(fund_code: str) -> dict:
+    """获取某只基金当前可用的修正系数
+    返回: {offset, std, confidence, sample_count, enabled}
+    """
+    stats = get_correction_stats(fund_code)
+    n = stats.get("sample_count", 0)
+    confidence = stats.get("confidence", "none")
+    mean_r = stats.get("mean_residual", 0.0)
+    std_r = stats.get("std_residual", 0.0)
+    # 至少 3 个样本才启用修正，避免冷启动噪声
+    enabled = n >= 3 and confidence in ("medium", "high")
+    # 对债券基金更保守：要求 std 不能太大
+    return {
+        "offset": mean_r if enabled else 0.0,
+        "std": std_r,
+        "confidence": confidence,
+        "sample_count": n,
+        "enabled": enabled
+    }
+
+
+def has_today_residual(fund_code: str, trade_date: str) -> bool:
+    """检查某只基金在指定交易日是否已记录过残差"""
+    if not trade_date:
+        return False
+    stats = get_correction_stats(fund_code)
+    for s in stats.get("samples", []):
+        if s.get("date") == trade_date:
+            return True
+    return False
+
+
+CORRECTION_CACHE = load_correction_cache()
+
+
+# ============= 盘中估值快照（多时点） =============
+
+def load_intraday_snapshots() -> dict:
+    """加载盘中估值快照
+    结构:
+    {
+      "_meta": {"max_snapshots_per_fund": 60, "snapshot_times": ["10:00","13:00","14:30"]},
+      "011609": {
+        "samples": [
+          {"date": "2026-07-10", "time": "10:05", "est_change": -0.85, "actual_change": -5.25, "residual": -4.40},
+          {"date": "2026-07-10", "time": "13:05", "est_change": -3.10, "actual_change": -5.25, "residual": -2.15},
+          {"date": "2026-07-10", "time": "14:32", "est_change": -5.20, "actual_change": -5.25, "residual": -0.05}
+        ]
+      }
+    }
+    """
+    if not os.path.exists(INTRADAY_SNAPSHOTS_FILE):
+        return {"_meta": {"max_snapshots_per_fund": 60, "snapshot_times": SNAPSHOT_TIMES}}
+    try:
+        with open(INTRADAY_SNAPSHOTS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        data.setdefault("_meta", {})["snapshot_times"] = SNAPSHOT_TIMES
+        return data
+    except Exception:
+        return {"_meta": {"max_snapshots_per_fund": 60, "snapshot_times": SNAPSHOT_TIMES}}
+
+
+def save_intraday_snapshots(data: dict):
+    try:
+        with open(INTRADAY_SNAPSHOTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def has_today_snapshot(fund_code: str, trade_date: str, snapshot_time: str) -> bool:
+    """检查某只基金在指定日期+时点是否已有快照"""
+    if not trade_date or not snapshot_time:
+        return False
+    data = INTRADAY_SNAPSHOTS
+    samples = data.get(fund_code, {}).get("samples", [])
+    for s in samples:
+        if s.get("date") == trade_date and s.get("time", "").startswith(snapshot_time[:5]):
+            return True
+    return False
+
+
+async def take_intraday_snapshot(fund_code: str, snapshot_time: str):
+    """对单只基金在指定时点采集 gsz 估值快照（后台任务调用）"""
+    try:
+        url = f"https://fundgz.1234567.com.cn/js/{fund_code}.js?rt=1"
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(url, headers={**HTTP_HEADERS, "Referer": "https://fund.eastmoney.com/"})
+            text = r.text
+        m = re.search(r'jsonpgz\((.*)\)', text, re.S)
+        if not m:
+            return
+        data = json.loads(m.group(1))
+        gszzl = data.get('gszzl', '')
+        if not gszzl or gszzl in ('null', '-'):
+            return
+        if abs(float(gszzl)) < 0.005:
+            return  # 债券基金 gsz 精度限制，跳过
+        est_change = round(float(gszzl), 3)
+        trade_date = datetime.now().strftime("%Y-%m-%d")
+        # 同一日期+时点去重
+        fund_entry = INTRADAY_SNAPSHOTS.setdefault(fund_code, {"samples": []})
+        samples = fund_entry.setdefault("samples", [])
+        samples = [s for s in samples if not (s.get("date") == trade_date and s.get("time", "").startswith(snapshot_time[:5]))]
+        samples.append({
+            "date": trade_date,
+            "time": snapshot_time,
+            "est_change": est_change,
+            "actual_change": 0.0,  # 收盘后补全
+            "residual": 0.0
+        })
+        max_n = INTRADAY_SNAPSHOTS.get("_meta", {}).get("max_snapshots_per_fund", 60)
+        samples = samples[-max_n:]
+        fund_entry["samples"] = samples
+        save_intraday_snapshots(INTRADAY_SNAPSHOTS)
+        print(f"[快照] {fund_code} {trade_date} {snapshot_time} 估值={est_change:+.3f}%")
+    except Exception as e:
+        print(f"[快照] {fund_code} {snapshot_time} 失败: {e}")
+
+
+def finalize_day_snapshots(trade_date: str, fund_data_lookup: dict):
+    """对指定日期所有已采集的快照，用实际涨跌补全 residual 并写入 CORRECTION_CACHE
+    fund_data_lookup: {fund_code: daily_change}
+    """
+    if not trade_date:
+        return
+    for fund_code, daily_change in fund_data_lookup.items():
+        if daily_change == 0:
+            continue
+        fund_entry = INTRADAY_SNAPSHOTS.get(fund_code, {})
+        samples = fund_entry.get("samples", [])
+        updated = False
+        for s in samples:
+            if s.get("date") != trade_date:
+                continue
+            if s.get("actual_change", 0) == 0:
+                s["actual_change"] = round(daily_change, 3)
+                s["residual"] = round(daily_change - s.get("est_change", 0), 3)
+                updated = True
+        if updated:
+            # 把已 finalize 的快照写一份到 CORRECTION_CACHE（每个时点一个样本）
+            for s in samples:
+                if s.get("date") == trade_date and s.get("residual", 0) != 0:
+                    record_residual(fund_code, s["est_change"], s["actual_change"], trade_date, s.get("time", ""))
+            save_intraday_snapshots(INTRADAY_SNAPSHOTS)
+
+
+INTRADAY_SNAPSHOTS = load_intraday_snapshots()
+
+
+def load_est_cache() -> dict:
+    """从文件加载估算缓存，**不过期** —— 周末/节假日保留最后一个交易日的 gsz 估值
+    用户要求"预估永远是预估"，周末保持前一个交易时间的预估
+    """
+    if not os.path.exists(EST_CACHE_FILE):
+        return {}
+    try:
+        with open(EST_CACHE_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
+    except Exception:
+        return {}
+
+
+def save_est_cache(data: dict):
+    """保存估算缓存到文件，带日期标记"""
+    try:
+        data["_date"] = datetime.now().strftime("%Y-%m-%d")
+        with open(EST_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+EST_CACHE = load_est_cache()
+
+
+# ============= 基金历史净值持久化 =============
+# 每天只拉"最新 1 天"增量 append，避免每次强制刷新都重拉 30 天
+# 文件结构：{ "fund_code": [{"date": "2026-07-20", "nav": 1.5, "acc_nav": 1.5, "change": 0.3}, ...] }
+# 按日期升序，只保留最近 60 天（超过的自动裁掉）
+NAV_HISTORY_FILE = os.path.join(os.path.dirname(__file__), "nav_history.json")
+NAV_HISTORY_KEEP_DAYS = 60  # 文件里保留 60 天，远超实际使用 30 天
+
+def load_nav_history() -> dict:
+    """从文件加载历史净值，按 fund_code 分组"""
+    if not os.path.exists(NAV_HISTORY_FILE):
+        return {}
+    try:
+        with open(NAV_HISTORY_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_nav_history(data: dict):
+    """保存历史净值到文件（裁掉 60 天前的）"""
+    try:
+        cutoff = (datetime.now() - timedelta(days=NAV_HISTORY_KEEP_DAYS)).strftime("%Y-%m-%d")
+        for code in list(data.keys()):
+            data[code] = [r for r in data[code] if r.get("date", "") >= cutoff]
+            # 按日期升序
+            data[code].sort(key=lambda x: x.get("date", ""))
+        with open(NAV_HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"保存 nav_history 失败: {e}")
+
+NAV_HISTORY = load_nav_history()
+
+
+def get_cached_est(fund_code: str) -> dict:
+    """获取缓存的估算数据，保留最后一次有效数据（当日有效）"""
+    return EST_CACHE.get(fund_code, {})
+
+
+def set_cached_est(fund_code: str, est_nav: float, est_change: float, est_time: str):
+    """缓存估算数据（内存+文件）
+    _est_date: 标记 fetch 的日期，用于盘末/跨日时区分"今天的 15:00 锁定值"和"昨天/前几天的旧值"
+    """
+    EST_CACHE[fund_code] = {
+        "est_nav": est_nav,
+        "est_change": est_change,
+        "est_time": est_time,
+        "_est_date": datetime.now().strftime("%Y-%m-%d")
+    }
+    save_est_cache(EST_CACHE)
+
+# 获取web-app目录（当前目录的父目录）
+web_app_dir = os.path.dirname(current_dir)
+index_path = os.path.join(web_app_dir, "index.html")
+
+# 买点配置文件路径（持久化）
+buy_points_file = os.path.join(current_dir, "buy_points.json")
+
+# 挂载静态文件目录
+app.mount("/static", NoCacheStaticFiles(directory=current_dir), name="static")
+
+# 允许跨域访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============= 数据模型 =============
+
+class NavHistoryItem(BaseModel):
+    """单日净值历史条目"""
+    date: str          # 净值日期，如 2026-06-18
+    nav: float         # 单位净值
+    change: float      # 日涨跌 %
+    acc_nav: float = 0.0  # 累计净值
+
+
+class BuyPointInfo(BaseModel):
+    """买点信息 + 持有收益"""
+    cost_nav: float           # 成本净值（买入价/虚拟成本）
+    current_nav: float        # 当前净值
+    yield_pct: float          # 当前收益率 %
+    can_buy: bool             # 是否可以买（仅未持仓时有效）
+    drop_pct: float           # 距买点的距离 %（正数表示距离买点还有多少）
+    is_holding: bool = False  # 是否已经买入持有
+    buy_date: str = ""        # 买入日期
+    buy_price: float = 0.0    # 买入价格（等于cost_nav，冗余便于前端理解）
+    hold_days: int = 0        # 持有天数
+    total_return: float = 0.0  # 总收益率（相对买入价）%
+    yield_history: List[dict] = []  # 买入以来每日收益率
+    # === 买点进度与参考值 ===
+    hist_yield: float = 0.0   # 历史基准收益率（从配置）
+    buy_point_yield: float = 0.0  # 买点阈值收益率（hist_yield - 3%）
+    target_nav: float = 0.0   # 买点对应的净值（即达到买点阈值时的净值）
+    progress_pct: float = 0.0  # 买点进度百分比（0-100）
+
+
+class AIPrediction(BaseModel):
+    """AI预判信息"""
+    trend: str           # 趋势：上涨/下跌/震荡/观望
+    trend_emoji: str     # emoji图标
+    advice: str         # 预判建议
+    confidence: str      # 置信度：谨慎/中性/乐观
+    # 当日评估
+    est_nav: float = 0.0       # 估算净值（今日盘中）
+    est_change: float = 0.0    # 估算日涨跌 %
+    est_time: str = ""         # 估算时间
+    est_vs_last: float = 0.0   # 估算净值相对昨日净值涨跌 %
+    today_verdict: str = ""    # 当日判断：强势/偏弱/震荡等
+    # ============ 专业详细分析（前端折叠展示） ============
+    market_env: str = ""       # 市场环境分析（大盘/债市）
+    tech_analysis: str = ""     # 技术面分析（近N日走势、均线、极值）
+    position_advice: str = ""   # 仓位/操作建议（已持仓/未持仓分别给出）
+    risk_tips: str = ""        # 风险提示
+    key_metrics: str = ""      # 关键指标摘要（例如"7日波动率 / 最大回撤 / 连涨连跌天数"）
+    # ============ 增强分析 ============
+    valuation_position: str = ""  # 估值位置：当前净值在历史区间位置（百分位）
+    cost_performance: str = ""     # 性价比评估：低估/合理/高估
+    key_levels: str = ""          # 关键点位：支撑位、压力位
+    risk_level: str = ""          # 风险等级：低/中/高
+    # ============ 阶段性收益率 ============
+    return_7d: float = 0.0         # 近7日收益率
+    return_1m: float = 0.0         # 近1月收益率
+    return_6m: float = 0.0         # 近半年收益率
+
+
+class FundInfo(BaseModel):
+    """基金信息模型"""
+    code: str
+    name: str
+    type: str
+    current_nav: float
+    previous_nav: float
+    nav_date: str
+    daily_change: float
+    estimated: bool = False
+    estimated_nav: float = 0.0    # 今日估算净值
+    estimated_change: float = 0.0  # 估算日涨跌 %
+    estimated_time: str = ""       # 估算时间
+    history: List[NavHistoryItem] = []  # 历史净值（近130天，支持半年收益计算）
+    buy_point: BuyPointInfo = None      # 买点信息（含收益率）
+    ai_prediction: AIPrediction = None  # AI预判（含当日评估）
+    buy_point_ref_date: str = ""        # 买点起始日期
+    holdings: List[dict] = []           # 基金持仓（重仓股）
+    prev_est_change: float = 0.0        # 上一交易日预估涨跌（%），未开盘时显示用
+    # === 残差修正模型（自建估值） ===
+    corrected_estimated_change: float = 0.0   # 修正后的盘中估值涨跌 %
+    correction_offset: float = 0.0            # 当前应用的修正系数（%）
+    correction_std: float = 0.0               # 残差标准差（%）
+    correction_confidence: str = "none"       # none/low/medium/high
+    correction_sample_count: int = 0          # 历史样本数
+    # === 基金专用模型（指数跟随 / 多因子） ===
+    model_type: str = "residual_only"         # index_following / multi_factor / residual_only
+    model_estimated_change: float = 0.0       # 模型估值（更准）
+    model_benchmark_change: float = 0.0       # 基准指数实时涨跌 %
+    model_benchmark_name: str = ""            # 基准名称（科创50 / 上证50）
+    model_offset: float = 0.0                 # 基金-基准的均残差
+    model_std: float = 0.0
+    model_confidence: str = "none"
+    model_sample_count: int = 0
+    model_enabled: bool = False               # 样本 ≥ 3 时启用
+    # === 阶段性收益率（顶层汇总，从天天基金手机 API 抓取） ===
+    return_7d: float = 0.0       # 近7日累计收益率（%）
+    return_1m: float = 0.0       # 近1月累计收益率（%）
+    return_3m: float = 0.0       # 近3月累计收益率（%）
+    return_6m: float = 0.0       # 近6月累计收益率（%）
+
+
+class NewsItem(BaseModel):
+    """市场资讯条目模型"""
+    title: str
+    url: str
+    time: str = ""
+    sentiment: str = "neutral"   # bullish | bearish | neutral
+    tags: List[str] = []         # 事件标签，如 ["央行", "降准"]
+
+
+# 情绪判别关键词
+BULLISH_KEYWORDS = ["利好", "上涨", "突破", "创新高", "增长", "提速", "扩张", "超预期",
+                    "提振", "复苏", "企稳", "强势", "看涨", "走强", "放量", "回暖", "走高",
+                    "降准", "降息", "减税", "补贴", "扶持", "盈利", "业绩超", "盈利预增",
+                    "连涨", "收涨", "收高", "大涨", "飙升", "涨停", "拉升", "反弹",
+                    "新高", "增长超", "扭转", "盈利改善", "预喜", "中标", "签约", "回购股份",
+                    "增持", "回购", "分红", "派息", "获批", "提速", "扩张", "提速", "走升"]
+BEARISH_KEYWORDS = ["下跌", "下挫", "破位", "创新低", "下滑", "萎缩", "低于预期", "承压",
+                    "疲软", "看跌", "走弱", "缩量", "走低", "加息", "收紧", "去杠杆", "调控",
+                    "亏损", "减产", "风险", "违规", "处罚", "暴跌", "跳水", "跌停",
+                    "连跌", "收跌", "收低", "大跌", "重挫", "破发", "腰斩", "预减", "预亏",
+                    "诉讼", "起诉", "窃取", "侵权", "造假", "欺诈", "退市", "停牌", "ST",
+                    "诉讼", "调查", "处罚", "通报", "违规", "暴跌", "下挫", "重挫", "跳水",
+                    "危机", "动荡", "恐慌", "避险", "走弱", "走跌", "跌", "亏", "挫",
+                    "制裁", "限制", "禁令", "关税", "摩擦", "冲突", "瘫痪", "中断"]
+EVENT_TAGS = {
+    "央行": ["央行", "人民银行", "货币政策", "降准", "降息", "MLF", "逆回购", "LPR", "公开市场", "PBOC", "美联储", "Fed"],
+    "政策": ["政策", "改革", "规划", "意见", "方案", "指导", "通知", "文件", "国务院", "证监会", "银保监"],
+    "财报": ["业绩", "盈利", "营收", "利润", "季报", "年报", "中报", "财报", "净利润", "营收增长", "预增", "预减", "预亏", "预喜"],
+    "行业": ["行业", "板块", "产业链", "赛道", "概念股", "新能源", "半导体", "芯片", "光伏", "锂电", "汽车", "医药"],
+    "汇率": ["汇率", "人民币", "美元", "外汇", "离岸", "在岸", "日元", "欧元", "美元指数", "G10"],
+    "突发": ["紧急", "突发", "重大", "刚刚", "突发!", "突发:", "诉讼", "起诉", "调查", "制裁"],
+    "利率": ["利率", "回购", "票据", "国债", "债券", "美债", "美债收益率", "10年期", "10Y"],
+    "地缘": ["制裁", "战争", "冲突", "海峡", "霍尔木兹", "台海", "俄乌", "中东", "伊朗"],
+    "AI科技": ["AI", "人工智能", "OpenAI", "ChatGPT", "芯片", "半导体", "英伟达", "黄仁勋", "Meta", "微软", "谷歌", "Apple", "苹果"],
+}
+
+
+def classify_news(title: str) -> tuple:
+    """对单条新闻做情绪 + 事件标签判别
+    返回: (sentiment, tags)
+    """
+    # 情绪判别：先看利空（避免"业绩超预期"被错误判为"业绩"+利好，"业绩低于预期"应该被判为利空）
+    sentiment = "neutral"
+    bearish_hits = sum(1 for kw in BEARISH_KEYWORDS if kw in title)
+    bullish_hits = sum(1 for kw in BULLISH_KEYWORDS if kw in title)
+    if bearish_hits > bullish_hits:
+        sentiment = "bearish"
+    elif bullish_hits > bearish_hits:
+        sentiment = "bullish"
+    # 事件标签
+    tags = []
+    for tag, kws in EVENT_TAGS.items():
+        if any(kw in title for kw in kws):
+            tags.append(tag)
+            if len(tags) >= 3:
+                break
+    return sentiment, tags
+
+
+class IndexHistoryItem(BaseModel):
+    """指数单日历史"""
+    date: str
+    close: float
+    change: float
+
+
+class IndexInfo(BaseModel):
+    """指数信息模型"""
+    code: str
+    name: str
+    current: float
+    previous: float
+    daily_change: float
+    history: List[IndexHistoryItem] = []  # 近7天历史
+
+
+class PortfolioResponse(BaseModel):
+    """持仓响应模型"""
+    date: str
+    time: str
+    index: IndexInfo
+    funds: List[FundInfo]
+    news: List[NewsItem]
+    bond_index: Optional[IndexInfo] = None  # 债券指数（用于债券基金参考）
+    hs300_index: Optional[IndexInfo] = None  # 沪深300指数
+    historical_yields: Dict[str, dict] = {}  # 历史收益基准（含日期）
+
+
+# ============= 配置数据 =============
+
+# 用户关注的基金列表
+WATCHED_FUNDS = [
+    "011609",  # 易方达上证科创50联接C
+    "020741",  # 华泰保兴安悦债券C
+    "004746",  # 易方达上证50增强C
+]
+
+# HTTP 客户端配置
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "*/*",
+}
+
+# 历史收益率配置（成本基准）
+# 结构: { fund_code: { "yield": 收益率, "date": 基准日期 } }
+HISTORICAL_YIELDS = {
+    "011609": {"yield": 0.0, "date": "2026-06-18"},
+    "020741": {"yield": 2.04, "date": "2026-06-18"},
+    "004746": {"yield": 28.12, "date": "2026-06-18"},
+}
+# 收益率下降阈值（%）：收益率比历史基准下降3个百分点触发买点
+DROP_THRESHOLD = 3.0
+
+# ============= /api/portfolio 整页缓存 =============
+# 30s 内重复请求直接复用旧数据，避免重复刷新打爆 eastmoney 接口
+# ?force=1 绕过缓存（强制刷新按钮用）
+PORTFOLIO_CACHE: dict = {"data": None, "saved_at": 0.0, "disclosed": False}
+PORTFOLIO_CACHE_TTL = 30  # 秒（盘中 30s）
+PORTFOLIO_CACHE_TTL_OFFHOURS = 3600  # 秒（非盘中兜底 1h，但实际用"到下一交易日 9:30"的动态 TTL）
+
+
+def _latest_disclosed_date() -> str:
+    """
+    当前最新可披露日期：
+    - 工作日 15:00 后（disclosure window 之后）→ 今天
+    - 其他时间（盘中 / 周末 / 节假日）→ 上一个交易日
+    """
+    now = datetime.now()
+    if now.weekday() < 5 and now.hour >= 15:
+        return now.strftime("%Y-%m-%d")
+    # 倒推到上一个工作日
+    n = now - timedelta(days=1)
+    while n.weekday() >= 5:
+        n -= timedelta(days=1)
+    return n.strftime("%Y-%m-%d")
+
+
+def _is_today_disclosed() -> bool:
+    """
+    判断 cache 中的 nav_date 是否覆盖"最新可披露日期"
+    - 盘中（9:30-15:00）：日涨跌未披露，强制 False（继续拉盘中估值）
+    - 盘外（15:00 后 / 9:30 前 / 周末 / 节假日）：
+        - 所有基金 nav_date == 最新可披露日期（today 或上一交易日）→ True
+    """
+    if PORTFOLIO_CACHE["data"] is None:
+        return False
+    # 盘中：日涨跌未定，强制 False
+    if is_trading_time():
+        return False
+    # 盘外
+    funds = getattr(PORTFOLIO_CACHE["data"], "funds", []) or []
+    if not funds:
+        return False
+    latest = _latest_disclosed_date()
+    return all(f.nav_date == latest for f in funds)
+
+
+def _next_market_open_ts(now: datetime) -> float:
+    """
+    下一个交易日 9:30 的 timestamp
+    - 工作日 9:30 之前：今天 9:30
+    - 工作日 9:30 之后 / 周末：下一个工作日 9:30
+    """
+    candidate = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    if now < candidate:
+        # 今天 9:30 还没到，且今天是工作日
+        if now.weekday() < 5:
+            return candidate.timestamp()
+    # 否则跳到下一个工作日 9:30
+    nxt = now + timedelta(days=1)
+    while nxt.weekday() >= 5:
+        nxt += timedelta(days=1)
+    return nxt.replace(hour=9, minute=30, second=0, microsecond=0).timestamp()
+
+# ============= 基金子接口细粒度缓存 =============
+# period_returns / history 这两个接口返回的数据盘中几乎不变，60s 内重复请求直接复用
+# force=1 强制刷新时绕过这两个子缓存（但 fetch_fund_holdings 当日缓存不受影响）
+# 内存缓存，不落盘（重启失效，避免 5 只基金每次都重新拉 130 天 history 浪费时间）
+FUND_DETAIL_CACHE: dict = {}  # {fund_code: {"period_returns": ..., "history": ..., "_saved_at": ts}}
+FUND_DETAIL_CACHE_TTL = 60  # 秒
+
+# ============= 新闻 3 段缓存 =============
+# 一天分 3 段：AM(06-12) / PM(12-18) / NIGHT(18-06)，段切换时自动重新拉
+NEWS_CACHE: dict = {"data": None, "bucket": ""}
+
+def _get_news_bucket(now: datetime) -> str:
+    """根据当前时间返回新闻时段 bucket：AM / PM / NIGHT"""
+    h = now.hour
+    if 6 <= h < 12:
+        return "AM"
+    elif 12 <= h < 18:
+        return "PM"
+    else:
+        return "NIGHT"
+
+# ============= 买点计算规则（新） =============
+# 按基金独立配置：从下一个交易日（最新净值）开始，下跌多少百分点触发买点
+# 结构: { fund_code: { "drop_threshold": 5.0 } }
+BUY_POINT_CONFIG = {
+    "011609": {"drop_threshold": 10.0},   # 下跌10个点
+    "020741": {"drop_threshold": 1.0},    # 下跌1个点
+    "004746": {"drop_threshold": 5.0},    # 下跌5个点
+}
+
+# 买点参考价缓存 —— 持久化每只基金的"下一个交易日起点净值"
+# 结构: { fund_code: { "ref_nav": 1.4507, "ref_date": "2026-06-21" } }
+# 规则：一旦保存，ref_nav 就固定不变，作为买点计算的起点
+buy_point_refs_file = os.path.join(current_dir, "buy_point_refs.json")
+BUY_POINT_REFS: Dict[str, dict] = {}
+
+
+def load_buy_point_refs() -> Dict[str, dict]:
+    """从本地文件加载买点参考价（仅含 ref_nav/ref_date）"""
+    try:
+        if os.path.exists(buy_point_refs_file):
+            with open(buy_point_refs_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return {k: {"ref_nav": float(v.get("ref_nav", 0)),
+                                "ref_date": str(v.get("ref_date", ""))}
+                            for k, v in data.items() if isinstance(v, dict)}
+    except Exception as e:
+        print(f"加载买点参考价失败: {e}")
+    return {}
+
+
+def save_buy_point_refs(refs: Dict[str, dict]) -> bool:
+    """保存买点参考价到本地文件"""
+    try:
+        with open(buy_point_refs_file, "w", encoding="utf-8") as f:
+            json.dump(refs, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存买点参考价失败: {e}")
+        return False
+
+
+BUY_POINT_REFS = load_buy_point_refs()
+
+# 成本净值缓存 — 支持用户"确定买入"
+COST_NAVS: Dict[str, dict] = {}
+
+
+def load_cost_navs_from_file() -> Dict[str, dict]:
+    """从本地文件加载成本净值 —— 只保留用户真正确认买入的记录（is_holding=True）
+    其他未确认的虚拟成本一律忽略，保证 buy_points.json 是用户操作的纯净记录。
+    """
+    try:
+        if os.path.exists(buy_points_file):
+            with open(buy_points_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and len(data) > 0:
+                    result = {}
+                    for k, v in data.items():
+                        # 兼容老格式: {code: float} —— 视为未确认的历史虚拟成本，忽略
+                        if isinstance(v, (int, float)):
+                            continue
+                        # 新格式: {code: {buy_nav, buy_date, is_holding}} —— 只保留 is_holding=True
+                        elif isinstance(v, dict) and bool(v.get("is_holding", False)):
+                            result[k] = {
+                                "buy_nav": float(v.get("buy_nav", v.get("cost_nav", 0))),
+                                "buy_date": str(v.get("buy_date", "")),
+                                "buy_price": float(v.get("buy_price", v.get("buy_nav", 0))),
+                                "is_holding": True
+                            }
+                        # 其他（is_holding=False 的历史残留）：忽略，不进入内存
+                    return result
+    except Exception as e:
+        print(f"加载成本净值失败: {e}")
+    return {}
+
+
+def save_cost_navs_to_file(cost_navs: Dict[str, dict]) -> bool:
+    """保存成本净值到本地文件"""
+    try:
+        with open(buy_points_file, "w", encoding="utf-8") as f:
+            json.dump(cost_navs, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存成本净值失败: {e}")
+        return False
+
+
+def compute_cost_navs_from_historical(current_navs: Dict[str, float]) -> Dict[str, float]:
+    """根据当前净值和历史收益率计算成本净值"""
+    result = {}
+    for code, hist_data in HISTORICAL_YIELDS.items():
+        hist_yield = hist_data["yield"] if isinstance(hist_data, dict) else hist_data
+        cur_nav = current_navs.get(code)
+        if cur_nav and cur_nav > 0:
+            result[code] = round(cur_nav / (1 + hist_yield / 100), 4)
+    return result
+
+
+COST_NAVS = load_cost_navs_from_file()
+
+
+# ============= 数据抓取函数 =============
+
+async def fetch_fund_period_returns(fund_code: str, force: int = 0) -> dict:
+    """
+    从天天基金手机 API 获取区间收益率（近1周/1月/3月/6月/1年/2年/3年/5年/今年/成立以来）
+    返回 {"Z": 0.07, "Y": 0.69, "3Y": 1.85, ...}（百分比，无数据时为 None）
+    force=1 强制刷新（绕过 60s 子缓存）
+    """
+    # === 60s 子缓存：盘中区间收益基本不变 ===
+    if not force:
+        cached = FUND_DETAIL_CACHE.get(fund_code, {})
+        if cached.get("period_returns") is not None and (time.time() - cached.get("_saved_at", 0)) < FUND_DETAIL_CACHE_TTL:
+            return cached["period_returns"]
+    url = (
+        f"https://fundmobapi.eastmoney.com/FundMNewApi/FundMNPeriodIncrease"
+        f"?FCODE={fund_code}&deviceid=W&plat=Wap&product=EFund&version=2.0.0"
+    )
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15",
+        "Referer": "https://fund.eastmoney.com/",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+        result = {}
+        for item in (data.get("Datas") or []):
+            title = item.get("title", "")
+            syl = item.get("syl", "")
+            try:
+                result[title] = float(syl) if syl not in (None, "", "--") else None
+            except (ValueError, TypeError):
+                result[title] = None
+        # === 写入子缓存 ===
+        if fund_code not in FUND_DETAIL_CACHE:
+            FUND_DETAIL_CACHE[fund_code] = {}
+        FUND_DETAIL_CACHE[fund_code]["period_returns"] = result
+        FUND_DETAIL_CACHE[fund_code]["_saved_at"] = time.time()
+        return result
+    except Exception as e:
+        print(f"获取基金 {fund_code} 区间收益失败: {e}")
+        return {}
+
+
+async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> List[NavHistoryItem]:
+    """
+    从天天基金网获取基金历史净值数据（最近N天）
+    持久化策略：nav_history.json 存最近 60 天，force=1 也只拉"最新 1 天"增量 append
+    注意：API单页上限约40条，需多页获取
+    关键：必须传 sdate/edate，否则端点返回空 content
+    force=1 强制刷新（绕过 60s 子缓存，但仍走持久化增量拉取）
+    """
+    # === 60s 子缓存：盘中历史净值基本不变（按 days 维度缓存） ===
+    cache_key_days = f"history_{days}"
+    if not force:
+        cached = FUND_DETAIL_CACHE.get(fund_code, {})
+        if cached.get(cache_key_days) is not None and (time.time() - cached.get("_saved_at", 0)) < FUND_DETAIL_CACHE_TTL:
+            return cached[cache_key_days]
+
+    # === 持久化增量：算 last_date，决定只拉哪段 ===
+    persisted = NAV_HISTORY.get(fund_code, [])
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if persisted:
+        last_date = persisted[-1].get("date", "")
+        # 如果 last_date 已经是今天或更晚 → 直接返回持久化
+        if last_date >= today_str:
+            history = [NavHistoryItem(**r) for r in persisted[-days:]]
+            # 写子缓存
+            if fund_code not in FUND_DETAIL_CACHE:
+                FUND_DETAIL_CACHE[fund_code] = {}
+            FUND_DETAIL_CACHE[fund_code][cache_key_days] = history
+            FUND_DETAIL_CACHE[fund_code]["_saved_at"] = time.time()
+            return history
+        # 否则只拉 last_date+1 到 today
+        sdate = (datetime.strptime(last_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        edate = today_str
+    else:
+        # 首次/为空 → 拉 days 天
+        sdate = (datetime.now() - timedelta(days=days + 30)).strftime("%Y-%m-%d")
+        edate = today_str
+
+    per_page = 40
+    # 计算需要几页
+    days_to_fetch = (datetime.strptime(edate, "%Y-%m-%d") - datetime.strptime(sdate, "%Y-%m-%d")).days + 1
+    total_pages = max(1, (days_to_fetch + per_page - 1) // per_page)
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+        "Referer": f"http://fund.eastmoney.com/{fund_code}.html",
+    }
+
+    all_rows = []
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            for page in range(1, total_pages + 1):
+                url = f"http://fund.eastmoney.com/F10/F10DataApi.aspx?type=lsjz&code={fund_code}&page={page}&per={per_page}&sdate={sdate}&edate={edate}&rt=json"
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                text = response.text
+
+                content_match = re.search(r'content:"([^"]+)"', text)
+                if not content_match:
+                    break
+
+                html_content = content_match.group(1)
+                rows = re.findall(r"<tr><td>(\d{4}-\d{2}-\d{2})</td><td[^>]*>([\d.]+)</td><td[^>]*>([\d.]+)</td><td[^>]*>([-\d.]+)%</td>", html_content)
+
+                if not rows:
+                    break
+                all_rows.extend(rows)
+                if len(all_rows) >= days_to_fetch:
+                    break
+
+        # === 合并：持久化历史 + 新拉数据（去重按 date） ===
+        existing_dates = {r.get("date", "") for r in persisted}
+        new_records = []
+        for date_str, nav_str, acc_nav_str, change_str in all_rows:
+            if date_str in existing_dates:
+                continue
+            new_records.append({
+                "date": date_str,
+                "nav": float(nav_str),
+                "acc_nav": float(acc_nav_str),
+                "change": float(change_str),
+            })
+        if new_records:
+            persisted.extend(new_records)
+            persisted.sort(key=lambda x: x["date"])
+            NAV_HISTORY[fund_code] = persisted
+            save_nav_history(NAV_HISTORY)
+
+        # 取最近 days 条
+        recent = persisted[-days:] if len(persisted) >= days else persisted
+        history = [NavHistoryItem(**r) for r in recent]
+
+        # === 写入子缓存 ===
+        if fund_code not in FUND_DETAIL_CACHE:
+            FUND_DETAIL_CACHE[fund_code] = {}
+        FUND_DETAIL_CACHE[fund_code][cache_key_days] = history
+        FUND_DETAIL_CACHE[fund_code]["_saved_at"] = time.time()
+        return history
+
+    except Exception as e:
+        print(f"获取基金 {fund_code} 历史数据失败: {e}")
+        # 失败时回退到持久化数据（如果有）
+        if persisted:
+            return [NavHistoryItem(**r) for r in persisted[-days:]]
+        return []
+
+
+async def fetch_fund_holdings(fund_code: str) -> List[dict]:
+    """
+    从天天基金网获取基金持仓（重仓股）
+    返回前十大持仓股列表，每项包含股票代码、名称、持仓比例
+    加当日缓存：持仓数据每天只变一次（季报披露日才更新），没必要每次刷新都拉
+    """
+    # === 当日缓存：同一天内直接复用 ===
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cache_key = f"_holdings_{fund_code}"
+    cached = EST_CACHE.get(cache_key, {})
+    if cached.get("_date") == today_str and cached.get("data") is not None:
+        return cached["data"]
+
+    url = f"https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=jjcc&code={fund_code}&topline=10"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": f"https://fundf10.eastmoney.com/ccmx_{fund_code}.html",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            text = response.text
+
+        # 解析返回的HTML内容
+        # 格式: var apidata={ content:"<table>...</table>", ...}
+        content_match = re.search(r'content:"([^"]+)"', text)
+        if not content_match:
+            return []
+
+        html_content = content_match.group(1)
+        # 解析持仓表格：股票代码、名称、持仓比例、占净值比例
+        # 格式: <td>股票代码</td><td>股票名称</td><td>持仓比例</td><td>占净值比例</td>
+        rows = re.findall(r"<td[^>]*>(\d+)</td><td[^>]*>([^<]+)</td><td[^>]*>([\d.]+)%</td><td[^>]*>([\d.]+)%</td>", html_content)
+
+        holdings = []
+        for code, name, proportion, net_ratio in rows[:10]:
+            holdings.append({
+                "code": code,
+                "name": name.strip(),
+                "proportion": float(proportion),  # 持仓比例%
+                "net_ratio": float(net_ratio)     # 占净值比例%
+            })
+
+        # === 写入当日缓存（季报披露日才更新，没必要每次都拉） ===
+        EST_CACHE[cache_key] = {"_date": today_str, "data": holdings}
+        save_est_cache(EST_CACHE)
+
+        return holdings
+
+    except Exception as e:
+        print(f"获取基金 {fund_code} 持仓数据失败: {e}")
+        return []
+
+
+def generate_ai_prediction_simple(fund_type: str, fund_name: str, daily_change: float,
+                                  history: List[NavHistoryItem],
+                                  cost_nav: float, current_nav: float,
+                                  est_nav: float, est_change: float,
+                                  market_index: Optional[IndexInfo] = None,
+                                  bond_extra: Optional[dict] = None,
+                                  period_returns: Optional[dict] = None) -> AIPrediction:
+    """
+    根据基金类型、近期走势、估算净值 + 市场指数生成AI预判和当日评估
+    （不依赖用户持仓成本，纯市场/技术面分析）
+    market_index: 该基金对应的市场指数（股票/指数型=上证指数，债券型=国债指数）
+    """
+    fund_type_lower = (fund_type + fund_name).lower()
+    is_bond = any(k in fund_type_lower for k in ['债券', '债', '稳健', '纯债', '二级债'])
+    is_index = any(k in fund_type_lower for k in ['指数', 'etf', '联接', '增强'])
+    is_stock = any(k in fund_type_lower for k in ['股票', '混合', '灵活', '成长', '价值'])
+
+    # ============ 阶段性收益率计算（7日/1月/6月）============
+    def calc_period_returns() -> tuple:
+        """根据 history 计算 7日、1月、6月收益率（百分比）
+        history 按日期倒序排列（最新在前）
+        优先使用 period_returns（天天基金手机 API），无数据时用 history 兜底
+        """
+        # 手机 API 字段映射：Z=近7日, Y=近1月, 3Y=近3月, 6Y=近6月
+        if period_returns:
+            r7 = period_returns.get("Z")
+            r1m = period_returns.get("Y")
+            r6m = period_returns.get("6Y")
+            # 三个值都拿到了就直接返回
+            if r7 is not None and r1m is not None and r6m is not None:
+                return (round(r7, 2), round(r1m, 2), round(r6m, 2))
+
+        if not history or len(history) < 2 or current_nav <= 0:
+            return (0.0, 0.0, 0.0)
+
+        def period_return(offset_days: int) -> float:
+            if len(history) <= offset_days:
+                offset_days = len(history) - 1
+            old_nav = history[offset_days].nav
+            if old_nav > 0:
+                return round((current_nav - old_nav) / old_nav * 100, 2)
+            return 0.0
+
+        r7 = period_return(7)    # 近7日（约一周交易日）
+        r1m = period_return(22)  # 近1月（约22个交易日）
+        r6m = period_return(130) # 近6月（约130个交易日）
+        return (r7, r1m, r6m)
+
+    return_7d, return_1m, return_6m = calc_period_returns()
+
+    # ============ 增强分析：估值位置、性价比、关键点位、风险等级 ============
+    def calc_enhanced_analysis() -> tuple:
+        """计算增强分析：返回(估值位置, 性价比评估, 关键点位, 风险等级)"""
+        if not history or len(history) < 5:
+            return ("数据不足", "数据不足", "支撑/压力位待观察", "中")
+
+        navs = [h.nav for h in history]
+        min_nav = min(navs)
+        max_nav = max(navs)
+        current = current_nav if current_nav > 0 else (navs[0] if navs else 0)
+
+        # 1. 估值位置：当前净值在历史区间的百分位
+        if max_nav > min_nav:
+            pct = (current - min_nav) / (max_nav - min_nav) * 100
+            if pct <= 20:
+                val_pos = f"历史低位({pct:.0f}%)"
+                cost_perf = "低估"
+            elif pct <= 50:
+                val_pos = f"偏低位({pct:.0f}%)"
+                cost_perf = "偏低估"
+            elif pct <= 80:
+                val_pos = f"偏高位({pct:.0f}%)"
+                cost_perf = "合理"
+            else:
+                val_pos = f"历史高位({pct:.0f}%)"
+                cost_perf = "高估"
+        else:
+            val_pos = "估值不明"
+            cost_perf = "合理"
+
+        # 2. 关键点位：支撑位(近5日低点)、压力位(近5日高点)
+        recent_5 = navs[:5]
+        support = min(recent_5)
+        resistance = max(recent_5)
+        key_levels = f"支撑{support:.4f} / 压力{resistance:.4f}"
+
+        # 3. 风险等级：根据近期波动率和涨跌幅判断
+        changes = [h.change for h in history[:5]]
+        volatility = sum(abs(c) for c in changes) / len(changes) if changes else 0
+        recent_total = sum(changes) if changes else 0
+
+        if is_bond:
+            if volatility > 0.1:
+                risk = "中"
+            else:
+                risk = "低"
+        else:
+            if volatility > 3.0 or abs(recent_total) > 8:
+                risk = "高"
+            elif volatility > 1.5 or abs(recent_total) > 4:
+                risk = "中"
+            else:
+                risk = "低"
+
+        return (val_pos, cost_perf, key_levels, risk)
+
+    valuation_position, cost_performance, key_levels, risk_level = calc_enhanced_analysis()
+
+    # 分析近期走势
+    recent_changes = [h.change for h in history[:5]] if history else []
+    if recent_changes:
+        total_change = sum(recent_changes)
+        avg_change = total_change / len(recent_changes) if recent_changes else 0
+        consecutive_up = 0
+        consecutive_down = 0
+        for c in recent_changes:
+            if c > 0:
+                consecutive_up += 1
+                consecutive_down = 0
+            elif c < 0:
+                consecutive_down += 1
+                consecutive_up = 0
+            else:
+                break
+    else:
+        total_change = 0.0
+        avg_change = 0.0
+        consecutive_up = 0
+        consecutive_down = 0
+
+    # 市场指数参考文字
+    market_ref = ""
+    if market_index and market_index.current > 0 and abs(market_index.daily_change) > 0.001:
+        idx_change = market_index.daily_change
+        if is_bond:
+            if abs(idx_change) < 0.05:
+                market_ref = "，债市今日整体平稳"
+            elif idx_change > 0:
+                market_ref = "，债市今日偏暖"
+            else:
+                market_ref = "，债市今日小幅调整"
+        else:
+            if abs(idx_change) < 0.3:
+                market_ref = "，大盘今日震荡整理"
+            elif idx_change > 0:
+                market_ref = f"，大盘今日偏强（上证指数+{idx_change:.2f}%）"
+            else:
+                market_ref = f"，大盘今日偏弱（上证指数{idx_change:.2f}%）"
+
+    # 当日判断：综合使用估算涨跌
+    today_change = est_change if est_change != 0 else daily_change
+    today_verdict = ""
+    if is_index:
+        if today_change > 1.0:
+            today_verdict = "强势领涨"
+        elif today_change > 0.3:
+            today_verdict = "偏强"
+        elif today_change < -1.0:
+            today_verdict = "明显回调"
+        elif today_change < -0.3:
+            today_verdict = "偏弱"
+        else:
+            today_verdict = "震荡整理"
+    elif is_bond:
+        if abs(today_change) < 0.03:
+            today_verdict = "平稳"
+        elif today_change > 0:
+            today_verdict = "小幅上行"
+        else:
+            today_verdict = "小幅调整"
+    else:
+        if today_change > 1.5:
+            today_verdict = "大幅走强"
+        elif today_change > 0.5:
+            today_verdict = "偏强"
+        elif today_change < -1.5:
+            today_verdict = "明显回调"
+        elif today_change < -0.5:
+            today_verdict = "偏弱"
+        else:
+            today_verdict = "震荡整理"
+
+    # === 债券型 ===
+    if is_bond:
+        # 债券基金详细分析
+        bond_beta = bond_extra.get("beta", 0.5) if bond_extra else 0.5
+        bond_r2 = bond_extra.get("r_squared", 0) if bond_extra else 0
+        corr_quality = bond_extra.get("correlation_quality", "弱相关") if bond_extra else "弱相关"
+
+        # 市场环境分析
+        if market_index and market_index.current > 0:
+            idx_chg = market_index.daily_change
+            if abs(idx_chg) < 0.02:
+                market_env = "债市今日整体平稳，利率波动极小，资金面保持均衡状态"
+            elif idx_chg > 0:
+                market_env = f"债市今日偏暖（国债指数+{idx_chg:.2f}%），利率小幅下行，资金面相对宽松"
+            else:
+                market_env = f"债市今日小幅调整（国债指数{idx_chg:.2f}%），利率略有上行，关注资金面变化"
+        else:
+            market_env = "债市数据待更新，整体以票息收益为主"
+
+        # 技术面分析
+        if len(history) >= 10:
+            navs_10 = [h.nav for h in history[:10]]
+            navs_30 = [h.nav for h in history[:30]] if len(history) >= 30 else navs_10
+            ma5 = sum(navs_10[:5]) / 5
+            ma10 = sum(navs_10) / 10
+            ma30 = sum(navs_30) / len(navs_30)
+            if current_nav > ma5 > ma10:
+                tech = f"短期均线多头排列（5日/10日均线向上），净值稳步抬升，近5日均值{ma5:.4f}，近10日均值{ma10:.4f}，趋势偏强"
+            elif current_nav < ma5 < ma10:
+                tech = f"短期均线空头排列（5日/10日均线向下），净值有所回调，近5日均值{ma5:.4f}，近10日均值{ma10:.4f}，短期偏弱"
+            else:
+                tech = f"净值在均线附近震荡，5日均值{ma5:.4f}，10日均值{ma10:.4f}，30日均值{ma30:.4f}，方向不明朗"
+            # 波动率
+            changes_20 = [h.change for h in history[:20]] if len(history) >= 20 else [h.change for h in history]
+            vol = sum(abs(c) for c in changes_20) / len(changes_20) if changes_20 else 0
+            tech += f"；近20日日均波动{vol:.3f}%"
+        else:
+            tech = "历史数据不足，技术分析参考有限"
+
+        # 操作建议
+        if today_change > 0.03 and return_7d > 0:
+            position_advice = "已持仓者可继续持有，享受票息+资本利得；未持仓者可小额定投，避免追高"
+        elif today_change < -0.03:
+            position_advice = "短期回调无需过度担忧，债券基金以持有到期思路为主，可逢低分批加仓"
+        else:
+            position_advice = "平稳运行阶段，以持有为主，定投可继续按计划进行，关注利率走势变化"
+
+        # 风险提示
+        risk_tips = "主要风险来自利率上行、信用违约和流动性收紧；中长期看债市仍有配置价值"
+        key_metrics = f"7日收益{return_7d:+.2f}% / 1月收益{return_1m:+.2f}% / 半年收益{return_6m:+.2f}% / 利率敏感度β={bond_beta:.2f}（{corr_quality}）"
+
+        if today_change > 0.05:
+            return AIPrediction(
+                trend="震荡偏强", trend_emoji="📊",
+                advice=f"债券基金今日偏暖，票息收益为主{market_ref}，利率趋势值得关注",
+                confidence="中性",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                market_env=market_env,
+                tech_analysis=tech,
+                position_advice=position_advice,
+                risk_tips=risk_tips,
+                key_metrics=key_metrics,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change < -0.05:
+            return AIPrediction(
+                trend="小幅回调", trend_emoji="📉",
+                advice=f"债基今日小幅调整{market_ref}，短期波动但长端利率走势平稳，信用利差无明显走扩",
+                confidence="乐观",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                market_env=market_env,
+                tech_analysis=tech,
+                position_advice=position_advice,
+                risk_tips=risk_tips,
+                key_metrics=key_metrics,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        else:
+            return AIPrediction(
+                trend="平稳", trend_emoji="➡️",
+                advice=f"债券基金今日平稳运行{market_ref}，票息收益为主，利率波动有限",
+                confidence="乐观",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                market_env=market_env,
+                tech_analysis=tech,
+                position_advice=position_advice,
+                risk_tips=risk_tips,
+                key_metrics=key_metrics,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+
+    # === 指数型 ===
+    if is_index:
+        if today_change > 1.5:
+            return AIPrediction(
+                trend="强势上涨", trend_emoji="🚀",
+                advice=f"指数基金今日大幅上涨(+{today_change:.2f}%){market_ref}，短期动能较强，但需警惕冲高回落",
+                confidence="谨慎",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change > 0.3:
+            return AIPrediction(
+                trend="跟随上涨", trend_emoji="⬆️",
+                advice=f"跟随大盘上涨{market_ref}，短期动能尚可，注意上方压力位和板块轮动",
+                confidence="中性",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change < -1.5:
+            return AIPrediction(
+                trend="大幅回调", trend_emoji="⚠️",
+                advice=f"指数基金大幅下跌({today_change:.2f}%){market_ref}，市场情绪趋弱，需关注下方支撑和成交量变化",
+                confidence="谨慎",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change < -0.3:
+            if consecutive_down >= 3:
+                return AIPrediction(
+                    trend="持续走弱", trend_emoji="🔻",
+                    advice=f"已连续{consecutive_down}天下跌{market_ref}，趋势偏弱，短期超跌后可能有技术性反弹",
+                    confidence="谨慎",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+            else:
+                return AIPrediction(
+                    trend="震荡回调", trend_emoji="📉",
+                    advice=f"大盘走弱拖累指数{market_ref}，短期以观望为主，等待企稳信号",
+                    confidence="中性",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+        else:
+            if consecutive_up >= 3:
+                return AIPrediction(
+                    trend="连续走强", trend_emoji="📈",
+                    advice=f"已连续{consecutive_up}日上涨{market_ref}，短期趋势偏强，注意上方压力和回调风险",
+                    confidence="谨慎",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+            else:
+                return AIPrediction(
+                    trend="震荡整理", trend_emoji="➡️",
+                    advice=f"指数处于震荡整理阶段{market_ref}，方向不明，等待动能释放或趋势明朗",
+                    confidence="中性",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+
+    # === 股票/混合型 ===
+    if is_stock or not is_bond:
+        if today_change > 2.0:
+            return AIPrediction(
+                trend="大幅走强", trend_emoji="🔥",
+                advice=f"基金今日大幅上涨({today_change:.2f}%){market_ref}，表现强势，但短期涨幅较大，注意动能持续性",
+                confidence="谨慎",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change > 0.5:
+            if total_change > 3:
+                return AIPrediction(
+                    trend="趋势向好", trend_emoji="📈",
+                    advice=f"近5日累计上涨{total_change:.2f}%{market_ref}，上升趋势良好，注意板块轮动和成交量变化",
+                    confidence="乐观",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+            else:
+                return AIPrediction(
+                    trend="小幅上涨", trend_emoji="⬆️",
+                    advice=f"随市上涨{market_ref}，短期动能尚可，关注持仓板块持续性",
+                    confidence="中性",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+        elif today_change < -1.5:
+            return AIPrediction(
+                trend="明显回调", trend_emoji="📉",
+                advice=f"持仓明显回调{market_ref}，短期跌幅较大，市场情绪偏谨慎，关注下方支撑位",
+                confidence="谨慎",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
+        elif today_change < -0.5:
+            if consecutive_down >= 2:
+                return AIPrediction(
+                    trend="连续走弱", trend_emoji="🔻",
+                    advice=f"已连续{consecutive_down}日下跌{market_ref}，短期弱势，关注基本面是否有变化",
+                    confidence="谨慎",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+            else:
+                return AIPrediction(
+                    trend="小幅调整", trend_emoji="📉",
+                    advice=f"基金今日小幅调整{market_ref}，短期波动，关注持仓板块和后市走向",
+                    confidence="中性",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+        else:
+            if consecutive_up >= 3:
+                return AIPrediction(
+                    trend="连续上涨", trend_emoji="📈",
+                    advice=f"已连续{consecutive_up}日微涨{market_ref}，趋势稳中有升，动能温和释放",
+                    confidence="乐观",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+            else:
+                return AIPrediction(
+                    trend="震荡整理", trend_emoji="➡️",
+                    advice=f"基金今日震荡整理{market_ref}，方向不明，保持耐心，等待趋势信号",
+                    confidence="中性",
+                    est_nav=est_nav, est_change=est_change, est_time="",
+                    est_vs_last=0.0, today_verdict=today_verdict,
+                    valuation_position=valuation_position,
+                    cost_performance=cost_performance,
+                    key_levels=key_levels,
+                    risk_level=risk_level,
+                    return_7d=return_7d,
+                    return_1m=return_1m,
+                    return_6m=return_6m
+                )
+
+
+async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexInfo] = None, bond_index: Optional[IndexInfo] = None, hs300_index: Optional[IndexInfo] = None, force: int = 0) -> Optional[FundInfo]:
+    """
+    从天天基金网 (fund.eastmoney.com) 获取基金净值数据
+    同时从 fundgz API 获取当日估算净值
+    stock_index: 上证指数（用于股票/指数基金参考）
+    bond_index: 国债指数（用于债券基金参考）
+    force: 1=强制刷新（拉所有）；0=复用缓存
+    非盘中 + force=1 时跳过 est_url（拉不到新数据，用 est_cache）
+    """
+    realtime_url = f"https://fund.eastmoney.com/{fund_code}.html"
+    # 估算净值 API（JSONP格式）
+    est_url = f"https://fundgz.1234567.com.cn/js/{fund_code}.js?rt=1"
+    skip_est = (force == 1) and (not is_trading_time())  # 非盘中强制刷新时跳过 est 拉取
+
+    try:
+        # 并行获取：主页 + 估算净值（非盘中可跳过估算）
+        if skip_est:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                resp_page = await client.get(realtime_url, headers=HTTP_HEADERS)
+                html = resp_page.text
+            est_text = ""  # 非盘中不解析估算
+        else:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                resp_page, resp_est = await asyncio.gather(
+                    client.get(realtime_url, headers=HTTP_HEADERS),
+                    client.get(est_url, headers={**HTTP_HEADERS, "Referer": "https://fund.eastmoney.com/"}, timeout=8.0)
+                )
+                html = resp_page.text
+                est_text = resp_est.text
+
+        # ---- 主页数据 ----
+        name_match = re.search(r"<title>([^(（\s]+)", html)
+        fund_name = name_match.group(1).strip() if name_match else fund_code
+
+        date_match = re.search(r'fix_date">\((\d{2}-\d{2})\)：', html)
+        if not date_match:
+            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', html)
+            nav_date = date_match.group(1) if date_match else "未知"
+        else:
+            nav_date = f"2026-{date_match.group(1)}"
+
+        nav_match = re.search(r'fix_dwjz[^>]*>([\d.]+)<', html)
+        if not nav_match:
+            return None
+        current_nav = float(nav_match.group(1))
+
+        zzl_match = re.search(r'fix_zzl[^>]*>([-\d.]+)%<', html)
+        if zzl_match:
+            daily_change = float(zzl_match.group(1))
+        else:
+            daily_change = 0.0
+
+        if daily_change != 0:
+            previous_nav = round(current_nav / (1 + daily_change / 100), 4)
+        else:
+            previous_nav = current_nav
+
+        type_match = re.search(r'类型：</span><[^>]*>([^<]+)<', html)
+        fund_type = type_match.group(1).strip() if type_match else "未知"
+        
+        # 备用：如果类型解析失败，从基金名称推断类型
+        if fund_type == "未知":
+            name_lower = fund_name.lower()
+            if any(k in name_lower for k in ['债券', '债', '纯债', '信用债', '利率债']):
+                fund_type = "债券型"
+            elif any(k in name_lower for k in ['指数', 'etf', '联接', '增强', '沪深', '上证', '科创', '中证']):
+                fund_type = "指数型"
+            elif any(k in name_lower for k in ['股票', '成长', '价值', '灵活配置', '混合']):
+                fund_type = "混合型"
+
+        # ---- 估算净值数据 ----
+        est_nav = 0.0
+        est_change = 0.0
+        est_time = ""
+        # 修正后的估值（应用残差修正模型）
+        corrected_est_change = 0.0
+        correction_info = get_effective_correction(fund_code)  # {offset, std, confidence, sample_count, enabled}
+        # 基金专用模型输出（先定义，估算分支会覆盖）
+        model_type = FUND_SPECIFIC_MODELS.get(fund_code, {}).get("type", "residual_only")
+        model_estimated_change = 0.0
+        model_benchmark_change = 0.0
+        model_benchmark_name = ""
+        # 今天日期：用于 est_cache 跨日校验
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        if should_fetch_estimation():
+            cached = get_cached_est(fund_code)
+            cached_nav = cached.get("est_nav", 0) if cached else 0
+
+            # 交易时间内每次都刷新；收盘后有缓存就用缓存
+            # 特殊：20:00 后且当天还没有残差样本时，强制 fetch 一次以记录残差
+            need_force_residual = (
+                datetime.now().hour >= 20
+                and daily_change != 0
+                and not has_today_residual(fund_code, nav_date)
+            )
+            need_fetch = is_trading_time() or cached_nav <= 0 or need_force_residual
+
+            if need_fetch:
+                try:
+                    m = re.search(r'jsonpgz\((.*)\)', est_text, re.S)
+                    if m:
+                        est_data = json.loads(m.group(1))
+                        gsz = est_data.get('gsz', '')
+                        gszzl = est_data.get('gszzl', '')
+                        est_time = est_data.get('gztime', '')
+                        if gsz and gsz not in ('null', '-'):
+                            est_nav = round(float(gsz), 4)
+                        if gszzl and gszzl not in ('null', '-'):
+                            est_change = round(float(gszzl), 3)  # 提高精度，避免±0.01%被四舍五入掉
+                        # === 残差修正 ===
+                        # 原始 gsz 估值先保存，用于 20:00+ 时的残差记录
+                        raw_est_change_for_record = est_change
+                        if est_change != 0 and correction_info["enabled"]:
+                            # 修正公式：corrected = gsz + mean_residual
+                            corrected_est_change = round(est_change + correction_info["offset"], 3)
+                        else:
+                            corrected_est_change = est_change
+                        # 20:00 后记录残差用于自学习，但**保留 gsz 估值用于对比**
+                        if daily_change != 0 and datetime.now().hour >= 20:
+                            record_residual(fund_code, raw_est_change_for_record, daily_change, nav_date)
+                            # finalize 当天所有盘中快照（多个时点都会产生残差）
+                            finalize_day_snapshots(nav_date, {fund_code: daily_change})
+                    # === 基金专用模型（指数跟随 / 多因子） ===
+                    # 委托 compute_fund_specific_model 统一处理（指数实时跟盘 + 残差修正）
+                    m_est, m_bench, m_name = await compute_fund_specific_model(
+                        fund_code, daily_change, nav_date
+                    )
+                    if m_est is not None:
+                        model_estimated_change = m_est
+                    if m_bench is not None:
+                        model_benchmark_change = m_bench
+                    if m_name:
+                        model_benchmark_name = m_name
+                    if est_nav > 0:
+                        set_cached_est(fund_code, est_nav, est_change, est_time)
+                except Exception:
+                    pass
+            else:
+                # 盘中 9:30-15:00 内 cached_nav > 0 时复用 cache
+                # 必须检查 _est_date：今天盘中拉过的 cache 才是有效的；
+                # 跨日（_est_date != 今天）的旧 cache 不能用，否则会显示"昨天 11:30"当"今天"
+                cached_date = cached.get("_est_date", "")
+                if cached_date == today_str and cached.get("est_nav", 0) > 0:
+                    est_nav = cached["est_nav"]
+                    est_change = cached["est_change"]
+                    est_time = cached["est_time"]
+                # 缓存场景：重新计算修正值（offset 可能已更新）
+                if est_change != 0 and correction_info["enabled"]:
+                    corrected_est_change = round(est_change + correction_info["offset"], 3)
+                else:
+                    corrected_est_change = est_change
+                # 缓存路径也调基金专用模型（指数/多因子实时跟盘）—— 收盘后仍有意义
+                m_est, m_bench, m_name = await compute_fund_specific_model(
+                    fund_code, daily_change, nav_date
+                )
+                if m_est is not None:
+                    model_estimated_change = m_est
+                if m_bench is not None:
+                    model_benchmark_change = m_bench
+                if m_name:
+                    model_benchmark_name = m_name
+        else:
+            # 非交易时段 / 周末：直接调模型（不依赖 est_cache 是否同日）
+            # 即使 est_cache 是昨日的，模型估值用的是实时指数 + 残差，仍有意义
+            m_est, m_bench, m_name = await compute_fund_specific_model(
+                fund_code, daily_change, nav_date
+            )
+            if m_est is not None:
+                model_estimated_change = m_est
+            if m_bench is not None:
+                model_benchmark_change = m_bench
+            if m_name:
+                model_benchmark_name = m_name
+            # 盘末 15:00 后：读 est_cache（仅当 _est_date == 今天才用）
+            # - 今天盘中拉过（_est_date == today）→ est_change 是 15:00 那一刻的锁定值
+            # - 今天盘中没拉过（_est_date != today）→ 不用旧 cache，避免显示"昨天 11:30"当"今天"
+            cached = get_cached_est(fund_code)
+            if cached:
+                cached_date = cached.get("_est_date", "")
+                if cached_date == today_str and cached.get("est_nav", 0) > 0:
+                    est_nav = cached["est_nav"]
+                    est_change = cached["est_change"]
+                    est_time = cached["est_time"]
+                    if est_change != 0 and correction_info["enabled"]:
+                        corrected_est_change = round(est_change + correction_info["offset"], 3)
+                    else:
+                        corrected_est_change = est_change
+
+        # === 三个独立 API 并行（period_returns / history / holdings 都不依赖彼此） ===
+        # force 透传：force=1 时 period_returns / history 绕过 60s 子缓存
+        period_returns_task = fetch_fund_period_returns(fund_code, force=force)
+        # history 拉 30 天（4 页 → 1 页，从 ~2s → ~0.5s/基金；实际只用到 30 天）
+        history_task = fetch_fund_history(fund_code, days=30, force=force)
+        holdings_task = fetch_fund_holdings(fund_code)
+        period_returns, history, holdings = await asyncio.gather(
+            period_returns_task, history_task, holdings_task
+        )
+
+        # === 成本净值与收益计算 ===
+        # 规则1: 用户已通过"确定买入"接口标记持仓 -> 用买入当日净值+日期作为成本
+        # 规则2: 用户未手动买入 -> 用HISTORICAL_YIELDS配置反推成本作为"虚拟基准"，展示买点信号
+        hist_yield_data = HISTORICAL_YIELDS.get(fund_code)
+        hist_yield = hist_yield_data["yield"] if isinstance(hist_yield_data, dict) else (hist_yield_data or 0.0)
+
+        holding_record = COST_NAVS.get(fund_code)
+        is_user_holding = bool(holding_record and holding_record.get("is_holding", False) and holding_record.get("buy_nav", 0) > 0)
+
+        if is_user_holding:
+            # 已确定买入：以用户买入价为成本基准
+            cost_nav = holding_record["buy_nav"]
+            buy_date = holding_record.get("buy_date", "")
+            yield_pct = round((current_nav - cost_nav) / cost_nav * 100, 2)
+            # 已买入的基金不再判断"买点"，而是展示真实持有收益
+            can_buy = False
+            drop_pct = 0.0
+
+            # 计算"买入以来的每日收益历史"（给前端画收益曲线）
+            yield_history = []
+            # 粗略计算持有天数
+            hold_days = 0
+            try:
+                if buy_date:
+                    d1 = datetime.strptime(buy_date, "%Y-%m-%d")
+                    d2 = datetime.strptime(nav_date, "%Y-%m-%d")
+                    hold_days = (d2 - d1).days
+            except Exception:
+                hold_days = 0
+
+            if history:
+                # history 按日期升序：保留 buy_date 当日及之后的记录
+                for item in history:
+                    item_date = item.date
+                    # 只保留买入日或之后的净值
+                    if buy_date and item_date < buy_date:
+                        continue
+                    day_yield = round((item.nav - cost_nav) / cost_nav * 100, 2)
+                    yield_history.append({
+                        "date": item_date,
+                        "nav": item.nav,
+                        "yield_pct": day_yield,
+                        "daily_change": item.change
+                    })
+                # yield_history 按日期升序（与 history 一致）
+            total_return = yield_pct
+
+        else:
+            # 未手动买入：使用 BUY_POINT_CONFIG 按基金独立计算买点
+            # 规则：以 BUY_POINT_REFS 中保存的 ref_nav 为固定参考起点，
+            #   从起点开始累积计算涨跌，涨了距买点变远，跌了距买点变近
+            #   ref_nav 只在买入/卖出时更新，不每日变化
+            bp_cfg = BUY_POINT_CONFIG.get(fund_code)
+            if bp_cfg is not None:
+                # === 新规则：按基金独立的下跌阈值 ===
+                threshold = float(bp_cfg.get("drop_threshold", DROP_THRESHOLD))
+
+                # 从 BUY_POINT_REFS 读取固定参考起点
+                ref_data = BUY_POINT_REFS.get(fund_code, {})
+                ref_nav = ref_data.get("ref_nav")
+                ref_date = ref_data.get("ref_date", "")
+
+                # 如果没有参考起点，从历史数据中找2026-06-18作为初始参考点
+                # 这样初始状态就考虑了从基准日到现在的历史涨跌
+                if ref_nav is None or ref_nav <= 0:
+                    target_date = "2026-06-18"
+                    found_nav = None
+                    found_date = None
+                    if history:
+                        for item in history:
+                            if item.date == target_date:
+                                found_nav = item.nav
+                                found_date = item.date
+                                break
+                        # 如果找不到0618，用历史数据中最接近的
+                        if found_nav is None and len(history) > 0:
+                            # 找0618之后最近的交易日
+                            for item in history:
+                                if item.date >= target_date:
+                                    found_nav = item.nav
+                                    found_date = item.date
+                                else:
+                                    break
+                    if found_nav is not None:
+                        ref_nav = found_nav
+                        ref_date = found_date
+                    else:
+                        # 历史数据不足，用最新净值
+                        ref_nav = current_nav
+                        ref_date = nav_date
+                    
+                    BUY_POINT_REFS[fund_code] = {
+                        "ref_nav": round(ref_nav, 4),
+                        "ref_date": ref_date
+                    }
+                    save_buy_point_refs(BUY_POINT_REFS)
+
+                # 成本基准（cost_nav）：使用参考起点
+                cost_nav = ref_nav
+                buy_point_yield = round(-threshold, 2)   # 买点收益率：-5% 或 -1%
+                target_nav = round(ref_nav * (1 - threshold / 100), 4)
+
+                # 从参考起点到现在的累计涨跌
+                calc_yield = round((current_nav - ref_nav) / ref_nav * 100, 2)
+                yield_pct = 0.0  # 未买入时收益率前端不显示
+                # 距买点距离：涨了距买点变远，跌了距买点变近
+                drop_pct = round(threshold + calc_yield, 2)
+                can_buy = calc_yield <= buy_point_yield
+
+                # 进度计算：进度 = 累计跌幅 / 阈值 × 100%
+                # 涨了进度=0（还没开始跌），跌了按比例累加
+                if threshold > 0:
+                    if calc_yield < 0:
+                        # 跌了：按跌幅比例计算进度（可以超过100%）
+                        progress_pct = round(abs(calc_yield) / threshold * 100, 0)
+                    else:
+                        # 涨了：进度=0
+                        progress_pct = 0
+
+                # 对前端展示：hist_yield 改为 0（新规则下，基准就是参考起点本身）
+                hist_yield_for_bp = 0.0
+            else:
+                # 基金不在新规则中：回退旧逻辑（HISTORICAL_YIELDS + 固定3%）
+                if fund_code in COST_NAVS and COST_NAVS[fund_code].get("is_holding", False):
+                    cost_nav = COST_NAVS[fund_code]["buy_nav"]
+                    yield_pct = round((current_nav - cost_nav) / cost_nav * 100, 2)
+                else:
+                    ref_nav = history[-1].nav if history else current_nav
+                    cost_nav = round(ref_nav / (1 + hist_yield / 100), 4)
+                    yield_pct = round((current_nav - cost_nav) / cost_nav * 100, 2)
+                buy_point_yield = round(hist_yield - DROP_THRESHOLD, 2)
+                drop_pct = round(max(0, yield_pct - buy_point_yield), 2)
+                can_buy = yield_pct <= buy_point_yield
+                target_nav = round(cost_nav * (1 + buy_point_yield / 100), 4)
+                if hist_yield != buy_point_yield:
+                    progress_pct = round(min(100, max(0, (hist_yield - yield_pct) / (hist_yield - buy_point_yield) * 100)), 0)
+                else:
+                    progress_pct = 100 if can_buy else 0
+                hist_yield_for_bp = hist_yield
+            buy_date = ""
+            hold_days = 0
+            total_return = 0.0
+            yield_history = []
+
+        buy_point = BuyPointInfo(
+            cost_nav=cost_nav,
+            current_nav=current_nav,
+            yield_pct=yield_pct,
+            can_buy=can_buy,
+            drop_pct=drop_pct,
+            is_holding=is_user_holding,
+            buy_date=buy_date,
+            buy_price=cost_nav,
+            hold_days=hold_days,
+            total_return=total_return,
+            yield_history=yield_history,
+            hist_yield=hist_yield_for_bp if not is_user_holding else hist_yield,
+            buy_point_yield=buy_point_yield if not is_user_holding else 0.0,
+            target_nav=target_nav if not is_user_holding else 0.0,
+            progress_pct=progress_pct if not is_user_holding else 0
+        )
+
+        # 生成AI预判（含估算净值和当日评估 + 市场指数参考）
+        fund_type_lower = fund_type.lower()
+        is_bond_fund = any(k in fund_type_lower for k in ['债券', '债', '稳健', '纯债', '二级债'])
+        ref_index = bond_index if is_bond_fund else stock_index
+
+        # 债券基金估算优化：基于历史相关性动态计算推算系数
+        bond_analysis_extra = None
+        if is_bond_fund:
+            bond_beta = 0.5  # 默认系数
+            bond_r_squared = 0.0  # 相关性强度
+
+            # 从缓存获取已计算的Beta系数
+            beta_cache_key = f"bond_beta_{fund_code}"
+            cached_beta = EST_CACHE.get(beta_cache_key, {})
+            cached_date = cached_beta.get("_calc_date", "")
+
+            # 每日重新计算一次（或缓存过期时）
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            if cached_date != today_str or not cached_beta.get("beta"):
+                # 动态计算：基于历史净值与国债指数的相关性
+                if bond_index and bond_index.history and len(bond_index.history) >= 5 and history and len(history) >= 5:
+                    try:
+                        # 获取国债指数历史涨跌幅（近7-14天）
+                        bond_changes = [h.change for h in bond_index.history[:14] if h.change != 0]
+                        # 获取基金历史涨跌幅（同周期）
+                        fund_changes = [h.change for h in history[:14] if h.change != 0]
+
+                        # 对齐数据长度
+                        min_len = min(len(bond_changes), len(fund_changes))
+                        if min_len >= 5:
+                            bond_arr = bond_changes[:min_len]
+                            fund_arr = fund_changes[:min_len]
+
+                            # 计算相关性系数（简单线性回归：fund_change ≈ beta × bond_change）
+                            # Beta = Σ(fund_i × bond_i) / Σ(bond_i × bond_i)
+                            sum_fb = sum(f * b for f, b in zip(fund_arr, bond_arr))
+                            sum_bb = sum(b * b for b in bond_arr)
+
+                            if sum_bb > 0:
+                                calc_beta = sum_fb / sum_bb
+                                # 计算R²（相关性强度）
+                                fund_mean = sum(fund_arr) / len(fund_arr)
+                                ss_tot = sum((f - fund_mean) ** 2 for f in fund_arr)
+                                ss_res = sum((f - calc_beta * b) ** 2 for f, b in zip(fund_arr, bond_arr))
+                                r_sq = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+                                # 限制Beta范围（债券基金通常在0.1-1.5之间）
+                                bond_beta = max(0.1, min(1.5, abs(calc_beta)))
+                                bond_r_squared = max(0, min(1, r_sq))
+
+                                # 缓存计算结果
+                                EST_CACHE[beta_cache_key] = {
+                                    "beta": round(bond_beta, 3),
+                                    "r_squared": round(bond_r_squared, 3),
+                                    "_calc_date": today_str,
+                                    "sample_days": min_len
+                                }
+                                save_est_cache(EST_CACHE)
+                                print(f"[债券Beta计算] {fund_code}: beta={bond_beta:.3f}, R²={bond_r_squared:.3f}, 样本={min_len}天")
+                    except Exception as e:
+                        print(f"[债券Beta计算失败] {fund_code}: {e}")
+            else:
+                bond_beta = cached_beta.get("beta", 0.5)
+                bond_r_squared = cached_beta.get("r_squared", 0.0)
+
+            # 使用计算出的Beta系数推算估算净值
+            if bond_index and bond_index.current > 0:
+                # 如果估算净值有数据但涨跌为0，用国债指数推算涨跌
+                if est_nav > 0 and est_change == 0:
+                    print(f"[债券推算] {fund_code}: 国债指数涨跌={bond_index.daily_change}, beta={bond_beta:.3f}")
+                    est_change = round(bond_index.daily_change * bond_beta, 3)
+                    if previous_nav > 0:
+                        est_nav = round(previous_nav * (1 + est_change / 100), 4)
+                    print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
+                    set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
+                # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
+                elif est_nav == 0 and previous_nav > 0:
+                    print(f"[债券非交易推算] {fund_code}: 无估算数据，国债指数涨跌={bond_index.daily_change}, beta={bond_beta:.3f}")
+                    est_change = round(bond_index.daily_change * bond_beta, 3)
+                    est_nav = round(previous_nav * (1 + est_change / 100), 4)
+                    print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
+                    set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
+
+            # 将Beta系数传递给AI预判（用于置信度判断）
+            bond_analysis_extra = {
+                "beta": bond_beta,
+                "r_squared": bond_r_squared,
+                "correlation_quality": "强相关" if bond_r_squared > 0.6 else ("中等相关" if bond_r_squared > 0.3 else "弱相关")
+            }
+
+        # period_returns / history / holdings 已在上面一次性并行拉取（line ~2234）
+
+        # === 盘末行为：est_cache 锁定 15:00 那一刻的估算值 ===
+        # 业务语义：
+        # - 盘中 9:30-15:00：fundgz 实时拉 → est_change 随盘中估值变化（前端 AI 卡片实时更新）
+        # - 15:00 那一刻：最后一次 fetch 把 est_change 写入 est_cache（持久化）
+        # - 15:00 后 should_fetch_estimation=False：不 fetch，但 fallback 分支读 est_cache 拿到 15:00 锁定值
+        # - 下一交易日 9:30 后：should_fetch_estimation=True → fetch 拉新值覆盖 est_cache
+        # 因此盘中 fetch 写 est_cache、盘末 fallback 读 est_cache = 自动"freeze 在 15:00 那一刻"
+        # 不需要在这里手动置 0 或覆盖
+
+        ai_pred = generate_ai_prediction_simple(
+            fund_type=fund_type,
+            fund_name=fund_name,
+            daily_change=daily_change,
+            history=history,
+            cost_nav=cost_nav,
+            current_nav=current_nav,
+            est_nav=est_nav,
+            est_change=est_change,
+            market_index=ref_index,
+            bond_extra=bond_analysis_extra if is_bond_fund else None,
+            period_returns=period_returns
+        )
+
+        # 获取买点起始日期
+        ref_date = BUY_POINT_REFS.get(fund_code, {}).get("ref_date", "")
+
+        # 基金持仓（已在上面并行拉取）
+
+        # 计算区间累计收益率（基于近 130 个交易日 history）作为兜底
+        def _period_return(offset_days: int) -> float:
+            if not history or current_nav <= 0:
+                return 0.0
+            if len(history) <= offset_days:
+                offset_days = len(history) - 1
+            old_nav = history[offset_days].nav
+            if old_nav > 0:
+                return round((current_nav - old_nav) / old_nav * 100, 2)
+            return 0.0
+
+        def _r(key: str) -> float:
+            v = period_returns.get(key)
+            if v is None:
+                return _period_return({"Z": 7, "Y": 22, "3Y": 65, "6Y": 130, "1N": 260}.get(key, 7))
+            return round(v, 2)
+
+        # ===== 14:30 后锁定当日快照（gsz/model/actual）=====
+        # 目的：当日内反复刷新页面，AI 卡片的"gsz vs 模型 vs 实际"对比保持一致；
+        #      下一个交易日 00:00 后自动失效，重新计算
+        # 关键：用 nav_date（基金真实交易日）做 key，而不是 datetime.now() 的系统日期
+        #      避免 0:00 跨日时 fetch 的实际是"昨天基金"但系统时间是"今天"，导致快照匹配错位
+        now = datetime.now()
+        # snap_key 选择规则：
+        # - 交易日 9:30 之后 → 用今天系统日期（避免 nav_date 停留在上周五导致周一开盘后 snapshot 跨日不复位）
+        # - 其他时段（周末 / 工作日 0:00-9:30）→ 用 nav_date（与原 hard constraint 行为一致）
+        is_trading_now = now.weekday() < 5 and (now.hour, now.minute) >= (9, 30)
+        snap_key = now.strftime("%Y-%m-%d") if is_trading_now else (nav_date or now.strftime("%Y-%m-%d"))
+        fund_entry_lock = CORRECTION_CACHE.setdefault(fund_code, {"samples": []})
+        snap = fund_entry_lock.get("daily_snapshot")
+        if snap and snap.get("date") == snap_key:
+            # 复用当日快照（gsz/model/actual）
+            est_change = snap.get("gsz", est_change)
+            model_estimated_change = snap.get("model", model_estimated_change)
+            daily_change = snap.get("actual", daily_change)
+        elif now.hour > 14 or (now.hour == 14 and now.minute >= 30):
+            # 14:30 后第一次：写入快照（条件：actual 必须有值，否则明早 9:30 再锁）
+            if abs(daily_change) >= 0.0001:
+                fund_entry_lock["daily_snapshot"] = {
+                    "date": snap_key,
+                    "gsz": round(est_change, 3),
+                    "model": round(model_estimated_change, 3),
+                    "actual": round(daily_change, 3),
+                    "save_time": now.strftime("%H:%M")
+                }
+
+        return FundInfo(
+            code=fund_code,
+            name=fund_name,
+            type=fund_type,
+            current_nav=current_nav,
+            previous_nav=previous_nav,
+            nav_date=nav_date,
+            daily_change=round(daily_change, 2),
+            estimated=est_nav > 0,
+            estimated_nav=est_nav,
+            estimated_change=est_change,
+            estimated_time=est_time,
+            history=history,
+            buy_point=buy_point,
+            ai_prediction=ai_pred,
+            buy_point_ref_date=ref_date,
+            holdings=holdings,
+            # 上一交易日预估（未开盘时显示用，从 correction_cache 取最近一次 est_change）
+            prev_est_change=get_last_est_change(fund_code),
+            # 残差修正模型输出
+            corrected_estimated_change=corrected_est_change,
+            correction_offset=correction_info["offset"],
+            correction_std=correction_info["std"],
+            correction_confidence=correction_info["confidence"],
+            correction_sample_count=correction_info["sample_count"],
+            # 基金专用模型输出
+            model_type=model_type,
+            model_estimated_change=model_estimated_change,
+            model_benchmark_change=model_benchmark_change,
+            model_benchmark_name=model_benchmark_name,
+            model_offset=get_index_model_estimate(fund_code)["offset"],
+            model_std=get_index_model_estimate(fund_code)["std"],
+            model_confidence=get_index_model_estimate(fund_code)["confidence"],
+            model_sample_count=get_index_model_estimate(fund_code)["sample_count"],
+            model_enabled=get_index_model_estimate(fund_code)["enabled"],
+            # 区间收益（从天天基金 API 抓取，无数据时兜底用 history 计算）
+            return_7d=_r("Z"),
+            return_1m=_r("Y"),
+            return_3m=_r("3Y"),
+            return_6m=_r("6Y")
+        )
+
+    except Exception as e:
+        print(f"获取基金 {fund_code} 数据失败: {e}")
+        return None
+
+
+async def fetch_market_news() -> List[NewsItem]:
+    """
+    获取市场财经资讯（使用新浪财经滚动新闻API，支持股票/财经分类）
+    加 3 段缓存：AM(06-12) / PM(12-18) / NIGHT(18-06)，段切换时自动重新拉
+    """
+    # === 3 段缓存：同一天同一时段内直接复用（?force=1 绕过由 get_portfolio 处理） ===
+    current_bucket = _get_news_bucket(datetime.now())
+    if NEWS_CACHE["data"] is not None and NEWS_CACHE["bucket"] == current_bucket:
+        return NEWS_CACHE["data"]
+
+    # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
+    news_sources = [
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=15&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=15&page=1",
+    ]
+
+    all_news = []
+    seen_titles = set()
+
+    for url in news_sources:
+        if len(all_news) >= 15:
+            break
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                r = await client.get(url, headers=HTTP_HEADERS)
+                r.raise_for_status()
+                data = r.json()
+
+            items = data.get('result', {}).get('data', [])
+            for item in items:
+                if len(all_news) >= 15:
+                    break
+                title = item.get('title', '').strip()
+                link = item.get('url', '')
+                ctime = item.get('ctime', '')
+
+                if not title or not link:
+                    continue
+                if len(title) < 8 or len(title) > 80:
+                    continue
+                if title in seen_titles:
+                    continue
+                # 过滤广告/无关内容
+                if any(x in title for x in ['下载', '手机', 'APP', '开户', '登录', '广告']):
+                    continue
+                seen_titles.add(title)
+
+                # 转换时间戳为日期
+                time_str = ""
+                if ctime:
+                    try:
+                        dt_obj = datetime.fromtimestamp(int(ctime))
+                        time_str = dt_obj.strftime("%m-%d %H:%M")
+                    except:
+                        pass
+
+                # 情绪 + 事件标签判别
+                sentiment, tags = classify_news(title)
+
+                all_news.append(NewsItem(
+                    title=title,
+                    url=link,
+                    time=time_str,
+                    sentiment=sentiment,
+                    tags=tags
+                ))
+
+        except Exception as e:
+            print(f"从 {url[:60]} 获取资讯失败: {e}")
+            continue
+
+    # === 写入 3 段缓存（同 bucket 内复用） ===
+    result = all_news[:10] if all_news else [
+        NewsItem(title="更多资讯请关注新浪财经", url="https://finance.sina.com.cn/", time=""),
+    ]
+    NEWS_CACHE["data"] = result
+    NEWS_CACHE["bucket"] = current_bucket
+    return result
+
+
+def _parse_tencent_kline(text: str, stock_code: str = "sh000001") -> List[tuple]:
+    """
+    解析腾讯 K 线返回文本，提取每日原始数据
+    返回: [(date_str, close, previous_close), ...] 按日期升序（从旧到新）
+    """
+    prefix = "kline_dayqfq="
+    idx = text.find(prefix)
+    if idx < 0:
+        return []
+    json_str = text[idx + len(prefix):].rstrip(';').strip()
+    try:
+        data = json.loads(json_str)
+    except Exception:
+        return []
+
+    days_data = data.get('data', {}).get(stock_code, {}).get('day', [])
+    if not days_data:
+        return []
+
+    result = []
+    for d in days_data:
+        # 腾讯 day K 线字段: [date, open, close, high, low, volume, amount, ...]
+        # 不同版本字段顺序略有差异，但都是 [日期字符串, 多个数值]
+        try:
+            date_str = str(d[0])
+            close = float(d[2])
+            prev_close = float(d[1])  # 这里 d[1] 是 open，不是昨收；后面会用前一天的 close 来计算
+            result.append((date_str, close, prev_close))
+        except (ValueError, IndexError, TypeError):
+            continue
+    return result
+
+
+async def _fetch_tencent_kline_for_code(stock_code: str, request_days: int = 30) -> List[tuple]:
+    """
+    从腾讯 K 线接口拉取指定指数最近 N 根日 K 线
+    返回按日期升序（从旧到新）的 list[(date, close, open)]
+    """
+    url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?_var=kline_dayqfq&param={stock_code},day,,,{request_days},qfq&r=0.1"
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=HTTP_HEADERS)
+            r.raise_for_status()
+            text = r.text
+        return _parse_tencent_kline(text, stock_code)
+    except Exception as e:
+        print(f"获取 {stock_code} K 线失败: {e}")
+        return []
+
+
+async def _fetch_tencent_kline(request_days: int = 30) -> List[tuple]:
+    """
+    从腾讯 K 线接口拉取上证指数最近 N 根日 K 线
+    返回按日期升序（从旧到新）的 list[(date, close, open)]
+    """
+    return await _fetch_tencent_kline_for_code("sh000001", request_days)
+
+
+async def fetch_generic_index(code: str, name: str) -> IndexInfo:
+    """
+    通用指数抓取（用腾讯K线接口）
+    """
+    raw = await _fetch_tencent_kline_for_code(code, request_days=30)
+    if not raw or len(raw) == 0:
+        return IndexInfo(
+            code=code.replace("sh", "").replace("sz", ""),
+            name=name,
+            current=0.0,
+            previous=0.0,
+            daily_change=0.0,
+            history=[]
+        )
+
+    latest = raw[-1]
+    latest_date, latest_close = latest[0], latest[1]
+    if len(raw) >= 2:
+        previous_close = raw[-2][1]
+    else:
+        previous_close = latest[2]
+
+    daily_change = round((latest_close - previous_close) / previous_close * 100, 2) if previous_close > 0 else 0.0
+    display_code = code.replace("sh", "").replace("sz", "")
+
+    return IndexInfo(
+        code=display_code,
+        name=name,
+        current=round(latest_close, 2),
+        previous=round(previous_close, 2),
+        daily_change=daily_change
+    )
+
+
+async def fetch_index_history_for_code(code: str, days: int = 7) -> List[IndexHistoryItem]:
+    """
+    获取指定指数近 N 天历史 K 线
+    """
+    raw = await _fetch_tencent_kline_for_code(code, request_days=days + 15)
+    if not raw:
+        return []
+
+    recent = raw[-days:] if len(raw) >= days else raw
+    start_idx = len(raw) - len(recent)
+
+    result = []
+    for i, item in enumerate(recent):
+        date_str, close, _ = item
+        raw_idx = start_idx + i
+        if raw_idx > 0:
+            previous_close = raw[raw_idx - 1][1]
+        else:
+            previous_close = item[2]
+        change = round((close - previous_close) / previous_close * 100, 2) if previous_close > 0 else 0.0
+        result.append(IndexHistoryItem(
+            date=date_str,
+            close=round(close, 2),
+            change=change
+        ))
+
+    result.reverse()
+    return result
+
+
+async def fetch_sh_index() -> IndexInfo:
+    """
+    获取上证指数：基于腾讯 K 线（和基金净值接口同逻辑），
+    取"最近一个已收盘的交易日"作为当前数据，保证非交易时间也能拿到最新一条。
+    """
+    raw = await _fetch_tencent_kline(request_days=30)
+    if not raw or len(raw) == 0:
+        return IndexInfo(
+            code="000001",
+            name="上证指数",
+            current=0.0,
+            previous=0.0,
+            daily_change=0.0,
+            history=[]
+        )
+
+    # 最近一根 = 最新交易日收盘
+    latest = raw[-1]
+    latest_date, latest_close = latest[0], latest[1]
+
+    # 昨收 = 前一根 K 线的 close（没有就用当天 open 作为兜底）
+    if len(raw) >= 2:
+        previous_close = raw[-2][1]
+    else:
+        previous_close = latest[2]
+
+    daily_change = round((latest_close - previous_close) / previous_close * 100, 2) if previous_close > 0 else 0.0
+
+    return IndexInfo(
+        code="000001",
+        name="上证指数",
+        current=round(latest_close, 2),
+        previous=round(previous_close, 2),
+        daily_change=daily_change
+    )
+
+
+async def fetch_index_history(days: int = 7) -> List[IndexHistoryItem]:
+    """
+    获取上证指数近 N 天历史 K 线
+    返回按日期 **倒序**（最新交易日排第一），保证前端展示最新在最上面
+    """
+    raw = await _fetch_tencent_kline(request_days=days + 15)
+    if not raw:
+        return []
+
+    # raw 按日期升序（从旧到新）。取末尾 days 根 = 最近 days 个交易日。
+    recent = raw[-days:] if len(raw) >= days else raw
+    start_idx = len(raw) - len(recent)
+
+    # 为每根计算相对昨收的日涨跌（"昨收"=前一根 K 线的 close）
+    result = []
+    for i, item in enumerate(recent):
+        date_str, close, _ = item
+        raw_idx = start_idx + i
+        if raw_idx > 0:
+            previous_close = raw[raw_idx - 1][1]
+        else:
+            previous_close = item[2]  # 没有前一根，用当天 open 兜底
+        change = round((close - previous_close) / previous_close * 100, 2) if previous_close > 0 else 0.0
+        result.append(IndexHistoryItem(
+            date=date_str,
+            close=round(close, 2),
+            change=change
+        ))
+
+    # 按日期倒序返回（最新在最前）
+    result.reverse()
+    return result
+
+
+# ============= API 接口 =============
+
+@app.get("/api/portfolio", response_model=PortfolioResponse)
+async def get_portfolio(force: int = 0):
+    """
+    获取持仓概览（包括上证指数、国债指数、关注基金含7天净值、买点判断、AI预判）
+    force=1 强制刷新（绕过 30s 整页缓存）
+    """
+    # === 整页缓存：业务状态判定（去 TTL 概念） ===
+    # 用户场景：日涨跌没更新前一直拉，更新到了才停
+    # 规则：
+    # - 已披露（cache 中所有基金 nav_date == 最新可披露日期）→ 缓存命中（force=0 命中，force=1 也命中）
+    # - 未披露（仍有基金 nav_date < 最新可披露日期）→ 走 fetch（继续拉，直到披露）
+    # - 盘中未披露时：30s 轮询 force=0 也走 fetch（要拿盘中估值）；force=1 也走 fetch
+    # 注：盘外 30s 轮询若已披露则命中缓存
+    now_ts = time.time()
+    now = datetime.now()
+    is_trading = is_trading_time()
+    disclosed = _is_today_disclosed()
+    if PORTFOLIO_CACHE["data"] is not None:
+        if disclosed:
+            # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
+            return PORTFOLIO_CACHE["data"]
+        # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
+        if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
+            return PORTFOLIO_CACHE["data"]
+
+    # 并行获取市场指数：上证指数 + 上证历史 + 国债指数 + 国债历史 + 沪深300 + 沪深300历史（全部一次性 gather）
+    index_task = fetch_sh_index()
+    index_history_task = fetch_index_history(14)
+    bond_index_task = fetch_generic_index("sh000012", "国债指数")
+    bond_history_task = fetch_index_history_for_code("sh000113", 7)
+    hs300_task = fetch_generic_index("sh000300", "沪深300")
+    hs300_history_task = fetch_index_history_for_code("sh000300", 7)
+    news_task = fetch_market_news()  # 新闻也并行，不卡主流程
+
+    (
+        index_base, index_history, bond_index_base, bond_history,
+        hs300_base, hs300_history, news
+    ) = await asyncio.gather(
+        index_task, index_history_task, bond_index_task, bond_history_task,
+        hs300_task, hs300_history_task, news_task
+    )
+
+    # 构建完整指数数据
+    index_info = IndexInfo(
+        code=index_base.code,
+        name=index_base.name,
+        current=index_base.current,
+        previous=index_base.previous,
+        daily_change=index_base.daily_change,
+        history=index_history
+    )
+
+    bond_index_info = IndexInfo(
+        code=bond_index_base.code,
+        name=bond_index_base.name,
+        current=bond_index_base.current,
+        previous=bond_index_base.previous,
+        daily_change=bond_index_base.daily_change,
+        history=bond_history
+    )
+
+    # 构建沪深300指数数据
+    hs300_info = IndexInfo(
+        code=hs300_base.code,
+        name=hs300_base.name,
+        current=hs300_base.current,
+        previous=hs300_base.previous,
+        daily_change=hs300_base.daily_change,
+        history=hs300_history
+    )
+
+    # 并行获取所有基金数据（含实时净值 + 历史净值 + AI预判）
+    # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
+    fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
+    fund_results = await asyncio.gather(*fund_tasks, return_exceptions=True)
+
+    funds: List[FundInfo] = []
+    for result in fund_results:
+        if isinstance(result, FundInfo):
+            funds.append(result)
+        elif isinstance(result, Exception):
+            print(f"基金获取异常: {result}")
+
+    # 新闻已在指数 gather 中并行拉取（news 变量已就绪）
+
+    # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
+    # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
+
+    response = PortfolioResponse(
+        date=now.strftime("%Y-%m-%d"),
+        time=now.strftime("%H:%M:%S"),
+        index=index_info,
+        funds=funds,
+        news=news,
+        bond_index=bond_index_info,
+        hs300_index=hs300_info,
+        historical_yields=HISTORICAL_YIELDS
+    )
+
+    # === 写入整页缓存（30s 内复用） ===
+    PORTFOLIO_CACHE["data"] = response
+    PORTFOLIO_CACHE["saved_at"] = time.time()
+
+    return response
+
+
+@app.get("/api/cost-navs")
+async def get_all_cost_navs():
+    """获取所有基金的初始买入净值配置"""
+    return {"cost_navs": COST_NAVS}
+
+
+@app.post("/api/buy/{fund_code}")
+async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
+    """
+    用户"确定买入"指定基金。
+    - 如果在 request body 中传入 { "buy_price": 1.2345 }，则使用该价格作为成本价
+    - 否则以最新净值和当前日期作为买入成本基准
+    - 已持仓时支持追加买入，直接更新成本价为新买入价
+    
+    买入后，该基金的持有收益将从该时点起真实计算。
+    """
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+
+    # 先取最新基金数据
+    fund_latest = await fetch_fund_from_eastmoney(fund_code)
+    if not fund_latest:
+        raise HTTPException(status_code=502, detail=f"获取基金 {fund_code} 实时数据失败，请稍后重试")
+
+    # 使用传入的自定义价格，或默认使用最新净值
+    if payload and isinstance(payload, dict) and payload.get("buy_price"):
+        try:
+            buy_nav = float(payload["buy_price"])
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="buy_price 必须是有效的数字")
+        if buy_nav <= 0:
+            raise HTTPException(status_code=400, detail="buy_price 必须大于0")
+    else:
+        buy_nav = fund_latest.current_nav
+        if buy_nav <= 0:
+            raise HTTPException(status_code=502, detail=f"基金 {fund_code} 最新净值无效")
+
+    buy_date = fund_latest.nav_date
+    
+    # 判断是否为追加买入
+    is_additional_buy = COST_NAVS.get(fund_code, {}).get("is_holding", False)
+
+    # 写入持仓记录（直接更新成本价，不计算加权平均）
+    COST_NAVS[fund_code] = {
+        "buy_nav": buy_nav,
+        "buy_date": buy_date,
+        "buy_price": buy_nav,
+        "is_holding": True
+    }
+    save_cost_navs_to_file(COST_NAVS)
+
+    # 重新计算一次完整的基金信息
+    fund_recomputed = await fetch_fund_from_eastmoney(fund_code)
+    if fund_recomputed is None:
+        fund_recomputed = fund_latest
+
+    return {
+        "code": fund_code,
+        "name": fund_latest.name,
+        "buy_price": buy_nav,
+        "buy_date": buy_date,
+        "current_nav": fund_recomputed.current_nav if fund_recomputed else buy_nav,
+        "current_yield_pct": fund_recomputed.buy_point.yield_pct if fund_recomputed and fund_recomputed.buy_point else 0.0,
+        "is_holding": True,
+        "is_additional_buy": is_additional_buy
+    }
+
+
+@app.post("/api/sell/{fund_code}")
+async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
+    """
+    用户"确定卖出"指定基金。清空持仓记录，恢复到历史基准模式。
+    卖出后，将买点起始日期更新为卖出日期，下次买点计算从此时开始。
+    request body 可选传 { "sell_price": 1.2345, "buy_price": 1.2000 }，
+    用于前端自定义计算最终收益率（后端仍按清理持仓逻辑处理）。
+    """
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+
+    # 获取当前基金数据（用于更新买点起始日期）
+    fund_info = await fetch_fund_from_eastmoney(fund_code)
+    current_nav = fund_info.current_nav if fund_info else 0.0
+    nav_date = fund_info.nav_date if fund_info else datetime.now().strftime("%Y-%m-%d")
+
+    if fund_code in COST_NAVS:
+        del COST_NAVS[fund_code]
+        save_cost_navs_to_file(COST_NAVS)
+
+    # 更新买点起始日期为卖出日期（下次买点计算从此开始）
+    BUY_POINT_REFS[fund_code] = {
+        "ref_nav": round(current_nav, 4),
+        "ref_date": nav_date
+    }
+    save_buy_point_refs(BUY_POINT_REFS)
+    
+    # 更新历史收益基准日期为卖出日期
+    if fund_code in HISTORICAL_YIELDS:
+        hist_data = HISTORICAL_YIELDS[fund_code]
+        if isinstance(hist_data, dict):
+            HISTORICAL_YIELDS[fund_code]["date"] = nav_date
+
+    sell_price = None
+    buy_price = None
+    if payload and isinstance(payload, dict):
+        try:
+            if payload.get("sell_price"):
+                sell_price = float(payload["sell_price"])
+            if payload.get("buy_price"):
+                buy_price = float(payload["buy_price"])
+        except (ValueError, TypeError):
+            pass
+
+    result = {"code": fund_code, "is_holding": False, "message": "已卖出，持仓记录已清空，买点起始日期已更新"}
+    if sell_price is not None:
+        result["sell_price"] = sell_price
+    if buy_price is not None:
+        result["buy_price"] = buy_price
+    if sell_price and buy_price:
+        result["final_yield_pct"] = round((sell_price - buy_price) / buy_price * 100, 2)
+    
+    # 返回买点起始日期信息
+    result["buy_point_ref_date"] = nav_date
+    result["buy_point_ref_nav"] = round(current_nav, 4)
+
+    return result
+
+
+@app.get("/api/funds/{fund_code}", response_model=FundInfo)
+async def get_fund(fund_code: str):
+    """获取单个基金信息（含7天历史与买点）"""
+    fund = await fetch_fund_from_eastmoney(fund_code)
+    if not fund:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 未找到")
+    return fund
+
+
+@app.get("/api/index/{index_code}", response_model=IndexInfo)
+async def get_index(index_code: str):
+    """获取指数信息"""
+    if index_code == "000001" or index_code == "sh" or index_code == "sh000001":
+        return await fetch_sh_index()
+    raise HTTPException(status_code=404, detail=f"指数 {index_code} 未找到")
+
+
+@app.get("/api/health")
+async def health_check():
+    """健康检查"""
+    return {"status": "ok", "time": datetime.now().isoformat(), "version": "2.1.0"}
+
+
+@app.get("/api/index-model-stats")
+async def get_index_model_stats_api():
+    """获取基金专用模型（指数跟随 / 多因子）残差统计"""
+    result = {}
+    for code, model in FUND_SPECIFIC_MODELS.items():
+        stats = INDEX_RESIDUAL_CACHE.get(code, {})
+        result[code] = {
+            "model_type": model.get("type"),
+            "model_description": model.get("description", ""),
+            "benchmark": model.get("benchmark_name") or "+".join([f.get("name","") for f in model.get("factors",[])]),
+            "samples": stats.get("samples", []),
+            "mean_residual": stats.get("mean_residual", 0.0),
+            "std_residual": stats.get("std_residual", 0.0),
+            "sample_count": stats.get("sample_count", 0),
+            "confidence": stats.get("confidence", "none"),
+            "last_residual": stats.get("last_residual", 0.0),
+            "last_update": stats.get("last_update", ""),
+            "enabled": get_index_model_estimate(code)["enabled"]
+        }
+    return result
+
+
+@app.get("/api/correction-stats")
+async def get_correction_stats_api():
+    """获取残差修正模型统计（调试用）
+    返回每只基金的残差样本、均值、标准差、置信度
+    """
+    result = {}
+    for code in ["011609", "020741", "004746"]:
+        stats = get_correction_stats(code)
+        eff = get_effective_correction(code)
+        result[code] = {
+            "samples": stats.get("samples", []),
+            "mean_residual": stats.get("mean_residual", 0.0),
+            "std_residual": stats.get("std_residual", 0.0),
+            "sample_count": stats.get("sample_count", 0),
+            "confidence": stats.get("confidence", "none"),
+            "last_residual": stats.get("last_residual", 0.0),
+            "last_update": stats.get("last_update", ""),
+            "effective_offset": eff["offset"],
+            "enabled": eff["enabled"]
+        }
+    result["_meta"] = CORRECTION_CACHE.get("_meta", {})
+    return result
+
+
+@app.get("/api/model-accuracy")
+async def get_model_accuracy_api(days: int = 7):
+    """模型准确性评估：基于 correction_cache 中积累的 est vs actual 样本
+    返回每只基金的 MAE、方向胜率、按日期分组的残差明细
+    """
+    from collections import defaultdict
+    result = {}
+    for code in ["011609", "020741", "004746"]:
+        stats = get_correction_stats(code)
+        samples = stats.get("samples", [])
+        # 按日期去重（每日多条 time 快照只保留最后一条 = 最接近收盘的预测）
+        by_date = {}
+        for s in samples:
+            d = s.get("date", "")
+            if not d:
+                continue
+            # 跳过 manual_test
+            t = s.get("time", "")
+            if t in ("manual_test", ""):
+                # 无 time 的视为收盘后回填，优先级最高
+                by_date[d] = s
+            else:
+                # 有 time 的取最后一个（时间最晚的 = 最接近 14:32 收盘预测）
+                if d not in by_date or by_date[d].get("time", "") < t:
+                    by_date[d] = s
+        # 限制最近 N 天
+        sorted_dates = sorted(by_date.keys(), reverse=True)[:days]
+        deduped = [by_date[d] for d in sorted_dates]
+        n = len(deduped)
+        if n == 0:
+            result[code] = {
+                "sample_count": 0, "mae": 0, "rmse": 0,
+                "direction_accuracy": 0, "mean_residual": 0,
+                "last_residual": 0, "last_actual": 0, "last_est": 0,
+                "last_date": "", "details": []
+            }
+            continue
+        abs_errs = [abs(s["residual"]) for s in deduped]
+        sq_errs = [s["residual"] ** 2 for s in deduped]
+        # 方向胜率：实际涨跌方向与预测方向是否一致
+        dir_correct = 0
+        for s in deduped:
+            pred = s["est_change"]
+            actual = s["actual_change"]
+            if abs(pred) < 0.005 and abs(actual) < 0.005:
+                continue  # 双方都接近 0，跳过（债基常态）
+            if (pred >= 0 and actual >= 0) or (pred < 0 and actual < 0):
+                dir_correct += 1
+        mae = sum(abs_errs) / n
+        rmse = (sum(sq_errs) / n) ** 0.5
+        mean_res = sum(s["residual"] for s in deduped) / n
+        last = deduped[0]
+        result[code] = {
+            "sample_count": n,
+            "mae": round(mae, 4),
+            "rmse": round(rmse, 4),
+            "direction_accuracy": round(dir_correct / n * 100, 1) if n > 0 else 0,
+            "mean_residual": round(mean_res, 4),
+            "last_residual": last.get("residual", 0),
+            "last_actual": last.get("actual_change", 0),
+            "last_est": last.get("est_change", 0),
+            "last_date": last.get("date", ""),
+            "details": [{"date": s.get("date"), "est": s.get("est_change"),
+                          "actual": s.get("actual_change"),
+                          "residual": s.get("residual")} for s in deduped]
+        }
+    return result
+
+
+@app.post("/api/correction-stats/reset")
+async def reset_correction_stats():
+    """重置残差缓存（调试用）"""
+    global CORRECTION_CACHE
+    CORRECTION_CACHE = {"_meta": {"last_update": "", "max_samples": 20}}
+    save_correction_cache(CORRECTION_CACHE)
+    return {"status": "ok", "message": "残差缓存已重置"}
+
+
+@app.post("/api/correction-stats/inject")
+async def inject_correction_sample(payload: dict):
+    """手动注入一条残差样本（用于冷启动或回填）
+    payload: {code, date, est_change, actual_change}
+    """
+    code = payload.get("code", "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="缺少基金代码 code")
+    try:
+        est = float(payload.get("est_change", 0))
+        actual = float(payload.get("actual_change", 0))
+        date = payload.get("date", datetime.now().strftime("%Y-%m-%d"))
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="est_change/actual_change 必须为数字")
+    if est == 0 or actual == 0:
+        raise HTTPException(status_code=400, detail="est_change/actual_change 不能为 0")
+    record_residual(code, est, actual, date)
+    eff = get_effective_correction(code)
+    return {
+        "status": "ok",
+        "code": code,
+        "sample_added": {"date": date, "est_change": est, "actual_change": actual, "residual": round(actual - est, 3)},
+        "stats": get_correction_stats(code),
+        "effective": eff
+    }
+
+
+@app.post("/api/snapshots/take")
+async def take_snapshot_now(payload: Optional[dict] = None):
+    """手动触发盘中快照采样（测试 / 立即采集）
+    payload: {codes: ["011609", ...], time: "HH:MM"} (可选)
+    """
+    codes = (payload or {}).get("codes", SNAPSHOT_FUND_CODES)
+    snap_time = (payload or {}).get("time", datetime.now().strftime("%H:%M"))
+    results = []
+    for c in codes:
+        if c not in SNAPSHOT_FUND_CODES:
+            results.append({"code": c, "status": "skipped", "reason": "not in watchlist"})
+            continue
+        await take_intraday_snapshot(c, snap_time)
+        results.append({"code": c, "status": "ok", "time": snap_time})
+    return {"status": "ok", "results": results, "snapshots": INTRADAY_SNAPSHOTS}
+
+
+@app.get("/api/snapshots")
+async def get_snapshots():
+    """查看所有盘中快照"""
+    return INTRADAY_SNAPSHOTS
+
+
+@app.post("/api/snapshots/reset")
+async def reset_snapshots():
+    """重置盘中快照缓存"""
+    global INTRADAY_SNAPSHOTS
+    INTRADAY_SNAPSHOTS = {"_meta": {"max_snapshots_per_fund": 60, "snapshot_times": SNAPSHOT_TIMES}}
+    save_intraday_snapshots(INTRADAY_SNAPSHOTS)
+    return {"status": "ok", "message": "盘中快照已重置"}
+
+
+@app.get("/api/trading-calendar")
+async def get_trading_calendar(start: str = "", end: str = ""):
+    """查看 A 股交易日历
+    start/end: YYYY-MM-DD（可选），列出此区间内的所有日期及是否为交易日
+    """
+    cal = load_trading_calendar()
+    holidays = set(cal.get("holidays", []))
+    result = {"holidays_count": len(holidays), "is_today_trading_day": is_trading_day()}
+    if start and end:
+        try:
+            from datetime import date as _date, timedelta as _td
+            d0 = _date.fromisoformat(start)
+            d1 = _date.fromisoformat(end)
+            days = []
+            cur = d0
+            while cur <= d1:
+                ds = cur.strftime("%Y-%m-%d")
+                is_td = (cur.weekday() < 5) and (ds not in holidays)
+                days.append({"date": ds, "weekday": cur.weekday(), "is_trading_day": is_td})
+                cur += _td(days=1)
+            result["days"] = days
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"日期格式错误: {e}")
+    else:
+        result["holidays"] = sorted(holidays)
+    return result
+
+
+@app.post("/api/trading-calendar/holiday")
+async def add_holiday(payload: dict):
+    """添加/删除休市日
+    payload: {date: "YYYY-MM-DD", action: "add"|"remove"}
+    """
+    date_str = payload.get("date", "").strip()
+    action = payload.get("action", "add").strip()
+    if not date_str:
+        raise HTTPException(status_code=400, detail="缺少 date")
+    cal = load_trading_calendar()
+    holidays = set(cal.get("holidays", []))
+    if action == "add":
+        holidays.add(date_str)
+    elif action == "remove":
+        holidays.discard(date_str)
+    else:
+        raise HTTPException(status_code=400, detail="action 必须是 add 或 remove")
+    cal["holidays"] = sorted(holidays)
+    save_trading_calendar(cal)
+    return {"status": "ok", "date": date_str, "action": action, "total_holidays": len(holidays)}
+
+
+# ============= 新闻正文提取（不离开 APP 阅读） =============
+
+# 简单内存缓存：URL -> (timestamp, content_dict)，避免重复抓取
+_NEWS_CONTENT_CACHE: Dict[str, tuple] = {}
+_NEWS_CACHE_TTL = 600  # 10 分钟
+
+
+@app.get("/api/news-content")
+async def get_news_content(url: str):
+    """抓取并提取新闻正文（纯文本，不含图片），10 分钟缓存"""
+    import time as _t
+    now = _t.time()
+
+    # 缓存命中
+    if url in _NEWS_CONTENT_CACHE:
+        ts, data = _NEWS_CONTENT_CACHE[url]
+        if now - ts < _NEWS_CACHE_TTL:
+            return data
+
+    if not url or not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL 不合法")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=HTTP_HEADERS)
+            r.raise_for_status()
+            html = r.text
+    except Exception as e:
+        return {"url": url, "ok": False, "error": f"抓取失败: {e}"}
+
+    # 优先用 trafilatura
+    title = ""
+    content = ""
+    date_str = ""
+    try:
+        import trafilatura
+        extracted_json = trafilatura.extract(
+            html,
+            include_images=False,
+            include_links=False,
+            include_comments=False,
+            include_tables=False,
+            output='json',
+            with_metadata=True,
+        )
+        if extracted_json:
+            import json as _json
+            meta = _json.loads(extracted_json)
+            title = meta.get("title", "") or ""
+            content = meta.get("text", "") or ""
+            date_str = meta.get("date", "") or ""
+    except Exception:
+        pass
+
+    # 回退：BeautifulSoup 简单提取
+    if not content:
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, "html.parser")
+            if not title and soup.title:
+                title = soup.title.get_text(strip=True)
+            for s in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                s.decompose()
+            article = (
+                soup.find("article")
+                or soup.find("main")
+                or soup.find(id="content")
+                or soup.find(id="article")
+                or soup.find(class_="content")
+                or soup.find(class_="article")
+            )
+            target = article or soup.body or soup
+            text = target.get_text(separator="\n", strip=True)
+            lines = [ln.strip() for ln in text.split("\n") if ln.strip() and len(ln.strip()) > 8]
+            content = "\n".join(lines[:200])
+        except Exception as e:
+            return {"url": url, "ok": False, "error": f"解析失败: {e}"}
+
+    # 截断过长内容
+    if len(content) > 8000:
+        content = content[:8000] + "\n\n...(已截断)"
+
+    data = {
+        "url": url,
+        "ok": True,
+        "title": title,
+        "content": content,
+        "date": date_str,
+        "length": len(content),
+    }
+    _NEWS_CONTENT_CACHE[url] = (now, data)
+    return data
+
+
+@app.get("/cert")
+async def download_cert():
+    """下载SSL证书，用于iOS/Mac设备安装信任"""
+    cert_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cert.pem")
+    return FileResponse(
+        cert_path,
+        media_type="application/x-x509-ca-cert",
+        filename="frp-oil.com.pem",
+        headers={"Content-Disposition": "attachment; filename=frp-oil.com.pem"}
+    )
+
+
+@app.get("/")
+async def root():
+    """返回前端HTML页面"""
+    return FileResponse(
+        index_path,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
+
+
+@app.get("/manifest.json")
+async def manifest():
+    """返回 PWA manifest.json"""
+    manifest_path = os.path.join(web_app_dir, "manifest.json")
+    return FileResponse(
+        manifest_path,
+        media_type="application/manifest+json",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
+
+
+# ============= SPA fallback: 所有未匹配的路由返回 index.html =============
+# 解决 iOS 主屏幕（Standalone 模式）下可能因为 URL 路径差异导致 Not Found 的问题
+# 使用 FastAPI 内置的 path 参数捕获所有未匹配路径
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    """SPA fallback：未匹配到 API/静态文件的路由均返回 index.html"""
+    # 跳过已知的 API 和静态文件前缀（理论上不会匹配到，但作为安全防护）
+    if full_path.startswith("api/") or full_path.startswith("static/") or full_path.startswith("manifest.json"):
+        return JSONResponse({"error": "Not Found"}, status_code=404)
+    return FileResponse(
+        index_path,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000
+    )
