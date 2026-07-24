@@ -101,7 +101,6 @@ body.dark .tab-bar{background:rgba(18,18,30,.94);border-top-color:rgba(255,255,2
 <div id="tab-ai" class="tab-content">
   <div class="px" style="margin-top:10px"><div class="section-title">🤖 AI 综合分析</div></div>
   <div class="card px" style="margin:0 12px;padding:14px 12px">
-    <div class="flex gap6" id="ai-tabs" style="margin-bottom:10px"></div>
     <div id="ai-content"><div class="muted" style="font-size:12px">加载中...</div></div>
     <div style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
       <div class="muted" style="margin-bottom:6px">📐 模型准确度 近 7 日</div>
@@ -294,55 +293,48 @@ function renderHome(d) {
   }
 }
 
-// ===== Render Funds =====
+// ===== Render Funds (紧凑卡片) =====
 function renderFunds(d) {
   const list = document.getElementById('fund-detail-list');
   if (!d.funds) return;
   list.innerHTML = d.funds.map(f => {
     const bp = f.buy_point || {};
     const chg = f.daily_change || 0;
-    const riskCls = '<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:rgba(229,57,53,.08);color:var(--up)">' + (f.ai_prediction?.risk_level || '\u4e2d') + '</span>';
-    return '<div class="card px" style="margin:6px 12px;padding:14px 12px">' +
-      '<div class="flex-between"><div><div class="muted" style="font-size:11px">' + f.code + '</div><div style="font-size:14px;font-weight:600;margin-top:1px">' + (f.name||'') + '</div></div>' + riskCls + '</div>' +
-      '<div class="flex-between" style="margin:8px 0"><div class="fs24 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav ? fmt(f.current_nav) : '--') + '</div><div class="fs17 fw7" style="color:' + (chg >= 0 ? 'var(--up)' : 'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
-      '<div class="flex" style="margin:8px 0;padding:8px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03)">' +
-      '<div style="flex:1;text-align:center"><div class="muted" style="font-size:10px">\u6301\u6709\u6536\u76ca</div><div style="font-size:13px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
-      '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">7\u65e5</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_7d != null ? fmtPct(f.return_7d) : '--') + '</div></div>' +
-      '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">1\u6708</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_1m != null ? fmtPct(f.return_1m) : '--') + '</div></div></div>' +
-      (bp.is_holding ? '<div style="margin:6px 0;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
-        '<div class="flex-between" style="font-size:12px"><span class="muted">\u6210\u672c\u4ef7</span><span style="font-weight:600">' + fmt(bp.cost_nav||0) + '</span>' +
-        '<span class="muted">\u6301\u6709' + (bp.hold_days||0) + '\u5929</span><span style="font-weight:600;color:' + cls(bp.yield_pct||0) + '">' + fmtPct(bp.yield_pct||0) + '</span></div>' +
-        (bp.target_nav ? '<div style="margin-top:6px"><div class="flex-between" style="font-size:11px"><span class="muted">\u76ee\u6807\u4ef7 ' + fmt(bp.target_nav) + '</span><span class="muted">\u8fdb\u5ea6 ' + (bp.progress_pct||0).toFixed(0) + '%</span></div>' +
-        '<div style="margin-top:4px;height:3px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));width:' + Math.min((bp.progress_pct||0),100) + '%"></div></div></div>' : '') +
-      '</div>' : '') +
-      '<button class="row-btn" style="width:100%;margin-top:8px" onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')">' + (bp.is_holding ? '\u786e\u8ba4\u4e70\u5165' : '\u7acb\u5373\u4e70\u5165') + '</button></div>';
+    return '<div class="card px" style="margin:4px 12px;padding:10px 12px">' +
+      '<div class="flex-between"><div><span style="font-size:11px;color:var(--text2)">' + f.code + '</span><span class="muted" style="margin-left:6px">' + (f.name||'').substring(0,10) + '</span></div>' +
+      '<div><span class="fs17 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav?fmt(f.current_nav):'--') + '</span>' +
+      '<span class="fs14 fw7 ' + cls(chg) + '" style="margin-left:8px">' + fmtPct(chg) + '</span></div></div>' +
+      (bp.is_holding ? '<div class="flex" style="margin-top:6px;padding-top:6px;border-top:.5px solid rgba(0,0,0,.03);font-size:11px;color:var(--text2)">' +
+        '<span>\u6210\u672c ' + fmt(bp.cost_nav||0) + '</span>' +
+        '<span style="margin-left:12px">\u6301\u6709 ' + (bp.hold_days||0) + '\u5929</span>' +
+        '<span style="margin-left:12px;font-weight:600;color:' + cls(bp.yield_pct||0) + '">\u6536\u76ca ' + fmtPct(bp.yield_pct||0) + '</span>' +
+        (bp.target_nav ? '<span style="margin-left:auto;font-weight:600">\u76ee\u6807 ' + fmt(bp.target_nav) + '</span>' : '') +
+      '</div>' : '<div class="muted" style="margin-top:4px;font-size:11px">\u672a\u6301\u4ed3</div>') +
+      '</div>';
   }).join('');
 }
 
-// ===== Render AI =====
+// ===== Render AI (3只基金同时显示上下排列) =====
 function renderAI(d) {
   const funds = d.funds || [];
   if (!funds.length) return;
-  const tabs = document.getElementById('ai-tabs');
   const content = document.getElementById('ai-content');
-  tabs.innerHTML = funds.map((f, i) =>
-    '<span style="flex:1;padding:6px 0;text-align:center;font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;transition:all .2s' + (i===0 ? ';background:var(--card);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.06)' : ';color:var(--text3)') + '" onclick="switchAI(' + i + ')">' + f.code + '</span>'
-  ).join('');
-  let html = '';
-  funds.forEach((f, i) => {
+  content.innerHTML = funds.map((f, i) => {
     const ai = f.ai_prediction || {};
-    html += '<div id="ai-panel-' + i + '" style="display:' + (i===0?'block':'none') + '">' +
-      '<div class="flex-between" style="margin-bottom:8px"><span class="muted">\u8d8b\u52bf</span><span style="font-size:16px;font-weight:600">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span></div>' +
-      '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">' + (ai.advice || '\u6682\u65e0\u5206\u6790') + '</div>' +
-      '<div class="flex gap8" style="flex-wrap:wrap">' +
-      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c: ' + (ai.valuation_position || '--') + '</span>' +
-      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1: ' + (ai.confidence || '--') + '</span>' +
-      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(67,160,71,.08);color:var(--down)">\u98ce\u9669: ' + (ai.risk_level || '--') + '</span></div>' +
-      '<div class="flex gap8" style="flex-wrap:wrap;margin-top:6px">' +
-      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491 ' + (ai.key_levels ? ai.key_levels.split('/')[0] : '--') + '</span>' +
-      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b ' + (ai.key_levels ? ai.key_levels.split('/')[1] : '--') + '</span></div></div>';
-  });
-  content.innerHTML = html;
+    const chg = f.daily_change || 0;
+    return '<div style="padding:' + (i>0?'10px 0 0':'0 0 0') + ';margin-top:' + (i>0?'10px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
+      '<div class="flex-between" style="margin-bottom:6px"><span class="fs15 fw7">' + f.code + ' ' + (f.name||'').substring(0,6) + '</span>' +
+      '<span class="' + cls(chg) + ' fw7">' + fmtPct(chg) + '</span></div>' +
+      '<div class="flex-between" style="margin-bottom:4px"><span class="muted">\u8d8b\u52bf</span><span class="fw7">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span></div>' +
+      '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:6px">' + (ai.advice || '\u6682\u65e0\u5206\u6790') + '</div>' +
+      '<div class="flex gap6" style="flex-wrap:wrap">' +
+      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c: ' + (ai.valuation_position || '--') + '</span>' +
+      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1: ' + (ai.confidence || '--') + '</span>' +
+      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669: ' + (ai.risk_level || '--') + '</span>' +
+      (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' +
+      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
+      '</div></div>';
+  }).join('');
   // Accuracy
   fetch(API_BASE + '/api/model-accuracy?days=7')
     .then(r => r.json()).then(d2 => {
