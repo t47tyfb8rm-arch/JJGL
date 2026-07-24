@@ -209,11 +209,21 @@ async function fetchD(){
 
 function renderHome(d){
   const fs=d.funds||[];let ti=0,tv=0,hc=0,md=0;
-  fs.forEach(f=>{const b=f.buy_point||{};if(b.is_holding){hc++;ti+=b.cost_nav||0;tv+=f.current_nav||0;if((b.hold_days||0)>md)md=b.hold_days}});
+  const held=[]; // 持仓基金
+  fs.forEach(f=>{
+    const b=f.buy_point||{};
+    if(b.is_holding){
+      hc++;ti+=b.cost_nav||0;tv+=f.current_nav||0;
+      if((b.hold_days||0)>md)md=b.hold_days;
+      held.push(f);
+    }
+  });
+  // 当日收益 = sum( 持有市值 * 涨跌幅% / 100 )
+  let dp=0;held.forEach(f=>{const b=f.buy_point||{};dp+=(f.current_nav||0)*((f.daily_change||0)/100)});
   const tp=tv-ti,yp=ti>0?tp/ti*100:0;
   document.getElementById('total-asset').textContent=tv>0?'¥'+fmt(tv):'¥--';
-  document.getElementById('today-profit').textContent=(tp>=0?'+¥':'¥')+fmt(Math.abs(tp));
-  document.getElementById('today-profit').style.color=tp>=0?'var(--red)':'var(--green)';
+  document.getElementById('today-profit').textContent=(dp>=0?'+¥':'¥')+fmt(Math.abs(dp));
+  document.getElementById('today-profit').style.color=dp>=0?'var(--red)':'var(--green)';
   document.getElementById('total-yield').textContent=fp(yp);
   document.getElementById('total-yield').style.color=yp>=0?'var(--red)':'var(--green)';
   document.getElementById('holding-count').textContent=hc+'/'+fs.length;
