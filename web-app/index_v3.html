@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>基金管家 v3</title>
+<title>基金管家</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -12,679 +12,431 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v=2">
 <link rel="icon" type="image/png" href="/static/icon-180.png?v=2">
 <style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--brand:#1a237e;--brand-light:#304ffe;--up:#e53935;--down:#43a047;--up-bg:rgba(229,57,53,0.06);--down-bg:rgba(67,160,71,0.06);--text:#1a1a2e;--text-secondary:#666;--text-muted:#aaa;--bg:#f5f6fa;--card:#fff;--card-radius:14px;--card-shadow:0 1px 3px rgba(0,0,0,0.04),0 2px 12px rgba(0,0,0,0.04);--card-shadow-hover:0 4px 16px rgba(0,0,0,0.08);--font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
-body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
-body.dark-mode{--bg:#12121f;--card:#1e1e35;--text:#e8e8f0;--text-secondary:#999;--text-muted:#666;--card-shadow:0 1px 3px rgba(0,0,0,0.3),0 2px 12px rgba(0,0,0,0.4);--up-bg:rgba(229,57,53,0.12);--down-bg:rgba(67,160,71,0.12)}
-
-/* ===== Top Bar ===== */
-.top-bar{position:sticky;top:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:12px 16px 8px;background:var(--bg)}
-.top-bar-left{display:flex;align-items:center;gap:8px}
-.top-bar .logo{width:28px;height:28px;background:linear-gradient(135deg,#1a237e,#304ffe);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700}
-.top-bar .title{font-size:17px;font-weight:600;color:var(--text)}
-.top-bar .subtitle{font-size:11px;color:var(--text-muted);margin-top:1px}
-.top-bar-right{display:flex;align-items:center;gap:12px}
-.top-bar-right .time{font-size:11px;color:var(--text-muted)}
-.theme-toggle{width:20px;height:20px;cursor:pointer;color:var(--text-muted);transition:color .2s}
-.theme-toggle:hover{color:var(--text)}
-
-/* ===== Cards ===== */
-.card{background:var(--card);border-radius:var(--card-radius);box-shadow:var(--card-shadow);transition:all .2s cubic-bezier(.4,0,.2,1)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--brand:#1a237e;--up:#e53935;--down:#43a047;--up-bg:rgba(229,57,53,0.08);--down-bg:rgba(67,160,71,0.08);--neutral:#333;--text2:#666;--text3:#aaa;--bg:#f5f5f5;--card:#fff;--radius:14px;--shadow:0 1px 4px rgba(0,0,0,0.04),0 2px 12px rgba(0,0,0,0.04);--font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--neutral);min-height:100vh;-webkit-font-smoothing:antialiased}
+body.dark{--bg:#12121f;--card:#1e1e35;--neutral:#e8e8f0;--text2:#999;--text3:#666;--shadow:0 1px 4px rgba(0,0,0,0.3)}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);transition:transform .2s}
 .card:active{transform:scale(.985)}
-
-/* ===== Tab Content ===== */
+.up{color:var(--up)}.down{color:var(--down)}
+.muted{color:var(--text3);font-size:12px}
+.section{padding:0 16px;margin-top:10px}
+.section-title{font-size:14px;font-weight:600;color:var(--neutral);padding:14px 0 10px;display:flex;align-items:center;gap:6px}
+.grid-3{display:flex;gap:0}
+.grid-3>div{flex:1;padding:10px 0;text-align:center}
+.grid-3>div+div{border-left:.5px solid rgba(0,0,0,.05)}
+body.dark .grid-3>div+div{border-left-color:rgba(255,255,255,.06)}
+.fw7{font-weight:700}.fs14{font-size:14px}.fs16{font-size:16px}.fs18{font-size:18px}.fs24{font-size:24px}.fs26{font-size:26px}
+.mt4{margin-top:4px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt12{margin-top:12px}
+.flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap8{gap:8px}.gap12{gap:12px}.gap16{gap:16px}
 .content{padding-bottom:80px;padding-top:4px}
-.tab-content{display:none;animation:fadeIn .25s ease}
-.tab-content.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-/* ===== Tab Bar ===== */
+.tab-content{display:none}.tab-content.active{display:block;animation:fade .25s}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.96);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:.5px solid rgba(0,0,0,.05);display:flex;justify-content:space-around;align-items:flex-start;padding-top:6px;padding-bottom:max(4px,env(safe-area-inset-bottom))}
-body.dark-mode .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,255,.05)}
-.tab-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:400;color:var(--text-muted);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .2s;padding:2px 14px;min-width:44px;position:relative}
-.tab-item svg{width:25px;height:25px;transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,255,.05)}
+.tab-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--text3);cursor:pointer;transition:color .2s;padding:2px 14px;min-width:44px}
+.tab-item svg{width:24px;height:24px;transition:transform .2s}
 .tab-item span{line-height:1;transition:font-weight .2s}
 .tab-item.active{color:var(--brand)}
 .tab-item.active svg{transform:scale(1.05)}
-.tab-item.active span{font-weight:600;color:var(--brand)}
-.tab-item:active svg{transform:scale(.9);opacity:.7}
-body.dark-mode .tab-item.active{color:#64b5f6}
-body.dark-mode .tab-item.active span{color:#64b5f6}
-
-/* ===== Asset Summary ===== */
-.asset-card{padding:18px 16px;margin:8px 16px}
-.asset-header{display:flex;justify-content:space-between;align-items:flex-start}
-.asset-label{font-size:12px;color:var(--text-muted);margin-bottom:2px}
-.asset-value{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.5px}
-.asset-daily{font-size:16px;font-weight:600;font-feature-settings:"tnum"}
-.asset-progress{margin-top:14px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.05)}
-body.dark-mode .asset-progress{border-top-color:rgba(255,255,255,.05)}
-.asset-stats{display:flex;gap:20px}
-.asset-stat .stat-label{font-size:11px;color:var(--text-muted)}
-.asset-stat .stat-value{font-size:14px;font-weight:600;color:var(--text);margin-top:2px}
-.progress-bar{margin-top:10px;height:4px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden}
-body.dark-mode .progress-bar{background:rgba(255,255,255,.08)}
-.progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));transition:width .6s ease}
-
-/* ===== Index Strip ===== */
-.index-strip{margin:8px 16px;padding:0;overflow:hidden}
-.index-grid{display:flex;gap:0}
-.index-item{flex:1;padding:12px 0;text-align:center;position:relative}
-.index-item+.index-item::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:.5px;background:rgba(0,0,0,.05)}
-body.dark-mode .index-item+.index-item::before{background:rgba(255,255,255,.05)}
-.index-name{font-size:11px;color:var(--text-muted)}
-.index-price{font-size:17px;font-weight:700;color:var(--text);margin-top:3px;font-feature-settings:"tnum"}
-.index-change{font-size:12px;font-weight:500;margin-top:2px}
-.index-change.up{color:var(--up)}
-.index-change.down{color:var(--down)}
-
-/* ===== Fund Chips ===== */
-.fund-chip-row{display:flex;gap:8px;padding:0 16px;margin-top:10px}
-.fund-chip{flex:1;background:var(--card);border-radius:12px;padding:14px 6px;text-align:center;box-shadow:var(--card-shadow);cursor:pointer;transition:all .2s ease}
-.fund-chip:active{transform:scale(.95)}
-.fund-chip .chip-code{font-size:10px;color:var(--text-muted);margin-bottom:4px}
-.fund-chip .chip-change{font-size:20px;font-weight:700;font-feature-settings:"tnum"}
-.fund-chip .chip-change.up{color:var(--up)}
-.fund-chip .chip-change.down{color:var(--down)}
-.fund-chip .chip-yield{font-size:12px;font-weight:500;margin-top:4px}
-.fund-chip .chip-yield.holding{color:var(--up)}
-.fund-chip .chip-yield.empty{color:var(--text-muted)}
-.fund-chip .chip-name{font-size:9px;color:var(--text-muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ===== Ranking ===== */
-.section-card{padding:14px 16px;margin:10px 16px}
-.section-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px}
-.rank-item{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0}
-.rank-item+.rank-item{border-top:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .rank-item+.rank-item{border-top-color:rgba(255,255,255,.03)}
-.rank-badge{width:16px;text-align:center;flex-shrink:0}
-.rank-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
-.rank-change{font-weight:600;font-feature-settings:"tnum"}
-.rank-change.up{color:var(--up)}
-.rank-change.down{color:var(--down)}
-
-/* ===== Fund Detail Tab ===== */
-.fund-detail-card{padding:16px;margin:8px 16px}
-.fund-detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.fund-detail-code{font-size:12px;color:var(--text-muted)}
-.fund-detail-name{font-size:15px;font-weight:600;color:var(--text)}
-.risk-tag{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:500}
-.risk-tag.high{background:var(--up-bg);color:var(--up)}
-.risk-tag.mid{background:rgba(255,152,0,.1);color:#ff9800}
-.fund-detail-price{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px}
-.detail-nav{font-size:28px;font-weight:700;color:var(--text);font-feature-settings:"tnum"}
-.detail-change{font-size:18px;font-weight:600}
-.detail-change.up{color:var(--up)}
-.detail-change.down{color:var(--down)}
-.detail-metrics{display:flex;gap:0;margin:12px 0;padding:12px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .detail-metrics{border-color:rgba(255,255,255,.05)}
-.detail-metric{flex:1;text-align:center}
-.detail-metric+.detail-metric{border-left:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .detail-metric+.detail-metric{border-left-color:rgba(255,255,255,.05)}
-.metric-label{font-size:10px;color:var(--text-muted)}
-.metric-value{font-size:13px;font-weight:600;color:var(--text);margin-top:2px}
-.buy-btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:12px}
-.buy-btn.primary{background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff}
-.buy-btn.primary:active{transform:scale(.97);opacity:.9}
-.buy-btn.outline{background:transparent;border:1px solid rgba(0,0,0,.1);color:var(--text)}
-body.dark-mode .buy-btn.outline{border-color:rgba(255,255,255,.1)}
-.buy-btn.outline:active{background:rgba(0,0,0,.03)}
-
-/* ===== AI Tab ===== */
-.ai-tabs{display:flex;gap:6px;margin-bottom:12px;padding:2px;background:rgba(0,0,0,.03);border-radius:8px}
-body.dark-mode .ai-tabs{background:rgba(255,255,255,.05)}
-.ai-tab{flex:1;padding:6px 0;text-align:center;font-size:12px;font-weight:500;color:var(--text-muted);border-radius:6px;cursor:pointer;transition:all .2s}
-.ai-tab.active{background:var(--card);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.06)}
-body.dark-mode .ai-tab.active{color:#64b5f6}
-.ai-content-panel{display:none;animation:fadeIn .2s ease}
-.ai-content-panel.active{display:block}
-.ai-trend-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.ai-trend-label{font-size:12px;color:var(--text-muted)}
-.ai-trend-value{font-size:16px;font-weight:600}
-.ai-advice{font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px}
-.ai-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.ai-tag{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500}
-.ai-tag.info{background:rgba(48,79,254,.08);color:var(--brand)}
-.ai-tag.warn{background:rgba(255,152,0,.1);color:#ff9800}
-.ai-tag.green{background:var(--down-bg);color:var(--down)}
-body.dark-mode .ai-tag.info{background:rgba(100,181,246,.12);color:#64b5f6}
-.ai-accuracy{margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .ai-accuracy{border-top-color:rgba(255,255,255,.05)}
-.accuracy-row{display:flex;gap:16px;margin-top:8px}
-.accuracy-item{flex:1;text-align:center}
-.accuracy-num{font-size:20px;font-weight:700;font-feature-settings:"tnum"}
-.accuracy-label{font-size:10px;color:var(--text-muted);margin-top:2px}
-
-/* ===== Search Tab ===== */
-.search-box{margin:8px 16px;display:flex;gap:8px}
-.search-input{flex:1;padding:12px 14px;border:1px solid rgba(0,0,0,.08);border-radius:10px;font-size:14px;background:var(--card);color:var(--text);outline:none;transition:border .2s}
-body.dark-mode .search-input{border-color:rgba(255,255,255,.08)}
-.search-input:focus{border-color:var(--brand)}
-.search-btn{padding:12px 18px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
-.search-btn:active{transform:scale(.95);opacity:.9}
-.search-result{margin:8px 16px}
-.search-hot{padding:0 16px;margin-top:12px}
-.search-hot-title{font-size:12px;color:var(--text-muted);margin-bottom:8px}
-.search-hot-tags{display:flex;gap:8px;flex-wrap:wrap}
-.hot-tag{padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text-secondary);cursor:pointer;box-shadow:var(--card-shadow)}
-.hot-tag:active{transform:scale(.95)}
-
-/* ===== Profile Tab ===== */
-.profile-header{text-align:center;padding:20px 16px 12px}
-.profile-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#304ffe);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px;color:#fff;font-weight:600}
-.profile-name{font-size:16px;font-weight:600;color:var(--text)}
-.profile-badge{font-size:11px;color:var(--text-muted);margin-top:2px}
-.profile-section{margin:8px 16px}
-.profile-section-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;padding:0 2px}
-.profile-item{display:flex;align-items:center;gap:10px;padding:12px 14px}
-.profile-item+.profile-item{border-top:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .profile-item+.profile-item{border-top-color:rgba(255,255,255,.05)}
-.profile-item-icon{font-size:18px;width:24px;text-align:center}
-.profile-item-label{flex:1;font-size:13px;color:var(--text)}
-.profile-item-value{font-size:13px;color:var(--text-muted)}
-.profile-item-arrow{color:var(--text-muted);font-size:12px}
-
-/* ===== News ===== */
-.news-item{padding:10px 0}
-.news-item+.news-item{border-top:.5px solid rgba(0,0,0,.03)}
-body.dark-mode .news-item+.news-item{border-top-color:rgba(255,255,255,.05)}
-.news-text{font-size:13px;color:var(--text-secondary);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.news-time{font-size:10px;color:var(--text-muted);margin-top:4px}
-
-/* ===== Compare Chart ===== */
-.compare-chart-area{padding:10px 0}
-.chart-legend{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary)}
-.legend-dot{width:8px;height:8px;border-radius:50%}
+.tab-item.active span{font-weight:600}
 </style>
 </head>
 <body>
+<div class="content">
 
-<div class="top-bar">
-  <div class="top-bar-left">
-    <div class="logo">基</div>
-    <div>
-      <div class="title">基金管家</div>
-      <div class="subtitle" id="header-date">--:--</div>
-    </div>
+<!-- HOME -->
+<div id="tab-home" class="tab-content active">
+
+<div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--bg)">
+  <div>
+    <div style="font-size:17px;font-weight:600">基金管家</div>
+    <div class="muted" id="header-time" style="margin-top:2px">2026-07-24 09:40</div>
   </div>
-  <div class="top-bar-right">
-    <span class="time" id="header-time"></span>
-    <svg class="theme-toggle" onclick="toggleTheme()" viewBox="0 0 24 24" width="20" height="20">
-      <path id="theme-icon" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:12px;color:var(--text3)" id="clock-display">09:40</span>
+    <svg width="20" height="20" viewBox="0 0 24 24" onclick="toggleDark()" style="cursor:pointer;color:var(--text3)">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="none" stroke="currentColor" stroke-width="1.8"/>
     </svg>
   </div>
 </div>
 
-<div class="content">
-
-<!-- ===== HOME TAB ===== -->
-<div id="tab-home" class="tab-content active">
-
-  <div id="home-asset" class="card asset-card">
-    <div class="asset-header">
-      <div><div class="asset-label">总资产</div><div class="asset-value" id="total-asset">--</div></div>
-      <div style="text-align:right"><div class="asset-label">今日收益</div><div class="asset-daily" id="today-profit">--</div></div>
-    </div>
-    <div class="asset-stats" style="margin-top:12px">
-      <div class="asset-stat"><div class="stat-label">总收益率</div><div class="stat-value" id="total-yield">--</div></div>
-      <div class="asset-stat"><div class="stat-label">持有基金</div><div class="stat-value" id="holding-count">--</div></div>
-      <div class="asset-stat"><div class="stat-label">持有天数</div><div class="stat-value" id="hold-days">--</div></div>
-    </div>
-    <div class="progress-bar"><div class="progress-fill" id="yield-progress" style="width:0%"></div></div>
+<div class="card" style="margin:8px 16px;padding:18px 16px">
+  <div class="flex-between">
+    <div><div class="muted" style="margin-bottom:2px;font-size:12px">总资产</div><div class="fs26 fw7" id="total-asset">--</div></div>
+    <div style="text-align:right"><div class="muted" style="margin-bottom:2px;font-size:12px">今日收益</div><div class="fs18 fw7" id="today-profit" style="color:var(--up)">--</div></div>
   </div>
-
-  <div class="card index-strip">
-    <div class="index-grid" id="index-grid">
-      <div class="index-item"><div class="index-name">上证指数</div><div class="index-price">--</div><div class="index-change">--</div></div>
-      <div class="index-item"><div class="index-name">科创50</div><div class="index-price">--</div><div class="index-change">--</div></div>
-      <div class="index-item"><div class="index-name">国债指数</div><div class="index-price">--</div><div class="index-change">--</div></div>
-    </div>
+  <div class="flex gap20" style="margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.04)">
+    <div><div class="muted" style="font-size:11px">总收益率</div><div class="fs14 fw7 mt4" id="total-yield" style="color:var(--up)">--</div></div>
+    <div><div class="muted" style="font-size:11px">持有基金</div><div class="fs14 fw7 mt4" id="holding-count">--</div></div>
+    <div><div class="muted" style="font-size:11px">持有天数</div><div class="fs14 fw7 mt4" id="hold-days">--</div></div>
   </div>
-
-  <div class="fund-chip-row" id="fund-chip-row"></div>
-
-  <div class="card section-card">
-    <div class="section-title">🏆 今日排行</div>
-    <div id="ranking-list"></div>
+  <div style="margin-top:10px;height:4px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden">
+    <div id="yield-bar" style="height:100%;border-radius:2px;background:linear-gradient(90deg,#43a047,#ff9800,#e53935);width:0%;transition:width .6s"></div>
   </div>
-
-  <div class="card section-card">
-    <div class="section-title">📰 市场资讯</div>
-    <div id="news-list">
-      <div class="news-item"><div class="news-text">数据加载中...</div></div>
-    </div>
-  </div>
-
 </div>
 
-<!-- ===== FUNDS TAB ===== -->
+<div class="card" style="margin:8px 16px;overflow:hidden">
+  <div class="grid-3" id="index-grid">
+    <div><div class="muted">上证指数</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4 down">--</div></div>
+    <div><div class="muted">科创50</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4">--</div></div>
+    <div><div class="muted">国债指数</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4">--</div></div>
+  </div>
+</div>
+
+<div class="flex gap8" style="padding:0 16px;margin-top:10px" id="fund-chips"></div>
+
+<div class="card section" style="padding:0 16px">
+  <div class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6 9 6 9z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 18 9 18 9z"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>今日排行</div>
+  <div id="rank-list"></div>
+</div>
+
+<div class="card" style="margin:10px 16px;padding:0 16px">
+  <div class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>市场资讯</div>
+  <div id="news-list"><div style="padding:10px 0;font-size:13px;color:var(--text3)">加载中...</div></div>
+</div>
+</div>
+
+<!-- FUNDS -->
 <div id="tab-funds" class="tab-content">
   <div id="fund-detail-list"></div>
 </div>
 
-<!-- ===== AI TAB ===== -->
+<!-- AI -->
 <div id="tab-ai" class="tab-content">
-  <div class="card section-card">
-    <div class="ai-tabs" id="ai-fund-tabs"></div>
-    <div id="ai-content"></div>
-    <div class="ai-accuracy">
-      <div class="section-title" style="margin-bottom:0">📐 模型准确度</div>
-      <div class="accuracy-row" id="accuracy-data">
-        <div class="accuracy-item"><div class="accuracy-num">--</div><div class="accuracy-label">MAE</div></div>
-        <div class="accuracy-item"><div class="accuracy-num">--</div><div class="accuracy-label">方向胜率</div></div>
-        <div class="accuracy-item"><div class="accuracy-num">--</div><div class="accuracy-label">样本数</div></div>
+  <div class="section"><div class="section-title">🤖 AI 综合分析</div></div>
+  <div class="card" style="margin:0 16px;padding:16px">
+    <div class="flex gap8" id="ai-tabs" style="margin-bottom:12px"></div>
+    <div id="ai-content"><div class="muted" style="font-size:13px">加载中...</div></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.04)">
+      <div class="muted" style="margin-bottom:8px;font-size:12px">📐 模型准确度 近 7 日</div>
+      <div class="flex gap16" id="ai-accuracy">
+        <div><div class="fs18 fw7">--</div><div class="muted">MAE</div></div>
+        <div><div class="fs18 fw7">--</div><div class="muted">方向胜率</div></div>
+        <div><div class="fs18 fw7">--</div><div class="muted">样本数</div></div>
       </div>
     </div>
   </div>
+  <div class="card" style="margin:10px 16px;padding:16px">
+    <div class="section-title" style="padding:0;margin-bottom:10px">💰 基金买点状态</div>
+    <div id="buy-signals"><div class="muted" style="font-size:13px">加载中...</div></div>
+  </div>
 </div>
 
-<!-- ===== SEARCH TAB ===== -->
+<!-- SEARCH -->
 <div id="tab-search" class="tab-content">
-  <div class="search-box">
-    <input class="search-input" id="search-input" type="text" placeholder="输入基金代码，如 011609" maxlength="6" onkeydown="if(event.key==='Enter')searchFund()">
-    <button class="search-btn" onclick="searchFund()">查询</button>
-  </div>
-  <div class="search-hot">
-    <div class="search-hot-title">热门基金</div>
-    <div class="search-hot-tags">
-      <span class="hot-tag" onclick="quickSearch('011609')">011609 科创50</span>
-      <span class="hot-tag" onclick="quickSearch('020741')">020741 债券C</span>
-      <span class="hot-tag" onclick="quickSearch('004746')">004746 上证50</span>
-      <span class="hot-tag" onclick="quickSearch('000001')">000001 上证</span>
+  <div class="section" style="margin-top:8px">
+    <div class="card" style="padding:12px;display:flex;gap:8px">
+      <input id="search-input" placeholder="输入基金代码 / 名称" style="flex:1;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:var(--card);color:var(--neutral)">
+      <button onclick="searchFund()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer">查询</button>
     </div>
+    <div style="margin-top:10px">
+      <div class="muted" style="margin-bottom:8px">热门基金</div>
+      <div class="flex gap8" style="flex-wrap:wrap">
+        <span onclick="quickSearch('011609')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">011609 科创50</span>
+        <span onclick="quickSearch('020741')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">020741 债券C</span>
+        <span onclick="quickSearch('004746')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">004746 上证50</span>
+      </div>
+    </div>
+    <div id="search-result" style="margin-top:10px"></div>
   </div>
-  <div id="search-result" class="search-result"></div>
 </div>
 
-<!-- ===== PROFILE TAB ===== -->
+<!-- PROFILE -->
 <div id="tab-profile" class="tab-content">
-  <div class="profile-header">
-    <div class="profile-avatar">基</div>
-    <div class="profile-name">基金管家用户</div>
-    <div class="profile-badge">v3.0 · 2026-07-24</div>
+  <div style="text-align:center;padding:24px 16px 12px">
+    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#304ffe);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px;color:#fff;font-weight:600">基</div>
+    <div style="font-size:16px;font-weight:600">基金管家用户</div>
+    <div class="muted" style="margin-top:2px">v3.0</div>
   </div>
-
-  <div class="card profile-section">
-    <div class="section-title" style="padding:14px 14px 0">💰 我的持仓</div>
+  <div class="card" style="margin:8px 16px;padding:16px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:10px">📊 我的持仓</div>
     <div id="profile-holdings"></div>
-    <div style="padding:12px 14px;border-top:.5px solid rgba(0,0,0,.03)">
-      <div style="display:flex;justify-content:space-between;font-size:13px">
-        <span style="color:var(--text-muted)">总投入</span>
-        <span style="font-weight:600;color:var(--text)" id="profile-total-invest">--</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px">
-        <span style="color:var(--text-muted)">总市值</span>
-        <span style="font-weight:600;color:var(--text)" id="profile-total-value">--</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px">
-        <span style="color:var(--text-muted)">总收益</span>
-        <span style="font-weight:600" id="profile-total-profit">--</span>
-      </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
+      <div class="flex-between" style="font-size:13px;padding:3px 0"><span class="muted">总投入</span><span class="fw7" id="profile-invest">--</span></div>
+      <div class="flex-between" style="font-size:13px;padding:3px 0;margin-top:4px"><span class="muted">总市值</span><span class="fw7" id="profile-value">--</span></div>
+      <div class="flex-between" style="font-size:13px;padding:3px 0;margin-top:4px"><span class="muted">总收益</span><span class="fw7" id="profile-profit">--</span></div>
     </div>
   </div>
-
-  <div class="card profile-section">
-    <div class="section-title" style="padding:14px 14px 0">⚙ 设置</div>
-    <div class="profile-item">
-      <span class="profile-item-icon">🌙</span>
-      <span class="profile-item-label">深色模式</span>
-      <span class="profile-item-value">
-        <label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer">
-          <input type="checkbox" id="dark-toggle" onchange="toggleTheme()" style="opacity:0;width:0;height:0">
-          <span style="position:absolute;inset:0;background:#ccc;border-radius:11px;transition:.3s"></span>
-          <span style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.3s" id="dark-toggle-knob"></span>
-        </label>
-      </span>
-    </div>
+  <div class="card" style="margin:8px 16px;padding:16px">
+    <div class="flex-between" style="padding:4px 0"><span style="font-size:13px">🌙 深色模式</span><span id="dark-toggle" onclick="toggleDark()" style="position:relative;width:44px;height:24px;border-radius:12px;background:#ddd;cursor:pointer;transition:.2s"><span style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
+    <div class="flex-between" style="padding:4px 0;margin-top:8px"><span style="font-size:13px">版本</span><span class="muted" style="font-size:12px">v3.0.0</span></div>
   </div>
 </div>
 
 </div><!-- /content -->
 
-<!-- ===== TAB BAR ===== -->
 <div class="tab-bar">
   <div class="tab-item active" data-tab="home">
-    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>首页</span>
   </div>
   <div class="tab-item" data-tab="funds">
-    <svg viewBox="0 0 24 24" width="24" height="24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="17 6 23 6 23 12" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="17 6 23 6 23 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>基金</span>
   </div>
   <div class="tab-item" data-tab="ai">
-    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16l-6.4 5.2L8 14l-6-4.8h7.6L12 2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16l-6.4 5.2L8 14l-6-4.8h7.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>AI</span>
   </div>
   <div class="tab-item" data-tab="search">
-    <svg viewBox="0 0 24 24" width="24" height="24"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>搜索</span>
   </div>
   <div class="tab-item" data-tab="profile">
-    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>我的</span>
   </div>
 </div>
 
 <script>
-// ===== Config =====
+// Config
 const API_BASE = '';
 const REFRESH_INTERVAL = 30000;
-let portfolioData = null;
 
-// ===== Tab Switching =====
+// Tab switching
 document.querySelectorAll('.tab-item').forEach(item => {
   item.addEventListener('click', () => {
     document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
     item.classList.add('active');
-    const tab = item.dataset.tab;
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('tab-' + item.dataset.tab).classList.add('active');
   });
 });
 
-// ===== Theme =====
-function toggleTheme() {
-  document.body.classList.toggle('dark-mode');
-  const isDark = document.body.classList.contains('dark-mode');
+// Dark mode
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  const isDark = document.body.classList.contains('dark');
   localStorage.setItem('v3-theme', isDark ? 'dark' : 'light');
-  const cb = document.getElementById('dark-toggle');
-  if (cb) cb.checked = isDark;
-  const knob = document.getElementById('dark-toggle-knob');
-  if (knob) knob.style.transform = isDark ? 'translateX(18px)' : 'translateX(0)';
-  const svg = document.getElementById('theme-icon');
-  if (svg) svg.setAttribute('d', isDark ? 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z' : 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z');
+  const knob = document.querySelector('#dark-toggle span');
+  if (knob) knob.style.left = isDark ? '22px' : '2px';
+  const parent = document.querySelector('#dark-toggle');
+  if (parent) parent.style.background = isDark ? '#304ffe' : '#ddd';
 }
-// init theme
-if (localStorage.getItem('v3-theme') === 'dark') {
-  document.body.classList.add('dark-mode');
-  const cb = document.getElementById('dark-toggle');
-  if (cb) cb.checked = true;
-}
+if (localStorage.getItem('v3-theme') === 'dark') { document.body.classList.add('dark'); }
 
-// ===== Format Helpers =====
-function fmt(n) { return Number(n).toLocaleString('zh-CN', {minimumFractionDigits:2,maximumFractionDigits:2}) }
-function fmtPct(n) { return (n >= 0 ? '+' : '') + Number(n).toFixed(2) + '%' }
-function colorClass(n) { return n > 0 ? 'up' : n < 0 ? 'down' : '' }
+// Formatters
+function fmt(n) { return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
+function fmtPct(n) { return (n>=0?'+':'')+Number(n).toFixed(2)+'%' }
+function cls(n) { return n>0?'up':n<0?'down':'' }
 
-// ===== API Call =====
-async function fetchPortfolio() {
+// Fetch
+async function fetchData() {
   try {
-    const res = await fetch(API_BASE + '/api/portfolio');
-    const data = await res.json();
-    portfolioData = data;
-    renderAll(data);
-    document.getElementById('header-date').textContent = data.date + ' ' + data.time;
-  } catch(e) {
-    console.error('fetch error:', e);
-  }
+    const r = await fetch(API_BASE + '/api/portfolio');
+    const d = await r.json();
+    document.getElementById('header-time').textContent = d.date + ' ' + d.time;
+    renderHome(d);
+    renderFunds(d);
+    renderAI(d);
+    renderProfile(d);
+  } catch(e) { console.error(e) }
 }
 
-// ===== Render All =====
-function renderAll(data) {
-  renderHome(data);
-  renderFunds(data);
-  renderAI(data);
-  renderProfile(data);
-}
-
-// ===== Render Home Tab =====
-function renderHome(data) {
-  const funds = data.funds || [];
-  const index = data.index || {};
-
-  let totalInvest = 0, totalValue = 0, holdingCount = 0, maxHoldDays = 0;
+// ===== Render Home =====
+function renderHome(d) {
+  const funds = d.funds || [];
+  let totalInvest = 0, totalValue = 0, holdCount = 0, maxDays = 0;
   funds.forEach(f => {
     const bp = f.buy_point || {};
     if (bp.is_holding) {
-      holdingCount++;
+      holdCount++;
       totalInvest += bp.cost_nav || 0;
       totalValue += f.current_nav || 0;
-      const holdDays = bp.hold_days || 0;
-      if (holdDays > maxHoldDays) maxHoldDays = holdDays;
+      if ((bp.hold_days || 0) > maxDays) maxDays = bp.hold_days;
     }
   });
-  const todayProfit = totalValue - totalInvest;
-  const totalYield = totalInvest > 0 ? ((totalValue - totalInvest) / totalInvest * 100) : 0;
+  const profit = totalValue - totalInvest;
+  const yieldPct = totalInvest > 0 ? (profit / totalInvest * 100) : 0;
 
-  document.getElementById('total-asset').textContent = totalValue > 0 ? '\u00a5' + fmt(totalValue) : '\u00a50.00';
-  document.getElementById('today-profit').textContent = (todayProfit >= 0 ? '+' : '') + '\u00a5' + fmt(Math.abs(todayProfit));
-  document.getElementById('today-profit').style.color = todayProfit >= 0 ? 'var(--up)' : 'var(--down)';
-  document.getElementById('total-yield').textContent = fmtPct(totalYield);
-  document.getElementById('total-yield').style.color = totalYield >= 0 ? 'var(--up)' : 'var(--down)';
-  document.getElementById('holding-count').textContent = holdingCount + ' / ' + funds.length;
-  document.getElementById('hold-days').textContent = maxHoldDays + ' \u5929';
-  const progPct = Math.min(Math.max((totalYield + 20) / 40 * 100, 0), 100);
-  document.getElementById('yield-progress').style.width = progPct + '%';
+  document.getElementById('total-asset').textContent = totalValue > 0 ? '\u00a5' + fmt(totalValue) : '\u00a5--';
+  document.getElementById('today-profit').textContent = profit >= 0 ? '+\u00a5' + fmt(profit) : '-\u00a5' + fmt(Math.abs(profit));
+  document.getElementById('today-profit').style.color = profit >= 0 ? 'var(--up)' : 'var(--down)';
+  document.getElementById('total-yield').textContent = fmtPct(yieldPct);
+  document.getElementById('total-yield').style.color = yieldPct >= 0 ? 'var(--up)' : 'var(--down)';
+  document.getElementById('holding-count').textContent = holdCount + ' / ' + funds.length;
+  document.getElementById('hold-days').textContent = maxDays + '\u5929';
+  const barW = Math.min(Math.max((yieldPct + 20) / 40 * 100, 0), 100);
+  document.getElementById('yield-bar').style.width = barW + '%';
 
-  const idxGrid = document.getElementById('index-grid');
-  idxGrid.innerHTML = [
-    { name: '\u4e0a\u8bc1\u6307\u6570', price: index.current ? fmt(index.current) : '--', change: index.daily_change || 0 },
-    { name: '\u79d1\u521b50', price: '--', change: 0 },
-    { name: '\u56fd\u503a\u6307\u6570', price: '--', change: 0 }
-  ].map(d => `
-    <div class="index-item">
-      <div class="index-name">${d.name}</div>
-      <div class="index-price">${d.price}</div>
-      <div class="index-change ${colorClass(d.change)}">${fmtPct(d.change)}</div>
-    </div>
-  `).join('');
+  // Index
+  const idx = d.index || {};
+  document.querySelectorAll('#index-grid > div').forEach((el, i) => {
+    const items = [
+      { name: '\u4e0a\u8bc1\u6307\u6570', price: idx.current ? fmt(idx.current) : '--', chg: idx.daily_change || 0 },
+      { name: '\u79d1\u521b50', price: '--', chg: 0 },
+      { name: '\u56fd\u503a\u6307\u6570', price: '--', chg: 0 }
+    ];
+    el.innerHTML = '<div class="muted">' + items[i].name + '</div><div class="fs16 fw7 mt4" style="font-feature-settings:\'tnum\'">' + items[i].price + '</div><div class="fs14 fw7 mt4 ' + cls(items[i].chg) + '">' + fmtPct(items[i].chg) + '</div>';
+  });
 
-  const chipRow = document.getElementById('fund-chip-row');
+  // Chips
+  const chipRow = document.getElementById('fund-chips');
   chipRow.innerHTML = funds.map(f => {
     const bp = f.buy_point || {};
-    const change = f.daily_change || 0;
-    const yieldPct = bp.is_holding ? bp.yield_pct : null;
-    return `
-      <div class="fund-chip" onclick="switchTab('funds')">
-        <div class="chip-code">${f.code}</div>
-        <div class="chip-change ${colorClass(change)}">${fmtPct(change)}</div>
-        <div class="chip-yield ${yieldPct !== null ? 'holding' : 'empty'}">${yieldPct !== null ? fmtPct(yieldPct) : '\u672a\u6301\u4ed3'}</div>
-        <div class="chip-name">${f.name || f.code}</div>
-      </div>
-    `;
+    const chg = f.daily_change || 0;
+    const yld = bp.is_holding ? bp.yield_pct : null;
+    return '<div class="card" style="flex:1;padding:14px 6px;text-align:center;cursor:pointer" onclick="switchTab(\'funds\')">' +
+      '<div class="muted" style="margin-bottom:4px">' + f.code + '</div>' +
+      '<div class="fs18 fw7 ' + cls(chg) + '" style="font-feature-settings:\'tnum\'">' + fmtPct(chg) + '</div>' +
+      '<div style="font-size:12px;font-weight:600;margin-top:4px;color:' + (yld !== null ? (yld >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (yld !== null ? fmtPct(yld) : '\u672a\u6301\u4ed3') + '</div>' +
+      '<div class="muted" style="font-size:9px;margin-top:3px">' + (f.name || f.code).substring(0,10) + '</div></div>';
   }).join('');
 
-  const rankList = document.getElementById('ranking-list');
+  // Ranking
   const sorted = [...funds].sort((a, b) => (b.daily_change || 0) - (a.daily_change || 0));
-  const medals = [
-    '<svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="10" fill="#e53935"/><text x="10" y="14" text-anchor="middle" fill="white" font-size="11" font-weight="700">1</text></svg>',
-    '<svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="10" fill="#ff9800"/><text x="10" y="14" text-anchor="middle" fill="white" font-size="11" font-weight="700">2</text></svg>',
-    '<svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="10" fill="#bbb"/><text x="10" y="14" text-anchor="middle" fill="white" font-size="11" font-weight="700">3</text></svg>'
-  ];
-  rankList.innerHTML = sorted.map((f, i) => `
-    <div class="rank-item">
-      <span class="rank-badge">${medals[i] || (i+1)}</span>
-      <span class="rank-name">${f.code} ${(f.name||'').substring(0,8)}</span>
-      <span class="rank-change ${colorClass(f.daily_change)}">${fmtPct(f.daily_change)}</span>
-    </div>
-  `).join('');
+  const medals = ['<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">1</span>',
+    '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#f39c12;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">2</span>',
+    '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#bbb;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">3</span>'];
+  document.getElementById('rank-list').innerHTML = sorted.map((f, i) =>
+    '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px;border-top:' + (i > 0 ? '.5px solid rgba(0,0,0,.03)' : 'none') + '">' +
+    '<span style="width:18px;text-align:center;flex-shrink:0">' + (medals[i] || (i+1)) + '</span>' +
+    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.code + ' ' + (f.name||'').substring(0,8) + '</span>' +
+    '<span class="' + cls(f.daily_change) + '" style="font-weight:600">' + fmtPct(f.daily_change) + '</span></div>'
+  ).join('');
 
-  const newsList = document.getElementById('news-list');
-  if (data.news && data.news.length > 0) {
-    newsList.innerHTML = data.news.slice(0, 3).map(n => `
-      <div class="news-item">
-        <div class="news-text">${n.title || n.text || ''}</div>
-        <div class="news-time">${n.date || n.time || '\u521a\u521a'}</div>
-      </div>
-    `).join('');
+  // News
+  const nl = document.getElementById('news-list');
+  if (d.news && d.news.length > 0) {
+    nl.innerHTML = d.news.slice(0, 3).map(n =>
+      '<div style="padding:10px 0;border-top:.5px solid rgba(0,0,0,.03)">' +
+      '<div style="font-size:13px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + (n.title || n.text || '') + '</div>' +
+      '<div class="muted" style="margin-top:4px">' + (n.date || n.time || '\u521a\u521a') + '</div></div>'
+    ).join('');
   }
 }
 
-// ===== Render Funds Tab =====
-function renderFunds(data) {
+// ===== Render Funds =====
+function renderFunds(d) {
   const list = document.getElementById('fund-detail-list');
-  if (!data.funds) return;
-  list.innerHTML = data.funds.map(f => {
+  if (!d.funds) return;
+  list.innerHTML = d.funds.map(f => {
     const bp = f.buy_point || {};
-    const change = f.daily_change || 0;
-    const risk = f.ai_prediction ? (f.ai_prediction.risk_level === '\u9ad8' ? 'high' : 'mid') : 'mid';
-    const riskLabel = f.ai_prediction ? f.ai_prediction.risk_level : '\u4e2d';
-    return `
-      <div class="card fund-detail-card">
-        <div class="fund-detail-header">
-          <div>
-            <div class="fund-detail-code">${f.code}</div>
-            <div class="fund-detail-name">${f.name || ''} <span class="risk-tag ${risk}">${riskLabel}</span></div>
-          </div>
-        </div>
-        <div class="fund-detail-price">
-          <div class="detail-nav">${f.current_nav ? fmt(f.current_nav) : '--'}</div>
-          <div class="detail-change ${colorClass(change)}">${fmtPct(change)}</div>
-        </div>
-        <div class="detail-metrics">
-          <div class="detail-metric"><div class="metric-label">\u6301\u6709\u6536\u76ca</div><div class="metric-value" style="color:${bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text-muted)'}">${bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3'}</div></div>
-          <div class="detail-metric"><div class="metric-label">7\u65e5\u6536\u76ca</div><div class="metric-value">${f.return_7d != null ? fmtPct(f.return_7d) : '--'}</div></div>
-          <div class="detail-metric"><div class="metric-label">1\u6708\u6536\u76ca</div><div class="metric-value">${f.return_1m != null ? fmtPct(f.return_1m) : '--'}</div></div>
-        </div>
-        <button class="buy-btn primary" onclick="alert('\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa')">\u786e\u8ba4\u4e70\u5165</button>
-      </div>
-    `;
+    const chg = f.daily_change || 0;
+    const riskCls = '<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:rgba(229,57,53,.08);color:var(--up)">' + (f.ai_prediction?.risk_level || '\u4e2d') + '</span>';
+    return '<div class="card" style="margin:8px 16px;padding:16px">' +
+      '<div class="flex-between"><div><div class="muted" style="font-size:12px">' + f.code + '</div><div style="font-size:14px;font-weight:600;margin-top:2px">' + (f.name||'') + '</div></div>' + riskCls + '</div>' +
+      '<div class="flex-between" style="margin:10px 0"><div style="font-size:24px;font-weight:700;font-feature-settings:\'tnum\'">' + (f.current_nav ? fmt(f.current_nav) : '--') + '</div><div style="font-size:16px;font-weight:600;color:' + (chg >= 0 ? 'var(--up)' : 'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
+      '<div class="flex" style="margin:10px 0;padding:10px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03)">' +
+      '<div style="flex:1;text-align:center"><div class="muted" style="font-size:10px">\u6301\u6709\u6536\u76ca</div><div style="font-size:13px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
+      '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">7\u65e5</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_7d != null ? fmtPct(f.return_7d) : '--') + '</div></div>' +
+      '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">1\u6708</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_1m != null ? fmtPct(f.return_1m) : '--') + '</div></div></div>' +
+      '<button onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')" style="width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;transition:transform .2s">\u786e\u8ba4\u4e70\u5165</button></div>';
   }).join('');
 }
 
-// ===== Render AI Tab =====
-function renderAI(data) {
-  const funds = data.funds || [];
-  if (funds.length === 0) return;
-  const tabContainer = document.getElementById('ai-fund-tabs');
-  const contentContainer = document.getElementById('ai-content');
-  tabContainer.innerHTML = funds.map((f, i) => `
-    <div class="ai-tab ${i === 0 ? 'active' : ''}" data-ai-idx="${i}" onclick="switchAITab(${i})">${f.code}</div>
-  `).join('');
+// ===== Render AI =====
+function renderAI(d) {
+  const funds = d.funds || [];
+  if (!funds.length) return;
+  const tabs = document.getElementById('ai-tabs');
+  const content = document.getElementById('ai-content');
+  tabs.innerHTML = funds.map((f, i) =>
+    '<span style="flex:1;padding:6px 0;text-align:center;font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;transition:all .2s' + (i===0 ? ';background:var(--card);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.06)' : ';color:var(--text3)') + '" onclick="switchAI(' + i + ')">' + f.code + '</span>'
+  ).join('');
   let html = '';
   funds.forEach((f, i) => {
     const ai = f.ai_prediction || {};
-    const style = i === 0 ? 'display:block' : 'display:none';
-    html += `
-      <div class="ai-content-panel ${i === 0 ? 'active' : ''}" data-ai-panel="${i}" style="${style}">
-        <div class="ai-trend-row">
-          <span class="ai-trend-label">\u8d8b\u52bf</span>
-          <span class="ai-trend-value">${ai.trend || '--'} ${ai.trend_emoji || ''}</span>
-        </div>
-        <div class="ai-advice">${ai.advice || '\u6682\u65e0\u5206\u6790'}</div>
-        <div class="ai-tags">
-          <span class="ai-tag info">\u4f30\u503c: ${ai.valuation_position || '--'}</span>
-          <span class="ai-tag warn">\u7f6e\u4fe1: ${ai.confidence || '--'}</span>
-          <span class="ai-tag green">\u98ce\u9669: ${ai.risk_level || '--'}</span>
-        </div>
-        <div class="ai-tags" style="margin-bottom:0">
-          <span class="ai-tag info">\u652f\u6491 ${ai.key_levels ? ai.key_levels.split('/')[0] : '--'}</span>
-          <span class="ai-tag info">\u538b\u529b ${ai.key_levels ? ai.key_levels.split('/')[1] : '--'}</span>
-        </div>
-      </div>
-    `;
+    html += '<div id="ai-panel-' + i + '" style="display:' + (i===0?'block':'none') + '">' +
+      '<div class="flex-between" style="margin-bottom:8px"><span class="muted">\u8d8b\u52bf</span><span style="font-size:16px;font-weight:600">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span></div>' +
+      '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">' + (ai.advice || '\u6682\u65e0\u5206\u6790') + '</div>' +
+      '<div class="flex gap8" style="flex-wrap:wrap">' +
+      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c: ' + (ai.valuation_position || '--') + '</span>' +
+      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1: ' + (ai.confidence || '--') + '</span>' +
+      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(67,160,71,.08);color:var(--down)">\u98ce\u9669: ' + (ai.risk_level || '--') + '</span></div>' +
+      '<div class="flex gap8" style="flex-wrap:wrap;margin-top:6px">' +
+      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491 ' + (ai.key_levels ? ai.key_levels.split('/')[0] : '--') + '</span>' +
+      '<span style="padding:4px 10px;border-radius:6px;font-size:11px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b ' + (ai.key_levels ? ai.key_levels.split('/')[1] : '--') + '</span></div></div>';
   });
-  contentContainer.innerHTML = html;
-  const accEl = document.getElementById('accuracy-data');
+  content.innerHTML = html;
+  // Accuracy
   fetch(API_BASE + '/api/model-accuracy?days=7')
-    .then(r => r.json()).then(d => {
-      let mae = '--', winRate = '--', samples = '--';
-      const vals = Object.values(d || {});
+    .then(r => r.json()).then(d2 => {
+      const vals = Object.values(d2 || {});
       if (vals.length > 0) {
-        const first = vals[0] || {};
-        mae = first.mae != null ? first.mae.toFixed(2) : '--';
-        winRate = first.win_rate != null ? (first.win_rate * 100).toFixed(0) + '%' : '--';
-        samples = first.sample_count != null ? first.sample_count : '--';
+        const v = vals[0] || {};
+        document.getElementById('ai-accuracy').innerHTML =
+          '<div><div class="fs18 fw7">' + (v.mae != null ? v.mae.toFixed(2) : '--') + '</div><div class="muted">MAE</div></div>' +
+          '<div><div class="fs18 fw7">' + (v.win_rate != null ? (v.win_rate*100).toFixed(0)+'%' : '--') + '</div><div class="muted">\u65b9\u5411\u80dc\u7387</div></div>' +
+          '<div><div class="fs18 fw7">' + (v.sample_count != null ? v.sample_count : '--') + '</div><div class="muted">\u6837\u672c\u6570</div></div>';
       }
-      accEl.innerHTML = `
-        <div class="accuracy-item"><div class="accuracy-num">${mae}</div><div class="accuracy-label">MAE</div></div>
-        <div class="accuracy-item"><div class="accuracy-num">${winRate}</div><div class="accuracy-label">\u65b9\u5411\u80dc\u7387</div></div>
-        <div class="accuracy-item"><div class="accuracy-num">${samples}</div><div class="accuracy-label">\u6837\u672c\u6570</div></div>
-      `;
     }).catch(() => {});
 }
-
-function switchAITab(idx) {
-  document.querySelectorAll('.ai-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.ai-content-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
-  const tabs = document.querySelectorAll('.ai-tab');
-  const panels = document.querySelectorAll('.ai-content-panel');
-  if (tabs[idx]) tabs[idx].classList.add('active');
-  if (panels[idx]) { panels[idx].classList.add('active'); panels[idx].style.display = 'block'; }
+function switchAI(idx) {
+  document.querySelectorAll('#ai-tabs > span').forEach((t,i) => {
+    t.style.background = ''; t.style.color = 'var(--text3)'; t.style.boxShadow = 'none';
+    if (i === idx) { t.style.background = 'var(--card)'; t.style.color = 'var(--brand)'; t.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; }
+  });
+  document.querySelectorAll('[id^="ai-panel-"]').forEach((p,i) => p.style.display = i===idx ? 'block' : 'none');
 }
 
 // ===== Search =====
 async function searchFund() {
-  const input = document.getElementById('search-input');
-  const code = input.value.trim();
+  const code = document.getElementById('search-input').value.trim();
   if (!code || code.length < 6) return;
-  const result = document.getElementById('search-result');
-  result.innerHTML = '<div class="card" style="padding:14px"><div style="text-align:center;color:var(--text-muted)">\u67e5\u8be2\u4e2d...</div></div>';
+  const res = document.getElementById('search-result');
+  res.innerHTML = '<div class="card" style="padding:14px;text-align:center;color:var(--text3)">\u67e5\u8be2\u4e2d...</div>';
   try {
-    const res = await fetch(API_BASE + '/api/funds/' + code);
-    if (!res.ok) throw new Error('not found');
-    const d = await res.json();
-    const change = d.daily_change || 0;
-    result.innerHTML = `
-      <div class="card" style="padding:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div><div style="font-size:12px;color:var(--text-muted)">${d.code}</div><div style="font-size:15px;font-weight:600;margin-top:2px">${d.name || '--'}</div></div>
-          <span class="risk-tag ${d.type === '\u6307\u6570\u578b' ? 'high' : 'mid'}">${d.type || '--'}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-end">
-          <div style="font-size:26px;font-weight:700">${d.current_nav ? fmt(d.current_nav) : '--'}</div>
-          <div style="font-size:16px;font-weight:600;color:${change >= 0 ? 'var(--up)' : 'var(--down)'}">${fmtPct(change)}</div>
-        </div>
-        <div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.03)">
-          <div><div style="font-size:10px;color:var(--text-muted)">\u65e5\u671f</div><div style="font-size:12px;font-weight:500;margin-top:2px">${d.nav_date || '--'}</div></div>
-          <div><div style="font-size:10px;color:var(--text-muted)">\u524d\u65e5\u51c0\u503c</div><div style="font-size:12px;font-weight:500;margin-top:2px">${d.previous_nav ? fmt(d.previous_nav) : '--'}</div></div>
-        </div>
-      </div>
-    `;
+    const r = await fetch(API_BASE + '/api/funds/' + code);
+    if (!r.ok) throw Error();
+    const d = await r.json();
+    const chg = d.daily_change || 0;
+    res.innerHTML = '<div class="card" style="padding:16px">' +
+      '<div class="flex-between" style="margin-bottom:8px"><div><div class="muted" style="font-size:12px">' + d.code + '</div><div style="font-size:15px;font-weight:600;margin-top:2px">' + (d.name||'--') + '</div></div>' +
+      '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">' + (d.type||'--') + '</span></div>' +
+      '<div class="flex-between" style="align-items:flex-end"><div style="font-size:24px;font-weight:700;font-feature-settings:\'tnum\'">' + (d.current_nav?fmt(d.current_nav):'--') + '</div>' +
+      '<div style="font-size:16px;font-weight:600;color:' + (chg>=0?'var(--up)':'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
+      '<div class="flex gap16" style="margin-top:10px;padding-top:8px;border-top:.5px solid rgba(0,0,0,.03)">' +
+      '<div><div class="muted" style="font-size:10px">\u65e5\u671f</div><div style="font-size:12px;margin-top:2px">' + (d.nav_date||'--') + '</div></div>' +
+      '<div><div class="muted" style="font-size:10px">\u524d\u65e5\u51c0\u503c</div><div style="font-size:12px;margin-top:2px">' + (d.previous_nav?fmt(d.previous_nav):'--') + '</div></div></div></div>';
   } catch(e) {
-    result.innerHTML = '<div class="card" style="padding:14px"><div style="text-align:center;color:var(--text-muted)">\u672a\u627e\u5230\u8be5\u57fa\u91d1\uff0c\u8bf7\u68c0\u67e5\u4ee3\u7801</div></div>';
+    res.innerHTML = '<div class="card" style="padding:14px;text-align:center;color:var(--text3)">\u672a\u627e\u5230\u8be5\u57fa\u91d1</div>';
   }
 }
-
 function quickSearch(code) {
   document.getElementById('search-input').value = code;
   searchFund();
 }
 
 // ===== Profile =====
-function renderProfile(data) {
-  const funds = data.funds || [];
-  const holdings = document.getElementById('profile-holdings');
-  let totalInvest = 0, totalValue = 0;
-  const items = funds.map(f => {
+function renderProfile(d) {
+  const funds = d.funds || [];
+  const h = document.getElementById('profile-holdings');
+  let ti = 0, tv = 0;
+  h.innerHTML = funds.map(f => {
     const bp = f.buy_point || {};
-    if (bp.is_holding) { totalInvest += bp.cost_nav || 0; totalValue += f.current_nav || 0; }
-    return `
-      <div class="profile-item">
-        <span class="profile-item-icon">${bp.is_holding ? '\ud83d\udcc8' : '\ud83d\udcc9'}</span>
-        <span class="profile-item-label">${f.code} ${(f.name||'').substring(0,6)}</span>
-        <span class="profile-item-value" style="color:${bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text-muted)'}">${bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3'}</span>
-      </div>
-    `;
+    if (bp.is_holding) { ti += bp.cost_nav || 0; tv += f.current_nav || 0; }
+    return '<div class="flex-between" style="padding:8px 0;font-size:13px;border-top:.5px solid rgba(0,0,0,.03)">' +
+      '<span>' + (bp.is_holding ? '\ud83d\udcc8' : '\ud83d\udcc9') + ' ' + f.code + ' ' + (f.name||'').substring(0,6) + '</span>' +
+      '<span style="font-weight:600;color:' + (bp.is_holding ? (bp.yield_pct>=0?'var(--up)':'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</span></div>';
   }).join('');
-  holdings.innerHTML = items || '<div class="profile-item"><span style="color:var(--text-muted);font-size:13px">\u6682\u65e0\u6301\u4ed3</span></div>';
-  const totalProfit = totalValue - totalInvest;
-  document.getElementById('profile-total-invest').textContent = totalInvest > 0 ? '\u00a5' + fmt(totalInvest) : '\u00a50.00';
-  document.getElementById('profile-total-value').textContent = totalValue > 0 ? '\u00a5' + fmt(totalValue) : '\u00a50.00';
-  document.getElementById('profile-total-profit').textContent = totalProfit >= 0 ? '+\u00a5' + fmt(totalProfit) : '-\u00a5' + fmt(Math.abs(totalProfit));
-  document.getElementById('profile-total-profit').style.color = totalProfit >= 0 ? 'var(--up)' : 'var(--down)';
+  const tp = tv - ti;
+  document.getElementById('profile-invest').textContent = ti > 0 ? '\u00a5' + fmt(ti) : '\u00a50.00';
+  document.getElementById('profile-value').textContent = tv > 0 ? '\u00a5' + fmt(tv) : '\u00a50.00';
+  document.getElementById('profile-profit').textContent = tp >= 0 ? '+\u00a5' + fmt(tp) : '-\u00a5' + fmt(Math.abs(tp));
+  document.getElementById('profile-profit').style.color = tp >= 0 ? 'var(--up)' : 'var(--down)';
 }
 
 // ===== Init =====
 function switchTab(name) {
   document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-  const tabEl = document.querySelector(`[data-tab="${name}"]`);
-  if (tabEl) tabEl.classList.add('active');
+  const el = document.querySelector('[data-tab="' + name + '"]');
+  if (el) el.classList.add('active');
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  const contentEl = document.getElementById('tab-' + name);
-  if (contentEl) contentEl.classList.add('active');
+  const ce = document.getElementById('tab-' + name);
+  if (ce) ce.classList.add('active');
 }
 
-fetchPortfolio();
-setInterval(fetchPortfolio, REFRESH_INTERVAL);
+fetchData();
+setInterval(fetchData, REFRESH_INTERVAL);
 
-function updateTime() {
-  const now = new Date();
-  document.getElementById('header-time').textContent = now.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+function updateClock() {
+  document.getElementById('clock-display').textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
 }
-updateTime();
-setInterval(updateTime, 10000);
+updateClock();
+setInterval(updateClock, 10000);
 </script>
 </body>
 </html>
