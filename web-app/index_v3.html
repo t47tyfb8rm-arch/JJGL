@@ -122,6 +122,10 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
     <div class="section-title" style="padding:0;margin-bottom:10px">💰 基金买点状态</div>
     <div id="buy-signals"><div class="muted" style="font-size:13px">加载中...</div></div>
   </div>
+  <div class="card" style="margin:10px 16px;padding:16px">
+    <div class="section-title" style="padding:0;margin-bottom:10px">📊 历史收益基准</div>
+    <div id="profit-benchmark"><div class="muted" style="font-size:13px">加载中...</div></div>
+  </div>
 </div>
 
 <!-- SEARCH -->
@@ -323,7 +327,13 @@ function renderFunds(d) {
       '<div style="flex:1;text-align:center"><div class="muted" style="font-size:10px">\u6301\u6709\u6536\u76ca</div><div style="font-size:13px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
       '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">7\u65e5</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_7d != null ? fmtPct(f.return_7d) : '--') + '</div></div>' +
       '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">1\u6708</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_1m != null ? fmtPct(f.return_1m) : '--') + '</div></div></div>' +
-      '<button onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')" style="width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;transition:transform .2s">\u786e\u8ba4\u4e70\u5165</button></div>';
+      (bp.is_holding ? '<div style="margin:8px 0;padding:8px;background:rgba(0,0,0,.03);border-radius:8px">' +
+        '<div class="flex-between" style="font-size:12px"><span class="muted">\u6210\u672c\u4ef7</span><span style="font-weight:600">' + fmt(bp.cost_nav||0) + '</span>' +
+        '<span class="muted">\u6301\u6709' + (bp.hold_days||0) + '\u5929</span><span style="font-weight:600;color:' + cls(bp.yield_pct||0) + '">' + fmtPct(bp.yield_pct||0) + '</span></div>' +
+        (bp.target_nav ? '<div style="margin-top:6px"><div class="flex-between" style="font-size:11px"><span class="muted">\u76ee\u6807\u4ef7 ' + fmt(bp.target_nav) + '</span><span class="muted">\u8fdb\u5ea6 ' + (bp.progress_pct||0).toFixed(0) + '%</span></div>' +
+        '<div style="margin-top:4px;height:3px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));width:' + Math.min((bp.progress_pct||0),100) + '%"></div></div></div>' : '') +
+      '</div>' : '') +
+      '<button onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')" style="width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;transition:transform .2s">' + (bp.is_holding ? '\u786e\u8ba4\u4e70\u5165' : '\u7acb\u5373\u4e70\u5165') + '</button></div>';
   }).join('');
 }
 
@@ -363,6 +373,35 @@ function renderAI(d) {
           '<div><div class="fs18 fw7">' + (v.sample_count != null ? v.sample_count : '--') + '</div><div class="muted">\u6837\u672c\u6570</div></div>';
       }
     }).catch(() => {});
+
+  // Buy signals
+  const sig = document.getElementById('buy-signals');
+  sig.innerHTML = funds.map(f => {
+    const bp = f.buy_point || {};
+    const ai = f.ai_prediction || {};
+    const canBuy = bp.can_buy || false;
+    const holding = bp.is_holding || false;
+    const pct = bp.yield_pct || 0;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:.5px solid rgba(0,0,0,.03);font-size:13px">' +
+      '<span style="width:24px;text-align:center">' + (holding ? '\ud83d\udcc8' : (canBuy ? '\u26a0\ufe0f' : '\u274c')) + '</span>' +
+      '<span style="flex:1">' + f.code + ' ' + (f.name||'').substring(0,8) + '</span>' +
+      '<span style="font-weight:600;color:' + (holding ? (pct>=0?'var(--up)':'var(--down)') : (canBuy ? '#ff9800' : 'var(--text3)')) + '">' +
+      (holding ? '\u6301\u6709 ' + fmtPct(pct) : (canBuy ? '\u8d2d\u4e70\u4fe1\u53f7' : bp.drop_pct ? '\u8ddd\u4e70\u70b9' + bp.drop_pct + '%' : '\u65e0\u4fe1\u53f7')) + '</span></div>';
+  }).join('');
+
+  // Profit benchmark
+  const bench = document.getElementById('profit-benchmark');
+  bench.innerHTML = funds.map(f => {
+    const bp = f.buy_point || {};
+    const r7 = f.return_7d, r1 = f.return_1m, r3 = f.return_3m, r6 = f.return_6m;
+    return '<div style="padding:8px 0;border-top:.5px solid rgba(0,0,0,.03)">' +
+      '<div style="font-size:12px;font-weight:600;margin-bottom:6px">' + f.code + ' ' + (f.name||'').substring(0,8) + '</div>' +
+      '<div class="flex gap8" style="font-size:12px">' +
+      '<span class="muted">7\u65e5: </span><span style="font-weight:600;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</span>' +
+      '<span class="muted">1\u6708: </span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
+      '<span class="muted">3\u6708: </span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
+      '<span class="muted">6\u6708: </span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span></div></div>';
+  }).join('');
 }
 function switchAI(idx) {
   document.querySelectorAll('#ai-tabs > span').forEach((t,i) => {
