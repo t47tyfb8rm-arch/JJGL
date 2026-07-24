@@ -1155,7 +1155,10 @@ class BuyPointInfo(BaseModel):
     hist_yield: float = 0.0   # 历史基准收益率（从配置）
     buy_point_yield: float = 0.0  # 买点阈值收益率（hist_yield - 3%）
     target_nav: float = 0.0   # 买点对应的净值（即达到买点阈值时的净值）
-    progress_pct: float = 0.0  # 买点进度百分比（0-100）`n    shares: float = 0.0        # 份额权重（用于补仓加权成本）`n    realized_yield_pct: float = 0.0  # 最近一次卖出实现收益率 %`n    transactions: List[dict] = []    # 买入/卖出流水
+    progress_pct: float = 0.0  # 买点进度百分比（0-100）
+    shares: float = 0.0        # 份额权重（用于补仓加权成本）
+    realized_yield_pct: float = 0.0  # 最近一次卖出实现收益率 %
+    transactions: List[dict] = []    # 买入/卖出流水
 
 
 class AIPrediction(BaseModel):
@@ -1492,6 +1495,9 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
                                 "buy_nav": float(v.get("buy_nav", v.get("cost_nav", 0))),
                                 "buy_date": str(v.get("buy_date", "")),
                                 "buy_price": float(v.get("buy_price", v.get("buy_nav", 0))),
+                                "shares": float(v.get("shares", 1.0) or 1.0),
+                                "realized_yield_pct": float(v.get("realized_yield_pct", 0.0) or 0.0),
+                                "transactions": v.get("transactions", []),
                                 "is_holding": True
                             }
                         # 其他（is_holding=False 的历史残留）：忽略，不进入内存
@@ -2471,6 +2477,9 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
 
         holding_record = COST_NAVS.get(fund_code)
         is_user_holding = bool(holding_record and holding_record.get("is_holding", False) and holding_record.get("buy_nav", 0) > 0)
+        holding_shares = float(holding_record.get("shares", 1.0) or 1.0) if holding_record else 0.0
+        realized_yield_pct = float(holding_record.get("realized_yield_pct", 0.0) or 0.0) if holding_record else 0.0
+        transactions = holding_record.get("transactions", []) if holding_record else []
 
         if is_user_holding:
             # 已确定买入：以用户买入价为成本基准
@@ -2622,7 +2631,10 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             hist_yield=hist_yield_for_bp if not is_user_holding else hist_yield,
             buy_point_yield=buy_point_yield if not is_user_holding else 0.0,
             target_nav=target_nav if not is_user_holding else 0.0,
-            progress_pct=progress_pct if not is_user_holding else 0
+            progress_pct=progress_pct if not is_user_holding else 0,
+            shares=holding_shares if is_user_holding else 0.0,
+            realized_yield_pct=realized_yield_pct,
+            transactions=transactions
         )
 
         # 生成AI预判（含估算净值和当日评估 + 市场指数参考）
