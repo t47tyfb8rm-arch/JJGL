@@ -1,0 +1,24 @@
+{
+  "name": "基金管家",
+  "short_name": "基金管家",
+  "description": "实时基金数据 + 收益率 + 买点提示",
+  "start_url": "/?pwa=1",
+  "scope": "/",
+  "display": "browser",
+  "orientation": "portrait",
+  "background_color": "#f0f2f5",
+  "theme_color": "#1565c0",
+  "icons": [
+    {
+      "src": "/static/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
