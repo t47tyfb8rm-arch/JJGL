@@ -13,34 +13,30 @@
 <link rel="icon" type="image/png" href="/static/icon-180.png?v=2">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--brand:#1a237e;--up:#e53935;--down:#43a047;--up-bg:rgba(229,57,53,0.08);--down-bg:rgba(67,160,71,0.08);--neutral:#333;--text2:#666;--text3:#aaa;--bg:#f5f5f5;--card:#fff;--radius:14px;--shadow:0 1px 4px rgba(0,0,0,0.04),0 2px 12px rgba(0,0,0,0.04);--font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
-body{font-family:var(--font);background:var(--bg);color:var(--neutral);min-height:100vh;-webkit-font-smoothing:antialiased}
-body.dark{--bg:#12121f;--card:#1e1e35;--neutral:#e8e8f0;--text2:#999;--text3:#666;--shadow:0 1px 4px rgba(0,0,0,0.3)}
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);transition:transform .2s}
-.card:active{transform:scale(.985)}
+:root{--brand:#1a237e;--up:#e53935;--down:#43a047;--neutral:#1a1a2e;--text2:#666;--text3:#aaa;--bg:#f2f3f8;--card:#fff;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.04),0 2px 8px rgba(0,0,0,0.03);--font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--neutral);min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+body.dark{--bg:#0f0f1a;--card:#1a1a30;--neutral:#e0e0ec;--text2:#888;--text3:#555;--shadow:0 1px 3px rgba(0,0,0,0.3)}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);-webkit-touch-callout:none}
+.card:active{opacity:.9}
 .up{color:var(--up)}.down{color:var(--down)}
-.muted{color:var(--text3);font-size:12px}
-.section{padding:0 16px;margin-top:10px}
-.section-title{font-size:14px;font-weight:600;color:var(--neutral);padding:14px 0 10px;display:flex;align-items:center;gap:6px}
-.grid-3{display:flex;gap:0}
-.grid-3>div{flex:1;padding:10px 0;text-align:center}
-.grid-3>div+div{border-left:.5px solid rgba(0,0,0,.05)}
-body.dark .grid-3>div+div{border-left-color:rgba(255,255,255,.06)}
-.fw7{font-weight:700}.fs14{font-size:14px}.fs16{font-size:16px}.fs18{font-size:18px}.fs24{font-size:24px}.fs26{font-size:26px}
-.mt4{margin-top:4px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt12{margin-top:12px}
-.flex{display:flex}.flex-between{display:flex;justify-content:space-between;align-items:center}
-.gap8{gap:8px}.gap12{gap:12px}.gap16{gap:16px}
-.content{padding-bottom:80px;padding-top:4px}
-.tab-content{display:none}.tab-content.active{display:block;animation:fade .25s}
-@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.96);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:.5px solid rgba(0,0,0,.05);display:flex;justify-content:space-around;align-items:flex-start;padding-top:6px;padding-bottom:max(4px,env(safe-area-inset-bottom))}
-body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,255,.05)}
-.tab-item{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--text3);cursor:pointer;transition:color .2s;padding:2px 14px;min-width:44px}
-.tab-item svg{width:24px;height:24px;transition:transform .2s}
-.tab-item span{line-height:1;transition:font-weight .2s}
-.tab-item.active{color:var(--brand)}
-.tab-item.active svg{transform:scale(1.05)}
-.tab-item.active span{font-weight:600}
+.muted{color:var(--text3);font-size:11px}
+.section-title{font-size:14px;font-weight:600;padding:10px 0 8px;display:flex;align-items:center;gap:5px}
+.grid-3{display:flex}.grid-3>div{flex:1;padding:8px 0;text-align:center}.grid-3>div+div{border-left:.5px solid rgba(0,0,0,.04)}
+body.dark .grid-3>div+div{border-left-color:rgba(255,255,255,.04)}
+.fw7{font-weight:700}.fs15{font-size:15px}.fs17{font-size:17px}.fs20{font-size:20px}.fs24{font-size:24px}.fs28{font-size:28px}
+.mt2{margin-top:2px}.mt6{margin-top:6px}.mt8{margin-top:8px}
+.flex{display:flex}.flex-center{display:flex;align-items:center}.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}
+.px{padding-left:12px;padding-right:12px}
+.content{padding-bottom:88px;padding-top:2px}
+.tab-content{display:none}.tab-content.active{display:block;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid rgba(0,0,0,.04);display:flex;justify-content:space-evenly;align-items:flex-start;padding-top:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom))}
+body.dark .tab-bar{background:rgba(18,18,30,.94);border-top-color:rgba(255,255,255,.04)}
+.tab-item{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--text3);cursor:pointer;padding:3px 10px;min-width:48px;min-height:40px;-webkit-tap-highlight-color:transparent;user-select:none}
+.tab-item svg{width:22px;height:22px;color:var(--text3)}.tab-item span{line-height:1.1}
+.tab-item.active{color:var(--brand)}.tab-item.active svg{color:var(--brand)}.tab-item.active span{font-weight:600;color:var(--brand)}
+.row-btn{padding:6px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;min-height:36px;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
 <body>
@@ -49,52 +45,50 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
 <!-- HOME -->
 <div id="tab-home" class="tab-content active">
 
-<div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:var(--bg)">
-  <div>
-    <div style="font-size:17px;font-weight:600">基金管家</div>
-    <div class="muted" id="header-time" style="margin-top:2px">2026-07-24 09:40</div>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span style="font-size:12px;color:var(--text3)" id="clock-display">09:40</span>
-    <svg width="20" height="20" viewBox="0 0 24 24" onclick="toggleDark()" style="cursor:pointer;color:var(--text3)">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="none" stroke="currentColor" stroke-width="1.8"/>
-    </svg>
-  </div>
-</div>
-
-<div class="card" style="margin:8px 16px;padding:18px 16px">
+<div class="px" style="padding-top:8px;padding-bottom:6px">
   <div class="flex-between">
-    <div><div class="muted" style="margin-bottom:2px;font-size:12px">总资产</div><div class="fs26 fw7" id="total-asset">--</div></div>
-    <div style="text-align:right"><div class="muted" style="margin-bottom:2px;font-size:12px">今日收益</div><div class="fs18 fw7" id="today-profit" style="color:var(--up)">--</div></div>
+    <div style="font-size:18px;font-weight:700">基金管家</div>
+    <div class="flex-center gap6">
+      <span class="muted" id="clock-display">09:40</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" onclick="toggleDark()" style="cursor:pointer;color:var(--text3)"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+    </div>
   </div>
-  <div class="flex gap20" style="margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.04)">
-    <div><div class="muted" style="font-size:11px">总收益率</div><div class="fs14 fw7 mt4" id="total-yield" style="color:var(--up)">--</div></div>
-    <div><div class="muted" style="font-size:11px">持有基金</div><div class="fs14 fw7 mt4" id="holding-count">--</div></div>
-    <div><div class="muted" style="font-size:11px">持有天数</div><div class="fs14 fw7 mt4" id="hold-days">--</div></div>
+  <div class="muted" id="header-time" style="margin-top:2px">2026-07-24 09:40</div>
+</div>
+
+<div class="card px" style="margin:4px 12px;padding:14px 12px">
+  <div class="flex-between">
+    <div><div class="muted" style="margin-bottom:1px">总资产</div><div class="fs28 fw7" id="total-asset" style="letter-spacing:-.5px">--</div></div>
+    <div style="text-align:right"><div class="muted" style="margin-bottom:1px">今日收益</div><div class="fs20 fw7" id="today-profit">--</div></div>
   </div>
-  <div style="margin-top:10px;height:4px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden">
-    <div id="yield-bar" style="height:100%;border-radius:2px;background:linear-gradient(90deg,#43a047,#ff9800,#e53935);width:0%;transition:width .6s"></div>
+  <div class="flex" style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04);gap:0">
+    <div style="flex:1"><div class="muted">总收益率</div><div class="fs15 fw7 mt2" id="total-yield">--</div></div>
+    <div style="flex:1"><div class="muted">持有基金</div><div class="fs15 fw7 mt2" id="holding-count">--</div></div>
+    <div style="flex:1"><div class="muted">持有天数</div><div class="fs15 fw7 mt2" id="hold-days">--</div></div>
+  </div>
+  <div style="margin-top:8px;height:3px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden">
+    <div id="yield-bar" style="height:100%;border-radius:2px;background:linear-gradient(90deg,#43a047,#ff9800,#e53935);width:0%;transition:width .5s"></div>
   </div>
 </div>
 
-<div class="card" style="margin:8px 16px;overflow:hidden">
+<div class="card" style="margin:4px 12px;overflow:hidden">
   <div class="grid-3" id="index-grid">
-    <div><div class="muted">上证指数</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4 down">--</div></div>
-    <div><div class="muted">科创50</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4">--</div></div>
-    <div><div class="muted">国债指数</div><div class="fs16 fw7 mt4" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt4">--</div></div>
+    <div><div class="muted">上证指数</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2 down">--</div></div>
+    <div><div class="muted">科创50</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2">--</div></div>
+    <div><div class="muted">国债指数</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2">--</div></div>
   </div>
 </div>
 
-<div class="flex gap8" style="padding:0 16px;margin-top:10px" id="fund-chips"></div>
+<div class="flex gap6" style="padding:0 12px;margin-top:6px" id="fund-chips"></div>
 
-<div class="card section" style="padding:0 16px">
-  <div class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6 9 6 9z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 18 9 18 9z"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>今日排行</div>
+<div class="card px" style="margin:6px 12px">
+  <div class="section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6 9 6 9z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 18 9 18 9z"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>今日排行</div>
   <div id="rank-list"></div>
 </div>
 
-<div class="card" style="margin:10px 16px;padding:0 16px">
-  <div class="section-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>市场资讯</div>
-  <div id="news-list"><div style="padding:10px 0;font-size:13px;color:var(--text3)">加载中...</div></div>
+<div class="card px" style="margin:6px 12px">
+  <div class="section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>市场资讯</div>
+  <div id="news-list"><div style="padding:8px 0;font-size:12px;color:var(--text3)">加载中...</div></div>
 </div>
 </div>
 
@@ -105,16 +99,16 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
 
 <!-- AI -->
 <div id="tab-ai" class="tab-content">
-  <div class="section"><div class="section-title">🤖 AI 综合分析</div></div>
-  <div class="card" style="margin:0 16px;padding:16px">
-    <div class="flex gap8" id="ai-tabs" style="margin-bottom:12px"></div>
-    <div id="ai-content"><div class="muted" style="font-size:13px">加载中...</div></div>
-    <div style="margin-top:12px;padding-top:12px;border-top:.5px solid rgba(0,0,0,.04)">
-      <div class="muted" style="margin-bottom:8px;font-size:12px">📐 模型准确度 近 7 日</div>
-      <div class="flex gap16" id="ai-accuracy">
-        <div><div class="fs18 fw7">--</div><div class="muted">MAE</div></div>
-        <div><div class="fs18 fw7">--</div><div class="muted">方向胜率</div></div>
-        <div><div class="fs18 fw7">--</div><div class="muted">样本数</div></div>
+  <div class="px" style="margin-top:10px"><div class="section-title">🤖 AI 综合分析</div></div>
+  <div class="card px" style="margin:0 12px;padding:14px 12px">
+    <div class="flex gap6" id="ai-tabs" style="margin-bottom:10px"></div>
+    <div id="ai-content"><div class="muted" style="font-size:12px">加载中...</div></div>
+    <div style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
+      <div class="muted" style="margin-bottom:6px">📐 模型准确度 近 7 日</div>
+      <div class="flex gap10" id="ai-accuracy">
+        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">MAE</div></div>
+        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">方向胜率</div></div>
+        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">样本数</div></div>
       </div>
     </div>
   </div>
@@ -122,13 +116,13 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
 
 <!-- BUY POINT -->
 <div id="tab-buy" class="tab-content">
-  <div class="card" style="margin:10px 16px;padding:16px">
-    <div class="section-title" style="padding:0;margin-bottom:10px">💰 基金买点状态</div>
-    <div id="buy-signals"><div class="muted" style="font-size:13px">加载中...</div></div>
+  <div class="card px" style="margin:10px 12px;padding:14px 12px">
+    <div class="section-title" style="padding:0 0 8px">💰 基金买点状态</div>
+    <div id="buy-signals"><div class="muted" style="font-size:12px">加载中...</div></div>
   </div>
-  <div class="card" style="margin:10px 16px;padding:16px">
-    <div class="section-title" style="padding:0;margin-bottom:10px">📊 历史收益基准</div>
-    <div id="profit-benchmark"><div class="muted" style="font-size:13px">加载中...</div></div>
+  <div class="card px" style="margin:6px 12px;padding:14px 12px">
+    <div class="section-title" style="padding:0 0 8px">📊 历史收益基准</div>
+    <div id="profit-benchmark"><div class="muted" style="font-size:12px">加载中...</div></div>
   </div>
 </div>
 
@@ -136,23 +130,23 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
 
 <!-- PROFILE -->
 <div id="tab-profile" class="tab-content">
-  <div style="text-align:center;padding:24px 16px 12px">
-    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#304ffe);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px;color:#fff;font-weight:600">基</div>
-    <div style="font-size:16px;font-weight:600">基金管家用户</div>
-    <div class="muted" style="margin-top:2px">v3.0</div>
+  <div style="text-align:center;padding:24px 12px 8px">
+    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#304ffe);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:18px;color:#fff;font-weight:600">基</div>
+    <div style="font-size:15px;font-weight:600">基金管家用户</div>
+    <div class="muted" style="margin-top:1px">v3.0</div>
   </div>
-  <div class="card" style="margin:8px 16px;padding:16px">
-    <div style="font-size:14px;font-weight:600;margin-bottom:10px">📊 我的持仓</div>
+  <div class="card px" style="margin:6px 12px;padding:14px 12px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">📊 我的持仓</div>
     <div id="profile-holdings"></div>
-    <div style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
-      <div class="flex-between" style="font-size:13px;padding:3px 0"><span class="muted">总投入</span><span class="fw7" id="profile-invest">--</span></div>
-      <div class="flex-between" style="font-size:13px;padding:3px 0;margin-top:4px"><span class="muted">总市值</span><span class="fw7" id="profile-value">--</span></div>
-      <div class="flex-between" style="font-size:13px;padding:3px 0;margin-top:4px"><span class="muted">总收益</span><span class="fw7" id="profile-profit">--</span></div>
+    <div style="margin-top:8px;padding-top:8px;border-top:.5px solid rgba(0,0,0,.04)">
+      <div class="flex-between" style="font-size:12px;padding:2px 0"><span class="muted">总投入</span><span class="fw7 fs15" id="profile-invest">--</span></div>
+      <div class="flex-between" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总市值</span><span class="fw7 fs15" id="profile-value">--</span></div>
+      <div class="flex-between" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总收益</span><span class="fw7 fs15" id="profile-profit">--</span></div>
     </div>
   </div>
-  <div class="card" style="margin:8px 16px;padding:16px">
-    <div class="flex-between" style="padding:4px 0"><span style="font-size:13px">🌙 深色模式</span><span id="dark-toggle" onclick="toggleDark()" style="position:relative;width:44px;height:24px;border-radius:12px;background:#ddd;cursor:pointer;transition:.2s"><span style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></span></div>
-    <div class="flex-between" style="padding:4px 0;margin-top:8px"><span style="font-size:13px">版本</span><span class="muted" style="font-size:12px">v3.0.0</span></div>
+  <div class="card px" style="margin:6px 12px;padding:14px 12px">
+    <div class="flex-center flex-between" style="padding:4px 0"><span style="font-size:12px">🌙 深色模式</span><span id="dark-toggle" onclick="toggleDark()" style="position:relative;width:40px;height:22px;border-radius:11px;background:#ddd;cursor:pointer;transition:.2s;flex-shrink:0"><span style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span></span></div>
+    <div class="flex-center flex-between" style="padding:4px 0;margin-top:6px"><span style="font-size:12px">版本</span><span class="muted" style="font-size:11px">v3.0.0</span></div>
   </div>
 </div>
 
@@ -308,20 +302,20 @@ function renderFunds(d) {
     const bp = f.buy_point || {};
     const chg = f.daily_change || 0;
     const riskCls = '<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:rgba(229,57,53,.08);color:var(--up)">' + (f.ai_prediction?.risk_level || '\u4e2d') + '</span>';
-    return '<div class="card" style="margin:8px 16px;padding:16px">' +
-      '<div class="flex-between"><div><div class="muted" style="font-size:12px">' + f.code + '</div><div style="font-size:14px;font-weight:600;margin-top:2px">' + (f.name||'') + '</div></div>' + riskCls + '</div>' +
-      '<div class="flex-between" style="margin:10px 0"><div style="font-size:24px;font-weight:700;font-feature-settings:\'tnum\'">' + (f.current_nav ? fmt(f.current_nav) : '--') + '</div><div style="font-size:16px;font-weight:600;color:' + (chg >= 0 ? 'var(--up)' : 'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
-      '<div class="flex" style="margin:10px 0;padding:10px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03)">' +
+    return '<div class="card px" style="margin:6px 12px;padding:14px 12px">' +
+      '<div class="flex-between"><div><div class="muted" style="font-size:11px">' + f.code + '</div><div style="font-size:14px;font-weight:600;margin-top:1px">' + (f.name||'') + '</div></div>' + riskCls + '</div>' +
+      '<div class="flex-between" style="margin:8px 0"><div class="fs24 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav ? fmt(f.current_nav) : '--') + '</div><div class="fs17 fw7" style="color:' + (chg >= 0 ? 'var(--up)' : 'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
+      '<div class="flex" style="margin:8px 0;padding:8px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03)">' +
       '<div style="flex:1;text-align:center"><div class="muted" style="font-size:10px">\u6301\u6709\u6536\u76ca</div><div style="font-size:13px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
       '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">7\u65e5</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_7d != null ? fmtPct(f.return_7d) : '--') + '</div></div>' +
       '<div style="flex:1;text-align:center;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:10px">1\u6708</div><div style="font-size:13px;font-weight:600;margin-top:2px">' + (f.return_1m != null ? fmtPct(f.return_1m) : '--') + '</div></div></div>' +
-      (bp.is_holding ? '<div style="margin:8px 0;padding:8px;background:rgba(0,0,0,.03);border-radius:8px">' +
+      (bp.is_holding ? '<div style="margin:6px 0;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
         '<div class="flex-between" style="font-size:12px"><span class="muted">\u6210\u672c\u4ef7</span><span style="font-weight:600">' + fmt(bp.cost_nav||0) + '</span>' +
         '<span class="muted">\u6301\u6709' + (bp.hold_days||0) + '\u5929</span><span style="font-weight:600;color:' + cls(bp.yield_pct||0) + '">' + fmtPct(bp.yield_pct||0) + '</span></div>' +
         (bp.target_nav ? '<div style="margin-top:6px"><div class="flex-between" style="font-size:11px"><span class="muted">\u76ee\u6807\u4ef7 ' + fmt(bp.target_nav) + '</span><span class="muted">\u8fdb\u5ea6 ' + (bp.progress_pct||0).toFixed(0) + '%</span></div>' +
         '<div style="margin-top:4px;height:3px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));width:' + Math.min((bp.progress_pct||0),100) + '%"></div></div></div>' : '') +
       '</div>' : '') +
-      '<button onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')" style="width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;transition:transform .2s">' + (bp.is_holding ? '\u786e\u8ba4\u4e70\u5165' : '\u7acb\u5373\u4e70\u5165') + '</button></div>';
+      '<button class="row-btn" style="width:100%;margin-top:8px" onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')">' + (bp.is_holding ? '\u786e\u8ba4\u4e70\u5165' : '\u7acb\u5373\u4e70\u5165') + '</button></div>';
   }).join('');
 }
 
