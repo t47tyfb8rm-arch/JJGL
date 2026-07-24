@@ -2,469 +2,398 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>基金管家</title>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="基金管家">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v=2">
-<link rel="icon" type="image/png" href="/static/icon-180.png?v=2">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--brand:#1a237e;--up:#e53935;--down:#43a047;--neutral:#1a1a2e;--text2:#666;--text3:#aaa;--bg:#f2f3f8;--card:#fff;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.04),0 2px 8px rgba(0,0,0,0.03);--font:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
-body{font-family:var(--font);background:var(--bg);color:var(--neutral);min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
-body.dark{--bg:#0f0f1a;--card:#1a1a30;--neutral:#e0e0ec;--text2:#888;--text3:#555;--shadow:0 1px 3px rgba(0,0,0,0.3)}
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);-webkit-touch-callout:none}
-.card:active{opacity:.9}
-.up{color:var(--up)}.down{color:var(--down)}
-.muted{color:var(--text3);font-size:11px}
-.section-title{font-size:14px;font-weight:600;padding:10px 0 8px;display:flex;align-items:center;gap:5px}
-.grid-3{display:flex}.grid-3>div{flex:1;padding:8px 0;text-align:center}.grid-3>div+div{border-left:.5px solid rgba(0,0,0,.04)}
-body.dark .grid-3>div+div{border-left-color:rgba(255,255,255,.04)}
-.fw7{font-weight:700}.fs15{font-size:15px}.fs17{font-size:17px}.fs20{font-size:20px}.fs24{font-size:24px}.fs28{font-size:28px}
-.mt2{margin-top:2px}.mt6{margin-top:6px}.mt8{margin-top:8px}
-.flex{display:flex}.flex-center{display:flex;align-items:center}.flex-between{display:flex;justify-content:space-between;align-items:center}
-.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif}
+:root{--red:#e53935;--green:#43a047;--brand:#1a237e;--text:#1a1a2e;--t2:#666;--t3:#aaa;--bg:#f5f5f5;--card:#fff;--r:12px;--shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.03)}
+body{background:var(--bg);color:var(--text);min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+body.dark{--bg:#0f0f1a;--card:#1a1a30;--text:#e0e0ec;--t2:#888;--t3:#555;--shadow:0 1px 3px rgba(0,0,0,.3)}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow)}.card:active{opacity:.9}
+.up{color:var(--red)}.down{color:var(--green)}
+.muted{color:var(--t3);font-size:11px}.t2{color:var(--t2);font-size:12px}
 .px{padding-left:12px;padding-right:12px}
+.flex{display:flex}.flex-c{display:flex;align-items:center}.flex-b{display:flex;justify-content:space-between;align-items:center}
+.gap4{gap:4px}.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}
+.pb{padding:10px 0}.pt{padding-top:8px}
+.fw6{font-weight:600}.fw7{font-weight:700}
+.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs17{font-size:17px}.fs18{font-size:18px}.fs20{font-size:20px}.fs24{font-size:24px}.fs26{font-size:26px}
+.mt2{margin-top:2px}.mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}
 .content{padding-bottom:88px;padding-top:2px}
-.tab-content{display:none}.tab-content.active{display:block;animation:fade .2s ease}
+.tab-c{display:none}.tab-c.active{display:block;animation:fade .2s}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid rgba(0,0,0,.04);display:flex;justify-content:space-evenly;align-items:flex-start;padding-top:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom))}
+.tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:.5px solid rgba(0,0,0,.04);display:flex;justify-content:space-evenly;padding-top:4px;padding-bottom:calc(4px + env(safe-area-inset-bottom))}
 body.dark .tab-bar{background:rgba(18,18,30,.94);border-top-color:rgba(255,255,255,.04)}
-.tab-item{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--text3);cursor:pointer;padding:3px 10px;min-width:48px;min-height:40px;-webkit-tap-highlight-color:transparent;user-select:none}
-.tab-item svg{width:22px;height:22px;color:var(--text3)}.tab-item span{line-height:1.1}
-.tab-item.active{color:var(--brand)}.tab-item.active svg{color:var(--brand)}.tab-item.active span{font-weight:600;color:var(--brand)}
-.row-btn{padding:6px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;min-height:36px;-webkit-tap-highlight-color:transparent}
+.tab-i{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--t3);cursor:pointer;padding:3px 10px;min-width:48px;min-height:40px;-webkit-tap-highlight-color:transparent;user-select:none}
+.tab-i svg{width:22px;height:22px;color:var(--t3)}.tab-i span{line-height:1.1}
+.tab-i.active{color:var(--brand)}.tab-i.active svg{color:var(--brand)}.tab-i.active span{font-weight:600;color:var(--brand)}
+.tag{padding:2px 7px;border-radius:3px;font-size:10px;display:inline-block}
+.tag-blue{background:rgba(26,35,126,.07);color:var(--brand)}.tag-yellow{background:rgba(255,152,0,.1);color:#ff9800}.tag-red{background:rgba(229,57,53,.08);color:var(--red)}.tag-green{background:rgba(67,160,71,.08);color:var(--green)}
+.btn{padding:8px 0;border:none;border-radius:8px;font-size:13px;font-weight:600;background:linear-gradient(135deg,#1a237e,#304ffe);color:#fff;cursor:pointer;width:100%;min-height:36px}
 </style>
 </head>
 <body>
 <div class="content">
 
-<!-- HOME -->
-<div id="tab-home" class="tab-content active">
+<!-- ===== HOME ===== -->
+<div id="thome" class="tab-c active">
 
-<div class="px" style="padding-top:8px;padding-bottom:6px">
-  <div class="flex-between">
+<div class="px" style="padding-top:8px;padding-bottom:4px">
+  <div class="flex-b">
     <div style="font-size:18px;font-weight:700">基金管家</div>
-    <div class="flex-center gap6">
+    <div class="flex-c gap4">
       <span class="muted" id="clock-display">09:40</span>
-      <svg width="18" height="18" viewBox="0 0 24 24" onclick="toggleDark()" style="cursor:pointer;color:var(--text3)"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" onclick="toggleDark()" style="color:var(--t3);cursor:pointer"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     </div>
   </div>
-  <div class="muted" id="header-time" style="margin-top:2px">2026-07-24 09:40</div>
+  <div class="muted" style="margin-top:2px" id="header-time">2026-07-24 11:29</div>
 </div>
 
-<div class="card px" style="margin:4px 12px;padding:14px 12px">
-  <div class="flex-between">
-    <div><div class="muted" style="margin-bottom:1px">总资产</div><div class="fs28 fw7" id="total-asset" style="letter-spacing:-.5px">--</div></div>
-    <div style="text-align:right"><div class="muted" style="margin-bottom:1px">今日收益</div><div class="fs20 fw7" id="today-profit">--</div></div>
+<!-- 总资产卡片 -->
+<div class="card px" style="margin:4px 12px;padding:16px 12px">
+  <div class="flex-b">
+    <div><div class="muted" style="margin-bottom:1px">总资产</div><div class="fs26 fw7" id="total-asset" style="letter-spacing:-.5px">¥--</div></div>
+    <div style="text-align:right"><div class="muted" style="margin-bottom:1px">今日收益</div><div class="fs20 fw7" id="today-profit" style="color:var(--red)">--</div></div>
   </div>
-  <div class="flex" style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04);gap:0">
-    <div style="flex:1"><div class="muted">总收益率</div><div class="fs15 fw7 mt2" id="total-yield">--</div></div>
-    <div style="flex:1"><div class="muted">持有基金</div><div class="fs15 fw7 mt2" id="holding-count">--</div></div>
-    <div style="flex:1"><div class="muted">持有天数</div><div class="fs15 fw7 mt2" id="hold-days">--</div></div>
+  <div class="flex" style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
+    <div style="flex:1"><div class="muted" style="font-size:10px">总收益率</div><div class="fs15 fw7 mt2" id="total-yield" style="color:var(--red)">--</div></div>
+    <div style="flex:1;text-align:center"><div class="muted" style="font-size:10px">持有基金</div><div class="fs15 fw7 mt2" id="holding-count">--</div></div>
+    <div style="flex:1;text-align:right"><div class="muted" style="font-size:10px">持有天数</div><div class="fs15 fw7 mt2" id="hold-days">--</div></div>
   </div>
   <div style="margin-top:8px;height:3px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden">
-    <div id="yield-bar" style="height:100%;border-radius:2px;background:linear-gradient(90deg,#43a047,#ff9800,#e53935);width:0%;transition:width .5s"></div>
+    <div id="yield-bar" style="height:100%;border-radius:2px;background:linear-gradient(90deg,#43a047,#ff9800,#e53935);width:0%"></div>
   </div>
 </div>
 
+<!-- 指数三列 -->
 <div class="card" style="margin:4px 12px;overflow:hidden">
-  <div class="grid-3" id="index-grid">
-    <div><div class="muted">上证指数</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2 down">--</div></div>
-    <div><div class="muted">科创50</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2">--</div></div>
-    <div><div class="muted">国债指数</div><div class="fs17 fw7 mt2" style="font-feature-settings:'tnum'">--</div><div class="fs14 fw7 mt2">--</div></div>
+  <div class="flex" id="index-grid">
+    <div style="flex:1;padding:8px 0;text-align:center"><div class="muted">上证指数</div><div class="fs16 fw7 mt2" style="font-feature-settings:'tnum'" id="idx-0-price">--</div><div class="fs13 fw7 mt2 down" id="idx-0-chg">--</div></div>
+    <div style="flex:1;padding:8px 0;text-align:center;border-left:.5px solid rgba(0,0,0,.04)"><div class="muted">科创50</div><div class="fs16 fw7 mt2" style="font-feature-settings:'tnum'" id="idx-1-price">--</div><div class="fs13 fw7 mt2" id="idx-1-chg">--</div></div>
+    <div style="flex:1;padding:8px 0;text-align:center;border-left:.5px solid rgba(0,0,0,.04)"><div class="muted">国债指数</div><div class="fs16 fw7 mt2" style="font-feature-settings:'tnum'" id="idx-2-price">--</div><div class="fs13 fw7 mt2" id="idx-2-chg">--</div></div>
   </div>
 </div>
 
+<!-- 基金三列卡片（参考图风格） -->
 <div class="flex gap6" style="padding:0 12px;margin-top:6px" id="fund-chips"></div>
 
+<!-- 排行 -->
 <div class="card px" style="margin:6px 12px">
-  <div class="section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6 9 6 9z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 18 9 18 9z"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>今日排行</div>
+  <div class="flex-c" style="padding:12px 0 6px;font-size:14px;font-weight:600;gap:4px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 6 9 6 9z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 18 9 18 9z"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>今日排行
+  </div>
   <div id="rank-list"></div>
+  <div style="height:6px"></div>
 </div>
 
+<!-- 资讯 -->
 <div class="card px" style="margin:6px 12px">
-  <div class="section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>市场资讯</div>
-  <div id="news-list"><div style="padding:8px 0;font-size:12px;color:var(--text3)">加载中...</div></div>
+  <div class="flex-c" style="padding:12px 0 6px;font-size:14px;font-weight:600;gap:4px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>市场资讯
+  </div>
+  <div id="news-list"><div class="t2 pb">加载中...</div></div>
 </div>
 </div>
 
-<!-- FUNDS -->
-<div id="tab-funds" class="tab-content">
+<!-- ===== FUNDS ===== -->
+<div id="tfunds" class="tab-c">
+  <div class="px pt"><div class="flex-c" style="font-size:14px;font-weight:600;gap:4px">📈 基金详情</div></div>
   <div id="fund-detail-list"></div>
 </div>
 
-<!-- AI -->
-<div id="tab-ai" class="tab-content">
-  <div class="px" style="margin-top:10px"><div class="section-title">🤖 AI 综合分析</div></div>
+<!-- ===== AI ===== -->
+<div id="tai" class="tab-c">
+  <div class="px pt">
+    <div class="flex-c" style="font-size:14px;font-weight:600;gap:4px">🤖 AI 综合分析</div>
+  </div>
   <div class="card px" style="margin:0 12px;padding:14px 12px">
-    <div id="ai-content"><div class="muted" style="font-size:12px">加载中...</div></div>
+    <div id="ai-content"><div class="t2 pb">加载中...</div></div>
     <div style="margin-top:10px;padding-top:10px;border-top:.5px solid rgba(0,0,0,.04)">
-      <div class="muted" style="margin-bottom:6px">📐 模型准确度 近 7 日</div>
-      <div class="flex gap10" id="ai-accuracy">
-        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">MAE</div></div>
-        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">方向胜率</div></div>
-        <div><div class="fs20 fw7">--</div><div class="muted" style="font-size:10px">样本数</div></div>
+      <div class="muted" style="margin-bottom:4px">模型准确度 近7日</div>
+      <div class="flex gap8">
+        <div><div class="fs18 fw7">--</div><div class="muted" style="font-size:10px">MAE</div></div>
+        <div style="margin-left:16px"><div class="fs18 fw7">--</div><div class="muted" style="font-size:10px">方向胜率</div></div>
+        <div style="margin-left:16px"><div class="fs18 fw7">--</div><div class="muted" style="font-size:10px">样本数</div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- BUY POINT -->
-<div id="tab-buy" class="tab-content">
+<!-- ===== BUY ===== -->
+<div id="tbuy" class="tab-c">
   <div class="card px" style="margin:10px 12px;padding:14px 12px">
-    <div class="section-title" style="padding:0 0 8px">💰 基金买点状态</div>
-    <div id="buy-signals"><div class="muted" style="font-size:12px">加载中...</div></div>
+    <div class="flex-c" style="font-size:14px;font-weight:600;gap:4px;padding-bottom:8px">💰 基金买点状态</div>
+    <div id="buy-signals"><div class="t2 pb">加载中...</div></div>
   </div>
   <div class="card px" style="margin:6px 12px;padding:14px 12px">
-    <div class="section-title" style="padding:0 0 8px">📊 历史收益基准</div>
-    <div id="profit-benchmark"><div class="muted" style="font-size:12px">加载中...</div></div>
+    <div class="flex-c" style="font-size:14px;font-weight:600;gap:4px;padding-bottom:8px">📊 历史收益基准</div>
+    <div id="profit-benchmark"><div class="t2 pb">加载中...</div></div>
   </div>
 </div>
 
-<!-- no search tab -->
-
-<!-- PROFILE -->
-<div id="tab-profile" class="tab-content">
+<!-- ===== PROFILE ===== -->
+<div id="tprofile" class="tab-c">
   <div style="text-align:center;padding:24px 12px 8px">
     <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1a237e,#304ffe);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:18px;color:#fff;font-weight:600">基</div>
     <div style="font-size:15px;font-weight:600">基金管家用户</div>
-    <div class="muted" style="margin-top:1px">v3.0</div>
+    <div class="muted">v3.0</div>
   </div>
   <div class="card px" style="margin:6px 12px;padding:14px 12px">
     <div style="font-size:13px;font-weight:600;margin-bottom:8px">📊 我的持仓</div>
     <div id="profile-holdings"></div>
     <div style="margin-top:8px;padding-top:8px;border-top:.5px solid rgba(0,0,0,.04)">
-      <div class="flex-between" style="font-size:12px;padding:2px 0"><span class="muted">总投入</span><span class="fw7 fs15" id="profile-invest">--</span></div>
-      <div class="flex-between" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总市值</span><span class="fw7 fs15" id="profile-value">--</span></div>
-      <div class="flex-between" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总收益</span><span class="fw7 fs15" id="profile-profit">--</span></div>
+      <div class="flex-b" style="font-size:12px;padding:2px 0"><span class="muted">总投入</span><span class="fw7 fs15" id="profile-invest">--</span></div>
+      <div class="flex-b" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总市值</span><span class="fw7 fs15" id="profile-value">--</span></div>
+      <div class="flex-b" style="font-size:12px;padding:2px 0;margin-top:3px"><span class="muted">总收益</span><span class="fw7 fs15" id="profile-profit">--</span></div>
     </div>
   </div>
   <div class="card px" style="margin:6px 12px;padding:14px 12px">
-    <div class="flex-center flex-between" style="padding:4px 0"><span style="font-size:12px">🌙 深色模式</span><span id="dark-toggle" onclick="toggleDark()" style="position:relative;width:40px;height:22px;border-radius:11px;background:#ddd;cursor:pointer;transition:.2s;flex-shrink:0"><span style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span></span></div>
-    <div class="flex-center flex-between" style="padding:4px 0;margin-top:6px"><span style="font-size:12px">版本</span><span class="muted" style="font-size:11px">v3.0.0</span></div>
+    <div class="flex-c flex-b" style="padding:4px 0"><span style="font-size:12px">🌙 深色模式</span><span id="dark-tog" onclick="toggleDark()" style="position:relative;width:40px;height:22px;border-radius:11px;background:#ddd;cursor:pointer;flex-shrink:0;transition:.2s"><span style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15)"></span></span></div>
+    <div class="flex-c flex-b" style="padding:4px 0;margin-top:6px"><span style="font-size:12px">版本</span><span class="muted" style="font-size:11px">v3.0.0</span></div>
   </div>
 </div>
-
 </div><!-- /content -->
 
+<!-- ===== Tab Bar ===== -->
 <div class="tab-bar">
-  <div class="tab-item active" data-tab="home">
+  <div class="tab-i active" data-t="home">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>首页</span>
   </div>
-  <div class="tab-item" data-tab="funds">
+  <div class="tab-i" data-t="funds">
     <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="17 6 23 6 23 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>基金</span>
   </div>
-  <div class="tab-item" data-tab="ai">
+  <div class="tab-i" data-t="ai">
     <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16l-6.4 5.2L8 14l-6-4.8h7.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>AI</span>
   </div>
-  <div class="tab-item" data-tab="buy">
+  <div class="tab-i" data-t="buy">
     <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>买点</span>
   </div>
-  <!-- no search tab -->
-  <div class="tab-item" data-tab="profile">
+  <div class="tab-i" data-t="profile">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>我的</span>
   </div>
 </div>
 
 <script>
-// Config
-const API_BASE = '';
-const REFRESH_INTERVAL = 30000;
+const API='';const INT=30000;
+document.querySelectorAll('.tab-i').forEach(e=>{e.addEventListener('click',()=>{
+  document.querySelectorAll('.tab-i').forEach(t=>t.classList.remove('active'));
+  e.classList.add('active');
+  document.querySelectorAll('.tab-c').forEach(c=>c.classList.remove('active'));
+  document.getElementById('t'+e.dataset.t).classList.add('active');
+})});
+function toggleDark(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');localStorage.setItem('v3-theme',d?'dark':'light');const k=document.querySelector('#dark-tog span');if(k)k.style.left=d?'20px':'2px';const p=document.querySelector('#dark-tog');if(p)p.style.background=d?'#304ffe':'#ddd'}
+if(localStorage.getItem('v3-theme')==='dark'){document.body.classList.add('dark')}
+function fmt(n){return Number(n).toLocaleString('zh-CN',{minF:2,maxF:2})}
+function fp(n){return (n>=0?'+':'')+Number(n).toFixed(2)+'%'}
+function cl(n){return n>0?'up':n<0?'down':''}
 
-// Tab switching
-document.querySelectorAll('.tab-item').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-    item.classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-' + item.dataset.tab).classList.add('active');
-  });
-});
-
-// Dark mode
-function toggleDark() {
-  document.body.classList.toggle('dark');
-  const isDark = document.body.classList.contains('dark');
-  localStorage.setItem('v3-theme', isDark ? 'dark' : 'light');
-  const knob = document.querySelector('#dark-toggle span');
-  if (knob) knob.style.left = isDark ? '22px' : '2px';
-  const parent = document.querySelector('#dark-toggle');
-  if (parent) parent.style.background = isDark ? '#304ffe' : '#ddd';
-}
-if (localStorage.getItem('v3-theme') === 'dark') { document.body.classList.add('dark'); }
-
-// Formatters
-function fmt(n) { return Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
-function fmtPct(n) { return (n>=0?'+':'')+Number(n).toFixed(2)+'%' }
-function cls(n) { return n>0?'up':n<0?'down':'' }
-
-// Fetch
-async function fetchData() {
-  try {
-    const r = await fetch(API_BASE + '/api/portfolio');
-    const d = await r.json();
-    document.getElementById('header-time').textContent = d.date + ' ' + d.time;
-    renderHome(d);
-    renderFunds(d);
-    renderAI(d);
-    renderProfile(d);
-  } catch(e) { console.error(e) }
+async function fetchD(){
+  try{
+    const r=await fetch(API+'/api/portfolio');
+    const d=await r.json();
+    document.getElementById('header-time').textContent=d.date+' '+d.time;
+    renderHome(d);renderFunds(d);renderAI(d);renderBuy(d);renderProfile(d);
+  }catch(e){console.error(e)}
 }
 
-// ===== Render Home =====
-function renderHome(d) {
-  const funds = d.funds || [];
-  let totalInvest = 0, totalValue = 0, holdCount = 0, maxDays = 0;
-  funds.forEach(f => {
-    const bp = f.buy_point || {};
-    if (bp.is_holding) {
-      holdCount++;
-      totalInvest += bp.cost_nav || 0;
-      totalValue += f.current_nav || 0;
-      if ((bp.hold_days || 0) > maxDays) maxDays = bp.hold_days;
-    }
-  });
-  const profit = totalValue - totalInvest;
-  const yieldPct = totalInvest > 0 ? (profit / totalInvest * 100) : 0;
-
-  document.getElementById('total-asset').textContent = totalValue > 0 ? '\u00a5' + fmt(totalValue) : '\u00a5--';
-  document.getElementById('today-profit').textContent = profit >= 0 ? '+\u00a5' + fmt(profit) : '-\u00a5' + fmt(Math.abs(profit));
-  document.getElementById('today-profit').style.color = profit >= 0 ? 'var(--up)' : 'var(--down)';
-  document.getElementById('total-yield').textContent = fmtPct(yieldPct);
-  document.getElementById('total-yield').style.color = yieldPct >= 0 ? 'var(--up)' : 'var(--down)';
-  document.getElementById('holding-count').textContent = holdCount + ' / ' + funds.length;
-  document.getElementById('hold-days').textContent = maxDays + '\u5929';
-  const barW = Math.min(Math.max((yieldPct + 20) / 40 * 100, 0), 100);
-  document.getElementById('yield-bar').style.width = barW + '%';
-
+function renderHome(d){
+  const fs=d.funds||[];let ti=0,tv=0,hc=0,md=0;
+  fs.forEach(f=>{const b=f.buy_point||{};if(b.is_holding){hc++;ti+=b.cost_nav||0;tv+=f.current_nav||0;if((b.hold_days||0)>md)md=b.hold_days}});
+  const tp=tv-ti,yp=ti>0?tp/ti*100:0;
+  document.getElementById('total-asset').textContent=tv>0?'¥'+fmt(tv):'¥--';
+  document.getElementById('today-profit').textContent=(tp>=0?'+¥':'¥')+fmt(Math.abs(tp));
+  document.getElementById('today-profit').style.color=tp>=0?'var(--red)':'var(--green)';
+  document.getElementById('total-yield').textContent=fp(yp);
+  document.getElementById('total-yield').style.color=yp>=0?'var(--red)':'var(--green)';
+  document.getElementById('holding-count').textContent=hc+'/'+fs.length;
+  document.getElementById('hold-days').textContent=md+'天';
+  const bw=Math.min(Math.max((yp+20)/40*100,0),100);
+  document.getElementById('yield-bar').style.width=bw+'%';
+  
   // Index
-  const idx = d.index || {};
-  document.querySelectorAll('#index-grid > div').forEach((el, i) => {
-    const items = [
-      { name: '\u4e0a\u8bc1\u6307\u6570', price: idx.current ? fmt(idx.current) : '--', chg: idx.daily_change || 0 },
-      { name: '\u79d1\u521b50', price: '--', chg: 0 },
-      { name: '\u56fd\u503a\u6307\u6570', price: '--', chg: 0 }
-    ];
-    el.innerHTML = '<div class="muted">' + items[i].name + '</div><div class="fs16 fw7 mt4" style="font-feature-settings:\'tnum\'">' + items[i].price + '</div><div class="fs14 fw7 mt4 ' + cls(items[i].chg) + '">' + fmtPct(items[i].chg) + '</div>';
-  });
-
-  // 首页基金三列卡片（参考图样式）
-  const chipRow = document.getElementById('fund-chips');
-  chipRow.innerHTML = funds.map(f => {
-    const bp = f.buy_point || {};
-    const chg = f.daily_change || 0;
-    const yld = bp.is_holding ? bp.yield_pct : null;
-    return '<div class="card" style="flex:1;padding:12px 4px;text-align:center;cursor:pointer;min-width:0" onclick="switchTab(\'funds\')">' +
-      '<div class="muted" style="margin-bottom:2px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + f.code + '</div>' +
-      '<div class="fs17 fw7 ' + cls(chg) + '" style="font-feature-settings:\'tnum\';margin-top:2px">' + fmtPct(chg) + '</div>' +
-      '<div style="font-size:12px;font-weight:600;margin-top:4px;color:' + (yld !== null ? (yld >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (yld !== null ? fmtPct(yld) : '\u672a\u6301\u4ed3') + '</div>' +
-      '<div style="font-size:9px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (f.name || f.code).substring(0,8) + '</div></div>';
+  const idx=d.index||{};
+  const iprice=idx.current?fmt(idx.current):'--';const ichg=idx.daily_change||0;
+  document.getElementById('idx-0-price').textContent=iprice;
+  document.getElementById('idx-0-chg').textContent=fp(ichg);
+  document.getElementById('idx-0-chg').className='fs13 fw7 mt2 '+cl(ichg);
+  
+  // Fund chips - 三列
+  const cr=document.getElementById('fund-chips');
+  cr.innerHTML=fs.map(f=>{
+    const b=f.buy_point||{},cg=f.daily_change||0,y=b.is_holding?b.yield_pct:null;
+    return '<div class="card" style="flex:1;padding:10px 4px;text-align:center;cursor:pointer" onclick="goTab(\'funds\')">'+
+      '<div class="muted" style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.code+'</div>'+
+      '<div class="fs16 fw7 '+cl(cg)+'" style="font-feature-settings:\'tnum\';margin-top:2px">'+fp(cg)+'</div>'+
+      '<div style="font-size:12px;font-weight:600;margin-top:4px;color:'+(y!==null?(y>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(y!==null?fp(y):'未持仓')+'</div>'+
+      '<div style="font-size:9px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.name||f.code).substring(0,8)+'</div></div>';
   }).join('');
-
+  
   // Ranking
-  const sorted = [...funds].sort((a, b) => (b.daily_change || 0) - (a.daily_change || 0));
-  const medals = ['<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">1</span>',
+  const s=[...fs].sort((a,b)=>(b.daily_change||0)-(a.daily_change||0));
+  const m=['<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#e53935;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">1</span>',
     '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#f39c12;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">2</span>',
     '<span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#bbb;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center">3</span>'];
-  document.getElementById('rank-list').innerHTML = sorted.map((f, i) =>
-    '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px;border-top:' + (i > 0 ? '.5px solid rgba(0,0,0,.03)' : 'none') + '">' +
-    '<span style="width:18px;text-align:center;flex-shrink:0">' + (medals[i] || (i+1)) + '</span>' +
-    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.code + ' ' + (f.name||'').substring(0,8) + '</span>' +
-    '<span class="' + cls(f.daily_change) + '" style="font-weight:600">' + fmtPct(f.daily_change) + '</span></div>'
+  document.getElementById('rank-list').innerHTML=s.map((f,i)=>
+    '<div class="flex-c" style="padding:7px 0;font-size:13px;border-top:'+(i>0?'.5px solid rgba(0,0,0,.03)':'none')+'">'+
+    '<span style="width:18px;text-align:center;flex-shrink:0">'+(m[i]||(i+1))+'</span>'+
+    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:6px">'+f.code+' '+(f.name||'').substring(0,8)+'</span>'+
+    '<span class="'+cl(f.daily_change)+'" style="font-weight:600">'+fp(f.daily_change)+'</span></div>'
   ).join('');
-
+  
   // News
-  const nl = document.getElementById('news-list');
-  if (d.news && d.news.length > 0) {
-    nl.innerHTML = d.news.slice(0, 3).map(n =>
-      '<div style="padding:10px 0;border-top:.5px solid rgba(0,0,0,.03)">' +
-      '<div style="font-size:13px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + (n.title || n.text || '') + '</div>' +
-      '<div class="muted" style="margin-top:4px">' + (n.date || n.time || '\u521a\u521a') + '</div></div>'
+  const nl=document.getElementById('news-list');
+  if(d.news&&d.news.length>0){
+    nl.innerHTML=d.news.slice(0,3).map(n=>
+      '<div style="padding:8px 0;border-top:.5px solid rgba(0,0,0,.03)">'+
+      '<div style="font-size:12px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+(n.title||n.text||'')+'</div>'+
+      '<div class="muted" style="margin-top:3px">'+(n.date||n.time||'刚刚')+'</div></div>'
     ).join('');
   }
 }
 
-// ===== Render Funds (完整信息紧凑版) =====
-function renderFunds(d) {
-  const list = document.getElementById('fund-detail-list');
-  if (!d.funds) return;
-  list.innerHTML = d.funds.map(f => {
-    const bp = f.buy_point || {};
-    const chg = f.daily_change || 0;
-    const r7 = f.return_7d, r1 = f.return_1m;
-    const riskCls = '<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:rgba(229,57,53,.08);color:var(--up)">' + (f.ai_prediction?.risk_level || '\u4e2d') + '</span>';
-    return '<div class="card px" style="margin:4px 12px;padding:12px">' +
-      // 第一行：代码+名称 | 风险标签
-      '<div class="flex-between" style="margin-bottom:4px">' +
-        '<div><span style="font-size:11px;color:var(--text2)">' + f.code + '</span><span style="font-size:13px;font-weight:600;margin-left:6px">' + (f.name||'').substring(0,8) + '</span></div>' +
-        riskCls +
-      '</div>' +
-      // 第二行：净值 | 涨跌幅
-      '<div class="flex-between" style="margin-bottom:6px">' +
-        '<span class="fs20 fw7" style="font-feature-settings:\'tnum\'">' + (f.current_nav?fmt(f.current_nav):'--') + '</span>' +
-        '<span class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</span>' +
-      '</div>' +
-      // 第三行：分三列-持有收益 / 7日 / 1月
-      '<div class="flex" style="margin-bottom:4px;padding:6px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03);text-align:center">' +
-        '<div style="flex:1"><div class="muted" style="font-size:9px">\u6301\u6709\u6536\u76ca</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + (bp.is_holding ? (bp.yield_pct>=0?'var(--up)':'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</div></div>' +
-        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">7\u65e5</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</div></div>' +
-        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">1\u6708</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</div></div>' +
-      '</div>' +
-      // 第四行：持有信息
-      (bp.is_holding ?
-        '<div class="flex-between" style="font-size:11px;margin-bottom:4px">' +
-          '<span class="muted">\u6210\u672c ' + fmt(bp.cost_nav||0) + '</span>' +
-          '<span class="muted">\u6301\u6709 ' + (bp.hold_days||0) + '\u5929</span>' +
-          '<span style="font-weight:600;color:' + cls(bp.yield_pct||0) + '">' + fmtPct(bp.yield_pct||0) + '</span>' +
-        '</div>' +
-        (bp.target_nav ?
-          '<div style="margin-bottom:4px"><div class="flex-between" style="font-size:10px"><span class="muted">\u76ee\u6807 ' + fmt(bp.target_nav) + '</span><span class="muted">\u8fdb\u5ea6 ' + (bp.progress_pct||0).toFixed(0) + '%</span></div>' +
-          '<div style="height:2px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--down),var(--up));width:' + Math.min((bp.progress_pct||0),100) + '%"></div></div></div>'
-        : '') +
-        '<button class="row-btn" style="width:100%;margin-top:4px" onclick="alert(\'\u4e70\u5165\u529f\u80fd\u5373\u5c06\u63a8\u51fa\')">\u786e\u8ba4\u4e70\u5165</button>'
-      : '<div class="muted" style="font-size:11px;padding:2px 0">\u672a\u6301\u4ed3</div>') +
+function renderFunds(d){
+  const list=document.getElementById('fund-detail-list');if(!d.funds)return;
+  list.innerHTML=d.funds.map(f=>{
+    const bp=f.buy_point||{},cg=f.daily_change||0,r7=f.return_7d,r1=f.return_1m;
+    const rsk='<span class="tag tag-red">'+(f.ai_prediction?.risk_level||'中')+'</span>';
+    return '<div class="card px" style="margin:4px 12px;padding:12px">'+
+      '<div class="flex-b" style="margin-bottom:4px">'+
+        '<div><span style="font-size:11px;color:var(--t2)">'+f.code+'</span><span style="font-size:13px;font-weight:600;margin-left:6px">'+(f.name||'').substring(0,8)+'</span></div>'+rsk+
+      '</div>'+
+      '<div class="flex-b" style="margin-bottom:6px">'+
+        '<span class="fs20 fw7" style="font-feature-settings:\'tnum\'">'+(f.current_nav?fmt(f.current_nav):'--')+'</span>'+
+        '<span class="fs17 fw7 '+cl(cg)+'">'+fp(cg)+'</span>'+
+      '</div>'+
+      '<div class="flex" style="padding:6px 0;border-top:.5px solid rgba(0,0,0,.03);border-bottom:.5px solid rgba(0,0,0,.03);text-align:center">'+
+        '<div style="flex:1"><div class="muted" style="font-size:9px">持有收益</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:'+(bp.is_holding?(bp.yield_pct>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(bp.is_holding?fp(bp.yield_pct||0):'未持仓')+'</div></div>'+
+        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">7日</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:'+cl(r7)+'">'+(r7!=null?fp(r7):'--')+'</div></div>'+
+        '<div style="flex:1;border-left:.5px solid rgba(0,0,0,.03)"><div class="muted" style="font-size:9px">1月</div><div style="font-size:12px;font-weight:600;margin-top:2px;color:'+cl(r1)+'">'+(r1!=null?fp(r1):'--')+'</div></div>'+
+      '</div>'+
+      (bp.is_holding?
+        '<div class="flex-b" style="font-size:11px;margin:4px 0">'+
+          '<span class="muted">成本 '+fmt(bp.cost_nav||0)+'</span><span class="muted">持有'+(bp.hold_days||0)+'天</span>'+
+          '<span style="font-weight:600;color:'+cl(bp.yield_pct||0)+'">'+fp(bp.yield_pct||0)+'</span>'+
+        '</div>'+
+        (bp.target_nav?'<div style="margin-bottom:4px"><div class="flex-b" style="font-size:10px"><span class="muted">目标 '+fmt(bp.target_nav)+'</span><span class="muted">进度'+(bp.progress_pct||0).toFixed(0)+'%</span></div><div style="height:2px;background:rgba(0,0,0,.06);border-radius:2px;overflow:hidden"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--red));width:'+Math.min((bp.progress_pct||0),100)+'%"></div></div></div>':'')+
+        '<button class="btn" onclick="alert(\'买入功能即将推出\')">确认买入</button>'
+      :'<div class="muted" style="font-size:11px;padding:4px 0">未持仓</div>')+
     '</div>';
   }).join('');
 }
 
-// ===== Render AI (3只基金完整信息上下排列) =====
-function renderAI(d) {
-  const funds = d.funds || [];
-  if (!funds.length) return;
-  const content = document.getElementById('ai-content');
-  content.innerHTML = funds.map((f, i) => {
-    const ai = f.ai_prediction || {};
-    const chg = f.daily_change || 0;
-    const r7 = f.return_7d, r1 = f.return_1m, r3 = f.return_3m, r6 = f.return_6m;
-    return '<div style="padding:' + (i>0?'14px 0 0':'0 0 0') + ';margin-top:' + (i>0?'14px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
+function renderAI(d){
+  const fs=d.funds||[];if(!fs.length)return;
+  document.getElementById('ai-content').innerHTML=fs.map((f,i)=>{
+    const ai=f.ai_prediction||{},cg=f.daily_change||0;
+    const r7=f.return_7d,r1=f.return_1m,r3=f.return_3m,r6=f.return_6m;
+    return '<div style="padding:'+(i>0?'12px 0 0':'0')+';margin-top:'+(i>0?'12px':'0')+';border-top:'+(i>0?'.5px solid rgba(0,0,0,.04)':'none')+'">'+
       // 标题行
-      '<div class="flex-between" style="margin-bottom:6px">' +
-        '<div><span class="fs15 fw7">' + f.code + '</span><span class="muted" style="margin-left:5px;font-size:11px">' + (f.name||'').substring(0,8) + '</span></div>' +
-        '<div class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</div>' +
-      '</div>' +
-      // 趋势行
-      '<div class="flex-between" style="margin-bottom:5px;font-size:12px">' +
-        '<span class="muted">\u8d8b\u52bf</span><span class="fw7">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span>' +
-      '</div>' +
-      // 分析建议（背景框）
-      '<div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
-        (ai.advice || '\u6682\u65e0\u5206\u6790') +
-      '</div>' +
-      // 标签行
-      '<div class="flex gap6" style="flex-wrap:wrap;margin-bottom:6px">' +
-        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c' + (ai.valuation_position || '--') + '</span>' +
-        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1' + (ai.confidence || '--') + '</span>' +
-        '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669' + (ai.risk_level || '--') + '</span>' +
-        (ai.key_levels ? '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' : '') +
-        (ai.key_levels ? '<span style="padding:1px 7px;border-radius:3px;font-size:9px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
-      '</div>' +
-      // 收益行
-      '<div class="flex" style="font-size:11px;gap:8px">' +
-        '<span class="muted">7\u65e5</span><span style="font-weight:600;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</span>' +
-        '<span class="muted">1\u6708</span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
-        '<span class="muted">3\u6708</span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
-        '<span class="muted">6\u6708</span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span>' +
-      '</div>' +
+      '<div class="flex-b" style="margin-bottom:4px">'+
+        '<div><span class="fs15 fw7">'+f.code+'</span><span class="muted" style="margin-left:4px;font-size:11px">'+(f.name||'').substring(0,8)+'</span></div>'+
+        '<span class="fs16 fw7 '+cl(cg)+'">'+fp(cg)+'</span>'+
+      '</div>'+
+      // 趋势
+      '<div class="flex-b" style="margin-bottom:4px;font-size:12px">'+
+        '<span class="muted">趋势</span><span class="fw7">'+(ai.trend||'--')+' '+(ai.trend_emoji||'')+'</span>'+
+      '</div>'+
+      // 分析
+      '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">'+(ai.advice||'暂无分析')+'</div>'+
+      // 标签
+      '<div class="flex" style="flex-wrap:wrap;gap:4px;margin-bottom:6px">'+
+        '<span class="tag tag-blue">估值'+(ai.valuation_position||'--')+'</span>'+
+        '<span class="tag tag-yellow">置信'+(ai.confidence||'--')+'</span>'+
+        '<span class="tag tag-red">风险'+(ai.risk_level||'--')+'</span>'+
+        (ai.key_levels?'<span class="tag tag-blue">支撑'+(ai.key_levels.split('/')[0]||'')+'</span>':'')+
+        (ai.key_levels?'<span class="tag tag-blue">压力'+(ai.key_levels.split('/')[1]||'')+'</span>':'')+
+      '</div>'+
+      // 收益
+      '<div class="flex" style="font-size:11px;gap:8px">'+
+        '<span class="muted">7日</span><span style="font-weight:600;color:'+cl(r7)+'">'+(r7!=null?fp(r7):'--')+'</span>'+
+        '<span class="muted">1月</span><span style="font-weight:600;color:'+cl(r1)+'">'+(r1!=null?fp(r1):'--')+'</span>'+
+        '<span class="muted">3月</span><span style="font-weight:600;color:'+cl(r3)+'">'+(r3!=null?fp(r3):'--')+'</span>'+
+        '<span class="muted">6月</span><span style="font-weight:600;color:'+cl(r6)+'">'+(r6!=null?fp(r6):'--')+'</span>'+
+      '</div>'+
     '</div>';
   }).join('');
+  
   // Accuracy
-  fetch(API_BASE + '/api/model-accuracy?days=7')
-    .then(r => r.json()).then(d2 => {
-      const vals = Object.values(d2 || {});
-      if (vals.length > 0) {
-        const v = vals[0] || {};
-        document.getElementById('ai-accuracy').innerHTML =
-          '<div><div class="fs18 fw7">' + (v.mae != null ? v.mae.toFixed(2) : '--') + '</div><div class="muted">MAE</div></div>' +
-          '<div><div class="fs18 fw7">' + (v.win_rate != null ? (v.win_rate*100).toFixed(0)+'%' : '--') + '</div><div class="muted">\u65b9\u5411\u80dc\u7387</div></div>' +
-          '<div><div class="fs18 fw7">' + (v.sample_count != null ? v.sample_count : '--') + '</div><div class="muted">\u6837\u672c\u6570</div></div>';
-      }
-    }).catch(() => {});
+  fetch(API+'/api/model-accuracy?days=7').then(r=>r.json()).then(d2=>{
+    const v=Object.values(d2||{});
+    if(v.length>0){
+      const o=v[0]||{};
+      document.getElementById('tai').querySelector('.fs18').parentElement.innerHTML=
+        '<div><div class="fs18 fw7">'+(o.mae!=null?o.mae.toFixed(2):'--')+'</div><div class="muted" style="font-size:10px">MAE</div></div>'+
+        '<div style="margin-left:16px"><div class="fs18 fw7">'+(o.win_rate!=null?(o.win_rate*100).toFixed(0)+'%':'--')+'</div><div class="muted" style="font-size:10px">方向胜率</div></div>'+
+        '<div style="margin-left:16px"><div class="fs18 fw7">'+(o.sample_count!=null?o.sample_count:'--')+'</div><div class="muted" style="font-size:10px">样本数</div></div>';
+    }
+  }).catch(()=>{});
+}
 
+function renderBuy(d){
+  const fs=d.funds||[];
   // Buy signals
-  const sig = document.getElementById('buy-signals');
-  sig.innerHTML = funds.map(f => {
-    const bp = f.buy_point || {};
-    const canBuy = bp.can_buy || false;
-    const holding = bp.is_holding || false;
-    const pct = bp.yield_pct || 0;
-    return '<div class="flex-between" style="padding:8px 0;font-size:12px;border-top:.5px solid rgba(0,0,0,.03)">' +
-      '<div class="flex-center gap6" style="flex:1;min-width:0">' +
-        '<span>' + (holding ? '\ud83d\udcc8' : (canBuy ? '\u26a0\ufe0f' : '\u274c')) + '</span>' +
-        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.code + '</span>' +
-        '<span class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px">' + (f.name||'').substring(0,6) + '</span>' +
-      '</div>' +
-      '<span style="flex-shrink:0;font-weight:600;color:' + (holding ? (pct>=0?'var(--up)':'var(--down)') : (canBuy ? '#ff9800' : 'var(--text3)')) + '">' +
-      (holding ? fmtPct(pct) : (canBuy ? '\u8d2d\u4e70\u4fe1\u53f7' : bp.drop_pct ? '\u8ddd\u4e70\u70b9' + bp.drop_pct + '%' : '\u65e0\u4fe1\u53f7')) + '</span></div>';
+  document.getElementById('buy-signals').innerHTML=fs.map(f=>{
+    const bp=f.buy_point||{},cb=bp.can_buy||false,hd=bp.is_holding||false,p=bp.yield_pct||0;
+    return '<div class="flex-c flex-b" style="padding:8px 0;font-size:12px;border-top:.5px solid rgba(0,0,0,.03)">'+
+      '<div class="flex-c" style="flex:1;overflow:hidden">'+
+        '<span>'+(hd?'📈':(cb?'⚠️':'❌'))+'</span>'+
+        '<span style="margin-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.code+'</span>'+
+        '<span class="muted" style="margin-left:4px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.name||'').substring(0,6)+'</span>'+
+      '</div>'+
+      '<span style="flex-shrink:0;font-weight:600;color:'+(hd?(p>=0?'var(--red)':'var(--green)'):(cb?'#ff9800':'var(--t3)'))+'">'+
+      (hd?fp(p):(cb?'购买信号':bp.drop_pct?'距买点'+bp.drop_pct+'%':'无信号'))+'</span></div>';
   }).join('');
-
-  // Profit benchmark
-  const bench = document.getElementById('profit-benchmark');
-  bench.innerHTML = funds.map(f => {
-    const bp = f.buy_point || {};
-    const r7 = f.return_7d, r1 = f.return_1m, r3 = f.return_3m, r6 = f.return_6m;
-    return '<div style="padding:8px 0;border-top:.5px solid rgba(0,0,0,.03)">' +
-      '<div style="font-size:12px;font-weight:600;margin-bottom:6px">' + f.code + ' ' + (f.name||'').substring(0,8) + '</div>' +
-      '<div class="flex gap8" style="font-size:12px">' +
-      '<span class="muted">7\u65e5: </span><span style="font-weight:600;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</span>' +
-      '<span class="muted">1\u6708: </span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
-      '<span class="muted">3\u6708: </span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
-      '<span class="muted">6\u6708: </span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span></div></div>';
+  
+  // Benchmark
+  document.getElementById('profit-benchmark').innerHTML=fs.map(f=>{
+    const r7=f.return_7d,r1=f.return_1m,r3=f.return_3m,r6=f.return_6m;
+    return '<div style="padding:8px 0;border-top:.5px solid rgba(0,0,0,.03)">'+
+      '<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+f.code+' '+(f.name||'').substring(0,8)+'</div>'+
+      '<div class="flex" style="font-size:11px;gap:8px">'+
+        '<span class="muted">7日</span><span style="font-weight:600;color:'+cl(r7)+'">'+(r7!=null?fp(r7):'--')+'</span>'+
+        '<span class="muted">1月</span><span style="font-weight:600;color:'+cl(r1)+'">'+(r1!=null?fp(r1):'--')+'</span>'+
+        '<span class="muted">3月</span><span style="font-weight:600;color:'+cl(r3)+'">'+(r3!=null?fp(r3):'--')+'</span>'+
+        '<span class="muted">6月</span><span style="font-weight:600;color:'+cl(r6)+'">'+(r6!=null?fp(r6):'--')+'</span>'+
+      '</div></div>';
   }).join('');
 }
-function switchAI(idx) {
-  document.querySelectorAll('#ai-tabs > span').forEach((t,i) => {
-    t.style.background = ''; t.style.color = 'var(--text3)'; t.style.boxShadow = 'none';
-    if (i === idx) { t.style.background = 'var(--card)'; t.style.color = 'var(--brand)'; t.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; }
-  });
-  document.querySelectorAll('[id^="ai-panel-"]').forEach((p,i) => p.style.display = i===idx ? 'block' : 'none');
-}
 
-// ===== Profile =====
-function renderProfile(d) {
-  const funds = d.funds || [];
-  const h = document.getElementById('profile-holdings');
-  let ti = 0, tv = 0;
-  h.innerHTML = funds.map(f => {
-    const bp = f.buy_point || {};
-    if (bp.is_holding) { ti += bp.cost_nav || 0; tv += f.current_nav || 0; }
-    return '<div class="flex-between" style="padding:8px 0;font-size:13px;border-top:.5px solid rgba(0,0,0,.03)">' +
-      '<span>' + (bp.is_holding ? '\ud83d\udcc8' : '\ud83d\udcc9') + ' ' + f.code + ' ' + (f.name||'').substring(0,6) + '</span>' +
-      '<span style="font-weight:600;color:' + (bp.is_holding ? (bp.yield_pct>=0?'var(--up)':'var(--down)') : 'var(--text3)') + '">' + (bp.is_holding ? fmtPct(bp.yield_pct||0) : '\u672a\u6301\u4ed3') + '</span></div>';
+function renderProfile(d){
+  const fs=d.funds||[];let ti=0,tv=0;
+  document.getElementById('profile-holdings').innerHTML=fs.map(f=>{
+    const bp=f.buy_point||{};
+    if(bp.is_holding){ti+=bp.cost_nav||0;tv+=f.current_nav||0}
+    return '<div class="flex-b" style="padding:6px 0;font-size:12px;border-top:.5px solid rgba(0,0,0,.03)">'+
+      '<span>'+(bp.is_holding?'📈':'📉')+' '+f.code+' '+(f.name||'').substring(0,6)+'</span>'+
+      '<span style="font-weight:600;color:'+(bp.is_holding?(bp.yield_pct>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(bp.is_holding?fp(bp.yield_pct||0):'未持仓')+'</span></div>';
   }).join('');
-  const tp = tv - ti;
-  document.getElementById('profile-invest').textContent = ti > 0 ? '\u00a5' + fmt(ti) : '\u00a50.00';
-  document.getElementById('profile-value').textContent = tv > 0 ? '\u00a5' + fmt(tv) : '\u00a50.00';
-  document.getElementById('profile-profit').textContent = tp >= 0 ? '+\u00a5' + fmt(tp) : '-\u00a5' + fmt(Math.abs(tp));
-  document.getElementById('profile-profit').style.color = tp >= 0 ? 'var(--up)' : 'var(--down)';
+  const tp=tv-ti;
+  document.getElementById('profile-invest').textContent=ti>0?'¥'+fmt(ti):'¥0.00';
+  document.getElementById('profile-value').textContent=tv>0?'¥'+fmt(tv):'¥0.00';
+  document.getElementById('profile-profit').textContent=tp>=0?'+¥'+fmt(tp):'-¥'+fmt(Math.abs(tp));
+  document.getElementById('profile-profit').style.color=tp>=0?'var(--red)':'var(--green)';
 }
 
-// ===== Init =====
-function switchTab(name) {
-  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-  const el = document.querySelector('[data-tab="' + name + '"]');
-  if (el) el.classList.add('active');
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  const ce = document.getElementById('tab-' + name);
-  if (ce) ce.classList.add('active');
+function goTab(n){
+  document.querySelectorAll('.tab-i').forEach(t=>t.classList.remove('active'));
+  const el=document.querySelector('[data-t="'+n+'"]');if(el)el.classList.add('active');
+  document.querySelectorAll('.tab-c').forEach(c=>c.classList.remove('active'));
+  const ce=document.getElementById('t'+n);if(ce)ce.classList.add('active');
 }
 
-fetchData();
-setInterval(fetchData, REFRESH_INTERVAL);
-
-function updateClock() {
-  document.getElementById('clock-display').textContent = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-}
-updateClock();
-setInterval(updateClock, 10000);
+fetchD();setInterval(fetchD,INT);
+function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}
+updateClock();setInterval(updateClock,10000);
 </script>
 </body>
 </html>
