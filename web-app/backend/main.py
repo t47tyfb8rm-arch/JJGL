@@ -3739,6 +3739,24 @@ async def manifest():
 # ============= SPA fallback: 所有未匹配的路由返回 index.html =============
 # 解决 iOS 主屏幕（Standalone 模式）下可能因为 URL 路径差异导致 Not Found 的问题
 # 使用 FastAPI 内置的 path 参数捕获所有未匹配路径
+
+# ===== v3 双密码 + 新界面 =====
+V3_PASSWORD = "v3pass"
+STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
+
+@app.get("/api/auth")
+async def auth(password: str = ""):
+    if password == V3_PASSWORD:
+        return {"ok": True, "version": "v3"}
+    return {"ok": False, "version": ""}
+
+@app.get("/v3/{full_path:path}")
+async def serve_v3(full_path: str = ""):
+    index_path = os.path.join(STATIC_DIR, "..", "index_v3.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"error": "v3 page not found"}, status_code=404)
+
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     """SPA fallback：未匹配到 API/静态文件的路由均返回 index.html"""
