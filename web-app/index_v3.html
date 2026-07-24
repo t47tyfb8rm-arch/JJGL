@@ -314,7 +314,7 @@ function renderFunds(d) {
   }).join('');
 }
 
-// ===== Render AI (3只基金同时显示上下排列) =====
+// ===== Render AI (3只基金完整信息上下排列) =====
 function renderAI(d) {
   const funds = d.funds || [];
   if (!funds.length) return;
@@ -322,18 +322,37 @@ function renderAI(d) {
   content.innerHTML = funds.map((f, i) => {
     const ai = f.ai_prediction || {};
     const chg = f.daily_change || 0;
-    return '<div style="padding:' + (i>0?'10px 0 0':'0 0 0') + ';margin-top:' + (i>0?'10px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
-      '<div class="flex-between" style="margin-bottom:6px"><span class="fs15 fw7">' + f.code + ' ' + (f.name||'').substring(0,6) + '</span>' +
-      '<span class="' + cls(chg) + ' fw7">' + fmtPct(chg) + '</span></div>' +
-      '<div class="flex-between" style="margin-bottom:4px"><span class="muted">\u8d8b\u52bf</span><span class="fw7">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span></div>' +
-      '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:6px">' + (ai.advice || '\u6682\u65e0\u5206\u6790') + '</div>' +
-      '<div class="flex gap6" style="flex-wrap:wrap">' +
-      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c: ' + (ai.valuation_position || '--') + '</span>' +
-      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1: ' + (ai.confidence || '--') + '</span>' +
-      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669: ' + (ai.risk_level || '--') + '</span>' +
-      (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' +
-      '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
-      '</div></div>';
+    const r7 = f.return_7d, r1 = f.return_1m, r3 = f.return_3m, r6 = f.return_6m;
+    return '<div style="padding:' + (i>0?'12px 0 4px':'0 0 4px') + ';margin-top:' + (i>0?'12px':'0') + ';border-top:' + (i>0?'.5px solid rgba(0,0,0,.04)':'none') + '">' +
+      // 标题行：代码 + 名称 + 涨跌幅
+      '<div class="flex-between" style="margin-bottom:6px">' +
+        '<div><span class="fs15 fw7">' + f.code + '</span><span class="muted" style="margin-left:6px">' + (f.name||'').substring(0,8) + '</span></div>' +
+        '<div><span class="fs17 fw7 ' + cls(chg) + '">' + fmtPct(chg) + '</span></div>' +
+      '</div>' +
+      // 趋势
+      '<div class="flex-between" style="margin-bottom:4px;font-size:13px">' +
+        '<span class="muted">\u8d8b\u52bf</span><span class="fw7">' + (ai.trend || '--') + ' ' + (ai.trend_emoji || '') + '</span>' +
+      '</div>' +
+      // 分析建议（完整显示）
+      '<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">' +
+        (ai.advice || '\u6682\u65e0\u5206\u6790') +
+      '</div>' +
+      // 标签行
+      '<div class="flex gap6" style="flex-wrap:wrap;margin-bottom:6px">' +
+        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u4f30\u503c ' + (ai.valuation_position || '--') + '</span>' +
+        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(255,152,0,.1);color:#ff9800">\u7f6e\u4fe1 ' + (ai.confidence || '--') + '</span>' +
+        '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">\u98ce\u9669 ' + (ai.risk_level || '--') + '</span>' +
+        (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u652f\u6491' + (ai.key_levels.split('/')[0]||'') + '</span>' : '') +
+        (ai.key_levels ? '<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(48,79,254,.08);color:var(--brand)">\u538b\u529b' + (ai.key_levels.split('/')[1]||'') + '</span>' : '') +
+      '</div>' +
+      // 近7日 / 1月 / 3月 / 6月 收益
+      '<div class="flex" style="font-size:11px;gap:6px">' +
+        '<span class="muted">7\u65e5</span><span style="font-weight:600;color:' + cls(r7) + '">' + (r7!=null?fmtPct(r7):'--') + '</span>' +
+        '<span class="muted" style="margin-left:4px">1\u6708</span><span style="font-weight:600;color:' + cls(r1) + '">' + (r1!=null?fmtPct(r1):'--') + '</span>' +
+        '<span class="muted" style="margin-left:4px">3\u6708</span><span style="font-weight:600;color:' + cls(r3) + '">' + (r3!=null?fmtPct(r3):'--') + '</span>' +
+        '<span class="muted" style="margin-left:4px">6\u6708</span><span style="font-weight:600;color:' + cls(r6) + '">' + (r6!=null?fmtPct(r6):'--') + '</span>' +
+      '</div>' +
+    '</div>';
   }).join('');
   // Accuracy
   fetch(API_BASE + '/api/model-accuracy?days=7')
