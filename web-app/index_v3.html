@@ -349,6 +349,145 @@ body.dark .home-title,body.dark .hero-value,body.dark .index-hero .hero-metrics 
   .fund-side .chip-change{font-size:19px!important}
   .index-hero .hero-value{font-size:27px!important}
 }
+/* Text-spec exact pass: warm matte, relaxed spacing, no structural additions */
+:root{
+  --lux-bg:#F7F6F2;
+  --lux-card:#FFFFFF;
+  --lux-popup:#FFFFFF;
+  --lux-ink:#2D2D2D;
+  --lux-title:#333333;
+  --lux-module:#444444;
+  --lux-body:#555555;
+  --lux-muted:#888888;
+  --lux-line:#E2E0DC;
+  --lux-primary:#89A2BC;
+  --lux-red:#C87870;
+  --lux-green:#6F9686;
+  --lux-advice:#F1EFE8;
+  --red:#C87870;
+  --green:#6F9686;
+  --brand:#89A2BC;
+  --text:#2D2D2D;
+  --t2:#555555;
+  --t3:#888888;
+  --bg:#F7F6F2;
+  --card:#FFFFFF;
+}
+html,body,.content{background:var(--lux-bg)!important;color:var(--lux-ink)!important}
+body.dark,body.dark .content{background:var(--lux-bg)!important;color:var(--lux-ink)!important}
+body,.content,.tab-c{font-weight:400!important;letter-spacing:0!important}
+*{text-shadow:none!important;box-shadow:none}
+.card,.product-card,.tight-card,.product-hero.index-hero,.fund-chip.product,.buy-panel,.ai-panel,.profile-card-lg,.profile-panel,.trade-sheet{
+  background:var(--lux-card)!important;
+  border:0!important;
+  border-radius:16px!important;
+  box-shadow:0 1px 6px rgba(0,0,0,.03)!important;
+  color:var(--lux-body)!important;
+}
+.product-card,.tight-card,.buy-panel,.ai-panel,.profile-panel{padding:20px 18px!important;margin:16px 14px!important}
+.profile-card-lg,.product-hero.index-hero{padding:20px 18px!important;margin:16px 14px!important}
+.home-title,.profile-title,.panel-title,.ai-copilot-head .panel-title{font-size:20px!important;font-weight:450!important;color:var(--lux-title)!important;line-height:1.35!important}
+.product-card-title,.section-h{font-size:16px!important;font-weight:400!important;color:var(--lux-module)!important;line-height:1.4!important;margin-bottom:16px!important;padding:0!important}
+.fund-line .chip-name,.row-title,.watch-name,.ai-code,.trade-field input,.news-title{font-size:14px!important;font-weight:400!important;color:var(--lux-body)!important;line-height:1.5!important}
+.muted,.t2,.chip-code,.fund-meta,.chip-sub,.label,.panel-kicker,.watch-meta,.trade-sub,.trade-note,.trade-field label,.hero-note{font-size:12px!important;font-weight:400!important;color:var(--lux-muted)!important;line-height:1.5!important}
+.num,.fs13,.fs14,.fs15,.fs16,.fs17,.fs18,.fs20,.fs24,.fs26{font-weight:400!important}
+.index-hero .hero-value{font-size:28px!important;font-weight:400!important;color:var(--lux-ink)!important;letter-spacing:0!important}
+.index-hero .hero-side .num{font-size:20px!important;font-weight:400!important}
+.index-hero .hero-top{gap:18px!important}
+.index-hero .hero-title{font-size:12px!important;color:var(--lux-muted)!important;font-weight:400!important;margin-bottom:8px!important}
+.index-hero .hero-metrics{border:0!important;padding-top:0!important;margin-top:16px!important;gap:16px!important}
+.index-hero .hero-metrics .num{font-size:14px!important;color:var(--lux-body)!important}
+.product-hero.index-hero,.ai-panel,.profile-card-lg{background:#fff!important}
+.product-hero.index-hero:before,.product-hero.index-hero:after,.ai-panel:before,.content:before,.product-card-title:before,.section-h:before,.fund-chip.product:before{display:none!important}
+.index-chart-wrap{height:82px!important;margin:18px 0 10px!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.spark-grid{display:none!important}
+.spark-line{stroke:var(--lux-primary)!important;stroke-width:1.5!important;filter:none!important}
+.spark-area{fill:rgba(137,162,188,.06)!important}
+.spark-dot{fill:var(--lux-primary)!important;stroke:rgba(137,162,188,.12)!important;stroke-width:2!important}
+.up{color:var(--lux-red)!important}
+.down{color:var(--lux-green)!important}
+[style*="var(--red)"]{color:var(--lux-red)!important}
+[style*="var(--green)"]{color:var(--lux-green)!important}
+.market-grid{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:0!important}
+.market-grid>div{background:transparent!important;border:0!important;border-radius:0!important;padding:2px 4px!important;text-align:center!important}
+.market-grid>div+div{border:0!important}
+.market-grid .fs16{font-size:14px!important;color:var(--lux-body)!important}
+.market-grid .fs13{font-size:12px!important}
+#fund-chips{display:block!important;background:transparent!important;border:0!important;box-shadow:none!important;margin:0 14px!important;padding:0!important;overflow:visible!important}
+.fund-chip.product{padding:20px 18px!important;margin:0 0 16px!important;grid-template-columns:minmax(0,1fr) auto!important;gap:14px!important}
+.fund-side .chip-change{font-size:20px!important;font-weight:400!important;line-height:1.25!important}
+.fund-compare,.actual-row,.summary-grid,.profile-hero-grid,.perf-row,.accuracy-grid{gap:10px!important;border:0!important}
+.fund-compare{margin:16px 0 0!important;padding:0!important;background:transparent!important}
+.fund-compare>div,.actual-row>div,.summary-grid>div,.profile-hero-grid>div,.accuracy-grid>div,.perf-row>div{
+  background:var(--lux-bg)!important;
+  border:0!important;
+  border-radius:14px!important;
+  padding:10px 8px!important;
+}
+.metric-strip,.hist-detail,.hist-row,.news-item,.ai-card,.buy-row,.watch-row{border:0!important}
+.watch-row,.buy-row{background:transparent!important;box-shadow:none!important;border-radius:0!important;margin-top:16px!important;padding:0!important}
+.watch-bar,.hist-bar{background:#EEECE6!important;border-radius:20px!important}
+.watch-bar{height:4px!important}
+.hist-bar{height:3px!important}
+.watch-fill,.hist-fill{background:var(--lux-primary)!important;border-radius:20px!important}
+.ai-card{background:transparent!important;box-shadow:none!important;border-radius:0!important;margin-top:18px!important;padding:0!important}
+.ai-advice{background:var(--lux-advice)!important;border:0!important;border-radius:14px!important;padding:14px 16px!important;color:var(--lux-body)!important;font-size:14px!important;line-height:1.8!important}
+.ai-tags{gap:14px!important;margin:12px 0!important}
+.tag,.ai-tags .tag,.tag-blue,.tag-yellow,.tag-red,.tag-green{
+  background:transparent!important;
+  border:0!important;
+  color:var(--lux-muted)!important;
+  padding:0!important;
+  border-radius:0!important;
+  font-size:12px!important;
+  font-weight:400!important;
+}
+.tag:before,.ai-tags .tag:before{
+  content:"";
+  display:inline-block;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#C7C1B7;
+  margin:0 6px 2px 0;
+}
+.ai-live-pill,.est-badge{
+  background:var(--lux-primary)!important;
+  color:#fff!important;
+  border:0!important;
+  border-radius:20px!important;
+  font-weight:400!important;
+}
+.ai-live-pill{height:24px!important;padding:0 10px!important;font-size:12px!important}
+.est-badge{height:14px!important;min-width:14px!important;padding:0 4px!important;font-size:9px!important;vertical-align:1px!important}
+.btn,.subtle-btn,.danger-btn,.ghost-btn{
+  height:34px!important;
+  min-height:34px!important;
+  border-radius:20px!important;
+  font-size:13px!important;
+  font-weight:400!important;
+  box-shadow:none!important;
+}
+.btn,.buy-primary{background:var(--lux-primary)!important;color:#fff!important;border:1px solid var(--lux-primary)!important}
+.subtle-btn,.danger-btn,.ghost-btn{background:#fff!important;color:var(--lux-body)!important;border:1px solid var(--lux-line)!important}
+.trade-modal{background:rgba(45,45,45,.16)!important}
+.trade-sheet{background:var(--lux-popup)!important;padding:20px 18px!important}
+.trade-field input{background:#fff!important;border:1px solid var(--lux-line)!important;border-radius:14px!important;height:38px!important}
+.tab-bar{background:rgba(247,246,242,.96)!important;border:0!important;box-shadow:none!important;border-radius:0!important}
+.tab-i{background:transparent!important;color:#B5B0A8!important}
+.tab-i svg{stroke-width:1.45!important}
+.tab-i.active,.tab-i.active svg,.tab-i.active span{color:var(--lux-primary)!important;background:transparent!important}
+.tab-i:not(.active),.tab-i:not(.active) svg,.tab-i:not(.active) span{color:#B5B0A8!important}
+.profile-card-lg .profile-avatar{background:#EEF3F6!important;color:var(--lux-primary)!important;border:0!important;box-shadow:none!important}
+.action-row{gap:10px!important;margin-top:14px!important}
+body.dark .tab-bar,body.dark .card,body.dark .product-card,body.dark .tight-card,body.dark .product-hero.index-hero,body.dark .fund-chip.product,body.dark .buy-panel,body.dark .ai-panel,body.dark .profile-card-lg,body.dark .profile-panel,body.dark .trade-sheet{background:#fff!important;color:var(--lux-body)!important}
+body.dark .home-title,body.dark .profile-title,body.dark .panel-title,body.dark .ai-copilot-head .panel-title,body.dark .index-hero .hero-value{color:var(--lux-title)!important}
+@media(max-width:390px){
+  .product-card,.tight-card,.buy-panel,.ai-panel,.profile-panel,.profile-card-lg,.product-hero.index-hero{margin-left:12px!important;margin-right:12px!important;padding:18px 16px!important}
+  .index-hero .hero-value{font-size:27px!important}
+  .fund-chip.product{padding:18px 16px!important}
+  .fund-side .chip-change{font-size:19px!important}
+}
 </style>
 </head>
 <body>
@@ -367,9 +506,6 @@ body.dark .home-title,body.dark .hero-value,body.dark .index-hero .hero-metrics 
     </div>
   </div>
   <div class="muted" style="margin-top:2px" id="header-time">2026-07-24 11:29</div>
-</div>
-<div class="yjb-mode-tabs">
-  <span class="active">持有</span><span>自选</span><span>指数</span><span>买点</span><span>AI</span>
 </div>
 <!-- 账户汇总 -->
 <div class="product-hero index-hero">
