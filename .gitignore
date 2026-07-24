@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 运行时数据 / 日志
+*.log
+*.log.*
+*.tmp
+*.bak
+*.pid
+.backend.pid
+
+# 证书 / 密钥
+*.pem
+*.key
+*.crt
+
+# 缓存（运行时生成，不入库）
+web-app/backend/est_cache.json
+web-app/backend/correction_cache.json
+web-app/backend/intraday_snapshots.json
+web-app/backend/nav_history.json
+web-app/backend/multi_factor_regression.json
+web-app/backend/index_residual_cache.json
+web-app/backend/trading_calendar.json
+
+# 用户数据（按需保留）
+# web-app/backend/buy_points.json
+# web-app/backend/buy_point_refs.json
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
