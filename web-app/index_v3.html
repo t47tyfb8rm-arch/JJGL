@@ -162,6 +162,193 @@ body{background:linear-gradient(180deg,#f9fbff 0%,#f5f7fb 42%,#f6f8fb 100%)!impo
 .tab-bar{left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:100%!important;max-width:480px!important;border-radius:0!important;padding:5px 0 calc(5px + env(safe-area-inset-bottom))!important;background:rgba(255,255,255,.96)!important;border:0!important;border-top:1px solid var(--y-line)!important;box-shadow:none!important}.tab-i{border-radius:0!important;min-height:48px!important;background:transparent!important}.tab-i.active{background:transparent!important;color:#3267e3!important}.tab-i.active svg,.tab-i.active span{color:#3267e3!important}.tab-i:not(.active) svg,.tab-i:not(.active) span{color:#9aa3b2!important}.tab-i svg{width:21px!important;height:21px!important}.tab-i span{font-size:10px!important}.trade-sheet{border-radius:18px 18px 0 0!important;box-shadow:0 -12px 30px rgba(17,24,39,.16)!important}.trade-field input{height:40px!important;border-radius:10px!important;background:#fafbfd!important}.btn,.subtle-btn,.danger-btn,.ghost-btn{border-radius:10px!important;min-height:38px!important}.up{color:#ec5b5b!important}.down{color:#14a078!important}.muted{color:#9aa3b2!important}.num{font-variant-numeric:tabular-nums!important;letter-spacing:0!important}
 body.dark{background:#101421!important;color:#e9edf7!important}body.dark .content{background:#101421!important}body.dark #thome>.px:first-child,body.dark .yjb-mode-tabs,body.dark .product-hero.index-hero,body.dark .product-card,body.dark .tight-card,body.dark #fund-chips,body.dark .fund-chip.product,body.dark .ai-panel,body.dark .ai-card,body.dark .buy-panel,body.dark .profile-card-lg,body.dark .profile-panel,body.dark .tab-bar{background:#171c2b!important;border-color:rgba(255,255,255,.07)!important;color:#e9edf7!important}body.dark .home-title,body.dark .index-hero .hero-value,body.dark .index-hero .hero-metrics .num,body.dark .fund-line .chip-name,body.dark .market-grid .fs16,body.dark .watch-name,body.dark .row-title,body.dark .panel-title,body.dark .ai-copilot-head .panel-title,body.dark .ai-code,body.dark .profile-card-lg .profile-title,body.dark .profile-hero-grid .num{color:#e9edf7!important}body.dark .market-grid>div,body.dark .fund-compare,body.dark .fund-compare>div,body.dark .ai-advice,body.dark .accuracy-grid>div,body.dark .profile-hero-grid>div,body.dark .summary-grid>div{background:#1d2334!important;border-color:rgba(255,255,255,.07)!important}body.dark .index-chart-wrap{background:#171c2b!important}
 @media(max-width:390px){#thome>.px:first-child{padding-left:14px!important;padding-right:14px!important}.yjb-mode-tabs{padding-left:14px;gap:20px}.index-hero .hero-value{font-size:30px!important}.fund-side .chip-change{font-size:19px!important}.fund-chip.product{grid-template-columns:minmax(0,1fr) 76px!important}.product-card,.tight-card,#fund-chips,.buy-panel,.profile-panel,.ai-panel,.profile-card-lg{margin-left:10px!important;margin-right:10px!important}.market-grid>div{padding-left:4px!important;padding-right:4px!important}.market-grid .fs16{font-size:14px!important}}
+/* INS minimal luxury finance theme: pure style layer, no layout/function changes */
+:root{
+  --ins-bg:#F7F6F2;
+  --ins-card:#FFFFFF;
+  --ins-ink:#2D2D2D;
+  --ins-title:#333333;
+  --ins-body:#555555;
+  --ins-muted:#888888;
+  --ins-line:#E2E0DC;
+  --ins-blue:#89A2BC;
+  --ins-blue-soft:#EEF3F6;
+  --ins-red:#C87870;
+  --ins-green:#6F9686;
+  --ins-cream:#F1EFE8;
+  --red:#C87870;
+  --green:#6F9686;
+  --brand:#89A2BC;
+  --text:#2D2D2D;
+  --t2:#555555;
+  --t3:#888888;
+  --bg:#F7F6F2;
+  --card:#FFFFFF;
+  --r:16px;
+  --shadow:0 1px 6px rgba(0,0,0,.03);
+}
+html,body{background:#F7F6F2!important;color:var(--ins-ink)!important;font-weight:400!important}
+body{background:#F7F6F2!important;letter-spacing:0!important}
+body.dark{background:#F7F6F2!important;color:var(--ins-ink)!important}
+.content{background:#F7F6F2!important;max-width:480px!important;padding-bottom:86px!important}
+.content:before,.product-hero.index-hero:before,.product-hero.index-hero:after,.ai-panel:before,.fund-chip.product:before,.product-card-title:before,.section-h:before{display:none!important}
+*{font-weight:400!important}
+.fw6,.fw7,.home-title,.product-card-title,.section-h,.panel-title,.profile-title,.row-title,.watch-name,.fund-line .chip-name,.chip-change,.buy-status,.num{font-weight:400!important}
+.home-title{font-size:20px!important;color:#333!important}
+.muted,.t2,.panel-kicker,.hero-note,.fund-meta,.watch-meta,.chip-code,.chip-sub,.label{color:#888!important;font-size:12px!important}
+#thome>.px:first-child{position:sticky;top:env(safe-area-inset-top);z-index:40;margin:0!important;padding:12px 18px 10px!important;background:#F7F6F2!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.icon-btn{background:transparent!important;border:0!important;box-shadow:none!important}
+.icon-btn svg,.tab-i svg{stroke-width:1.45!important;color:#B1ADA5!important}
+.yjb-mode-tabs{height:44px;padding:0 18px;gap:24px;background:#F7F6F2!important;border:0!important}
+.yjb-mode-tabs span{font-size:14px!important;color:#888!important;font-weight:400!important}
+.yjb-mode-tabs .active{color:#444!important;font-weight:400!important}
+.yjb-mode-tabs .active:after{bottom:-11px;height:2px;background:#89A2BC!important}
+.card,.product-card,.tight-card,#fund-chips,.buy-panel,.profile-panel,.profile-card-lg,.ai-panel,.trade-sheet{
+  background:#fff!important;
+  border:0!important;
+  border-radius:16px!important;
+  box-shadow:0 1px 6px rgba(0,0,0,.03)!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.product-card,.tight-card,.buy-panel,.profile-panel,.ai-panel{margin:16px 14px!important;padding:20px 18px!important}
+.product-card-title,.section-h{height:auto!important;margin-bottom:14px!important;padding:0 14px!important;font-size:16px!important;color:#444!important;line-height:1.35!important}
+.product-card .product-card-title{padding:0!important}
+.product-hero.index-hero{
+  margin:10px 14px 16px!important;
+  padding:22px 18px 20px!important;
+  border-radius:16px!important;
+  background:#fff!important;
+  color:#2D2D2D!important;
+  border:0!important;
+  box-shadow:0 1px 6px rgba(0,0,0,.03)!important;
+  overflow:hidden!important;
+}
+.index-hero .hero-title{font-size:12px!important;color:#888!important;text-transform:none!important;letter-spacing:0!important}
+.index-hero .hero-value{font-size:28px!important;line-height:1.15!important;color:#2D2D2D!important;text-shadow:none!important;font-weight:400!important}
+.index-hero .hero-side{background:transparent!important;border:0!important;padding:0!important;border-radius:0!important}
+.index-hero .hero-side .muted{font-size:12px!important;color:#888!important}
+.index-hero .hero-side .num{font-size:20px!important;font-weight:400!important}
+.index-chart-wrap{height:86px!important;margin:16px 0 8px!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.spark-grid{display:none!important}
+.spark-line{stroke:#89A2BC!important;stroke-width:1.5!important;filter:none!important}
+.spark-area{fill:rgba(137,162,188,.08)!important}
+.spark-dot{fill:#89A2BC!important;stroke:rgba(137,162,188,.16)!important;stroke-width:3!important}
+.index-hero .hero-metrics{gap:12px!important;margin-top:14px!important;padding-top:0!important;border-top:0!important}
+.index-hero .hero-metrics .label{font-size:12px!important;color:#888!important}
+.index-hero .hero-metrics .num{font-size:14px!important;color:#555!important;font-weight:400!important}
+.market-grid{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:0!important;background:#fff!important;border:0!important;border-radius:16px!important;box-shadow:0 1px 6px rgba(0,0,0,.03)!important;overflow:hidden!important}
+.market-grid>div{padding:12px 6px!important;background:#fff!important;border:0!important;text-align:center!important}
+.market-grid>div+div{border-left:0!important}
+.market-grid .fs16{font-size:14px!important;color:#555!important;font-weight:400!important}
+.market-grid .fs13{font-size:12px!important;font-weight:400!important}
+#fund-chips{display:block!important;margin:16px 14px!important;padding:4px 0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;overflow:visible!important}
+.fund-chip.product{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:10px!important;
+  margin-bottom:16px!important;
+  padding:20px 18px!important;
+  background:#fff!important;
+  border:0!important;
+  border-radius:16px!important;
+  box-shadow:0 1px 6px rgba(0,0,0,.03)!important;
+}
+.fund-line{display:block!important}
+.fund-line .chip-code{display:block!important;font-size:12px!important;color:#888!important;line-height:1.2!important}
+.fund-line .chip-name{display:block!important;margin-top:5px!important;font-size:14px!important;color:#555!important;line-height:1.35!important;font-weight:400!important}
+.fund-meta{margin-top:7px!important;font-size:12px!important;color:#888!important}
+.fund-side{text-align:right!important}
+.fund-side .chip-change{font-size:20px!important;line-height:1.1!important;font-weight:400!important}
+.chip-sub{margin-top:7px!important;font-size:12px!important;color:#888!important}
+.fund-compare{
+  grid-column:1/3!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,1fr)!important;
+  gap:10px!important;
+  margin:16px 0 0!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+}
+.fund-compare>div,.actual-row>div,.summary-grid>div,.profile-hero-grid>div,.accuracy-grid>div,.perf-row>div{
+  background:#F7F6F2!important;
+  border:0!important;
+  border-radius:14px!important;
+  padding:10px 8px!important;
+}
+.fund-compare>div+div,.perf-row>div+div,.market-grid>div+div{border-left:0!important}
+.fund-compare .label,.actual-row .label{font-size:12px!important;color:#888!important}
+.fund-compare .num,.actual-row .num{font-size:14px!important;color:#555!important;font-weight:400!important}
+.est-badge{height:14px!important;min-width:14px!important;padding:0 4px!important;border-radius:7px!important;background:#EEF3F6!important;color:#89A2BC!important;font-size:9px!important;font-weight:400!important;vertical-align:1px!important}
+.up{color:#C87870!important}.down{color:#6F9686!important}
+.tag,.ai-tags .tag{padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;color:#888!important;font-size:12px!important}
+.tag:before,.ai-tags .tag:before{content:"";display:inline-block;width:5px;height:5px;margin:0 6px 1px 0;border-radius:50%;background:#C9C5BC}
+.ai-panel{color:#555!important}
+.ai-copilot-head{padding:0!important;margin-bottom:16px!important;border:0!important}
+.ai-copilot-head .panel-title{font-size:20px!important;color:#333!important;font-weight:400!important}
+.ai-live-pill{height:24px!important;padding:0 10px!important;background:#EEF3F6!important;color:#89A2BC!important;border:0!important;border-radius:20px!important;font-size:12px!important}
+.ai-card{padding:0!important;margin-top:18px!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;color:#555!important}
+.ai-code{font-size:14px!important;color:#555!important;font-weight:400!important}
+.ai-fund{font-size:12px!important;color:#888!important}
+.ai-trend{background:transparent!important;border:0!important;padding:0!important;color:#888!important;font-size:12px!important}
+.ai-advice{margin:14px 0!important;padding:14px 16px!important;background:#F1EFE8!important;border:0!important;border-radius:14px!important;color:#555!important;font-size:14px!important;line-height:1.8!important}
+.ai-tags{gap:12px!important;margin-bottom:12px!important}
+.accuracy-grid{gap:10px!important}
+.watch-row,.buy-row{
+  margin-top:16px!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+.watch-name,.row-title{font-size:14px!important;color:#555!important;font-weight:400!important}
+.watch-bar{height:4px!important;margin-top:10px!important;background:#EEECE6!important;border-radius:20px!important}
+.watch-fill{background:#89A2BC!important;box-shadow:none!important}
+.watch-meta{margin-top:8px!important;color:#888!important}
+.watch-value{min-width:70px!important;background:transparent!important;padding:0!important;border-radius:0!important;text-align:right!important;font-size:14px!important;font-weight:400!important}
+.panel-title{font-size:20px!important;color:#333!important;font-weight:400!important;margin:2px 0 16px!important}
+.panel-kicker{font-size:12px!important;color:#888!important;letter-spacing:.06em!important}
+.actual-row,.summary-grid,.profile-hero-grid,.perf-row{gap:10px!important}
+.hist-detail{margin-top:14px!important;padding-top:0!important;border:0!important}
+.hist-detail summary{height:32px!important;color:#89A2BC!important;font-size:12px!important;font-weight:400!important}
+.hist-row{border:0!important;padding:8px 0!important}
+.hist-bar{height:3px!important;background:#EEECE6!important}
+.profile-card-lg{margin:16px 14px!important;padding:22px 18px!important;color:#555!important}
+.profile-card-lg .profile-title{font-size:20px!important;color:#333!important;font-weight:400!important}
+.profile-card-lg .muted,.profile-hero-grid .label{color:#888!important}
+.profile-card-lg .profile-avatar{width:44px!important;height:44px!important;border-radius:50%!important;background:#EEF3F6!important;color:#89A2BC!important;border:0!important;box-shadow:none!important}
+.profile-hero-grid{margin-top:18px!important;padding-top:0!important;border:0!important}
+.profile-hero-grid .num{font-size:14px!important;color:#555!important;font-weight:400!important}
+.btn,.subtle-btn,.danger-btn,.ghost-btn{
+  min-height:34px!important;
+  border-radius:20px!important;
+  font-size:13px!important;
+  font-weight:400!important;
+  box-shadow:none!important;
+}
+.btn,.buy-primary{background:#89A2BC!important;border:1px solid #89A2BC!important;color:#fff!important}
+.subtle-btn,.danger-btn,.ghost-btn{background:#fff!important;border:1px solid #E2E0DC!important;color:#555!important}
+.trade-modal{background:rgba(45,45,45,.18)!important}
+.trade-sheet{padding:20px 18px!important;background:#fff!important}
+.trade-title{font-size:20px!important;color:#333!important;font-weight:400!important}
+.trade-sub,.trade-note,.trade-field label{font-size:12px!important;color:#888!important}
+.trade-field input{height:38px!important;border:1px solid #E2E0DC!important;border-radius:14px!important;background:#fff!important;color:#555!important;font-size:14px!important}
+.tab-bar{left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:100%!important;max-width:480px!important;border:0!important;border-radius:0!important;background:rgba(247,246,242,.96)!important;box-shadow:none!important;padding:6px 0 calc(6px + env(safe-area-inset-bottom))!important}
+.tab-i{min-height:48px!important;border-radius:0!important;background:transparent!important;color:#B1ADA5!important}
+.tab-i.active{background:transparent!important;color:#89A2BC!important}
+.tab-i.active svg,.tab-i.active span{color:#89A2BC!important}
+.tab-i:not(.active) svg,.tab-i:not(.active) span{color:#B1ADA5!important}
+.tab-i span{font-size:10px!important;font-weight:400!important}
+body.dark .content,body.dark #thome>.px:first-child,body.dark .yjb-mode-tabs,body.dark .card,body.dark .product-card,body.dark .tight-card,body.dark .product-hero.index-hero,body.dark .fund-chip.product,body.dark .ai-panel,body.dark .profile-card-lg,body.dark .buy-panel,body.dark .profile-panel,body.dark .trade-sheet{background:#fff!important;color:#2D2D2D!important;border:0!important}
+body.dark .home-title,body.dark .hero-value,body.dark .index-hero .hero-metrics .num,body.dark .fund-line .chip-name,body.dark .market-grid .fs16,body.dark .watch-name,body.dark .row-title,body.dark .panel-title,body.dark .ai-copilot-head .panel-title,body.dark .ai-code,body.dark .profile-title,body.dark .profile-hero-grid .num{color:#333!important}
+@media(max-width:390px){
+  .product-card,.tight-card,.buy-panel,.profile-panel,.ai-panel,.profile-card-lg,.product-hero.index-hero{margin-left:12px!important;margin-right:12px!important}
+  .fund-chip.product{padding:18px 16px!important}
+  .fund-side .chip-change{font-size:19px!important}
+  .index-hero .hero-value{font-size:27px!important}
+}
 </style>
 </head>
 <body>
