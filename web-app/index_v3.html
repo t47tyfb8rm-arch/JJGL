@@ -128,24 +128,7 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
   </div>
 </div>
 
-<!-- SEARCH -->
-<div id="tab-search" class="tab-content">
-  <div class="section" style="margin-top:8px">
-    <div class="card" style="padding:12px;display:flex;gap:8px">
-      <input id="search-input" placeholder="输入基金代码 / 名称" style="flex:1;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:10px 12px;font-size:14px;outline:none;background:var(--card);color:var(--neutral)">
-      <button onclick="searchFund()" style="padding:10px 16px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer">查询</button>
-    </div>
-    <div style="margin-top:10px">
-      <div class="muted" style="margin-bottom:8px">热门基金</div>
-      <div class="flex gap8" style="flex-wrap:wrap">
-        <span onclick="quickSearch('011609')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">011609 科创50</span>
-        <span onclick="quickSearch('020741')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">020741 债券C</span>
-        <span onclick="quickSearch('004746')" style="padding:6px 12px;border-radius:8px;background:var(--card);font-size:12px;color:var(--text2);box-shadow:var(--shadow);cursor:pointer">004746 上证50</span>
-      </div>
-    </div>
-    <div id="search-result" style="margin-top:10px"></div>
-  </div>
-</div>
+<!-- no search tab -->
 
 <!-- PROFILE -->
 <div id="tab-profile" class="tab-content">
@@ -184,10 +167,7 @@ body.dark .tab-bar{background:rgba(26,26,46,.96);border-top-color:rgba(255,255,2
     <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16l-6.4 5.2L8 14l-6-4.8h7.6L12 2z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>AI</span>
   </div>
-  <div class="tab-item" data-tab="search">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-    <span>搜索</span>
-  </div>
+  <!-- no search tab -->
   <div class="tab-item" data-tab="profile">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>我的</span>
@@ -409,34 +389,6 @@ function switchAI(idx) {
     if (i === idx) { t.style.background = 'var(--card)'; t.style.color = 'var(--brand)'; t.style.boxShadow = '0 1px 4px rgba(0,0,0,.06)'; }
   });
   document.querySelectorAll('[id^="ai-panel-"]').forEach((p,i) => p.style.display = i===idx ? 'block' : 'none');
-}
-
-// ===== Search =====
-async function searchFund() {
-  const code = document.getElementById('search-input').value.trim();
-  if (!code || code.length < 6) return;
-  const res = document.getElementById('search-result');
-  res.innerHTML = '<div class="card" style="padding:14px;text-align:center;color:var(--text3)">\u67e5\u8be2\u4e2d...</div>';
-  try {
-    const r = await fetch(API_BASE + '/api/funds/' + code);
-    if (!r.ok) throw Error();
-    const d = await r.json();
-    const chg = d.daily_change || 0;
-    res.innerHTML = '<div class="card" style="padding:16px">' +
-      '<div class="flex-between" style="margin-bottom:8px"><div><div class="muted" style="font-size:12px">' + d.code + '</div><div style="font-size:15px;font-weight:600;margin-top:2px">' + (d.name||'--') + '</div></div>' +
-      '<span style="padding:2px 6px;border-radius:4px;font-size:10px;background:rgba(229,57,53,.08);color:var(--up)">' + (d.type||'--') + '</span></div>' +
-      '<div class="flex-between" style="align-items:flex-end"><div style="font-size:24px;font-weight:700;font-feature-settings:\'tnum\'">' + (d.current_nav?fmt(d.current_nav):'--') + '</div>' +
-      '<div style="font-size:16px;font-weight:600;color:' + (chg>=0?'var(--up)':'var(--down)') + '">' + fmtPct(chg) + '</div></div>' +
-      '<div class="flex gap16" style="margin-top:10px;padding-top:8px;border-top:.5px solid rgba(0,0,0,.03)">' +
-      '<div><div class="muted" style="font-size:10px">\u65e5\u671f</div><div style="font-size:12px;margin-top:2px">' + (d.nav_date||'--') + '</div></div>' +
-      '<div><div class="muted" style="font-size:10px">\u524d\u65e5\u51c0\u503c</div><div style="font-size:12px;margin-top:2px">' + (d.previous_nav?fmt(d.previous_nav):'--') + '</div></div></div></div>';
-  } catch(e) {
-    res.innerHTML = '<div class="card" style="padding:14px;text-align:center;color:var(--text3)">\u672a\u627e\u5230\u8be5\u57fa\u91d1</div>';
-  }
-}
-function quickSearch(code) {
-  document.getElementById('search-input').value = code;
-  searchFund();
 }
 
 // ===== Profile =====
