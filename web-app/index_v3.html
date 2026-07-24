@@ -208,18 +208,17 @@ async function fetchD(){
 }
 
 function renderHome(d){
-  const fs=d.funds||[];let ti=0,tv=0,hc=0,md=0;
-  const held=[]; // 持仓基金
+  const fs=d.funds||[];let ti=0,tv=0,hc=0,md=0,dp=0;
   fs.forEach(f=>{
     const b=f.buy_point||{};
     if(b.is_holding){
       hc++;ti+=b.cost_nav||0;tv+=f.current_nav||0;
       if((b.hold_days||0)>md)md=b.hold_days;
-      held.push(f);
+      // 当日预估收益：用模型预估涨跌幅
+      const est=f.ai_prediction?.model_estimated_change||f.estimated_change||0;
+      dp+=(f.current_nav||0)*(est/100);
     }
   });
-  // 当日收益 = sum( 持有市值 * 涨跌幅% / 100 )
-  let dp=0;held.forEach(f=>{const b=f.buy_point||{};dp+=(f.current_nav||0)*((f.daily_change||0)/100)});
   const tp=tv-ti,yp=ti>0?tp/ti*100:0;
   document.getElementById('total-asset').textContent=tv>0?'¥'+fmt(tv):'¥--';
   document.getElementById('today-profit').textContent=(dp>=0?'+¥':'¥')+fmt(Math.abs(dp));
@@ -241,10 +240,15 @@ function renderHome(d){
   // Fund chips - 三列
   const cr=document.getElementById('fund-chips');
   cr.innerHTML=fs.map(f=>{
-    const b=f.buy_point||{},cg=f.daily_change||0,y=b.is_holding?b.yield_pct:null;
+    const b=f.buy_point||{};
+    // 用预估涨跌替代昨日涨跌（如果在交易时段）
+    const est=f.ai_prediction?.model_estimated_change||f.estimated_change||0;
+    const cg=est!==0?est:f.daily_change||0;
+    const isEst=est!==0 || f.estimated_change!==0;
+    const y=b.is_holding?b.yield_pct:null;
     return '<div class="card" style="flex:1;padding:10px 4px;text-align:center;cursor:pointer" onclick="goTab(\'funds\')">'+
       '<div class="muted" style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.code+'</div>'+
-      '<div class="fs16 fw7 '+cl(cg)+'" style="font-feature-settings:\'tnum\';margin-top:2px">'+fp(cg)+'</div>'+
+      '<div class="fs16 fw7 '+cl(cg)+'" style="font-feature-settings:\'tnum\';margin-top:2px">'+(isEst?'估 ':'')+fp(cg)+'</div>'+
       '<div style="font-size:12px;font-weight:600;margin-top:4px;color:'+(y!==null?(y>=0?'var(--red)':'var(--green)'):'var(--t3)')+'">'+(y!==null?fp(y):'未持仓')+'</div>'+
       '<div style="font-size:9px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.name||f.code).substring(0,8)+'</div></div>';
   }).join('');
