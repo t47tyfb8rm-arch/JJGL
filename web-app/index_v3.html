@@ -257,17 +257,17 @@ function renderHome(d) {
     el.innerHTML = '<div class="muted">' + items[i].name + '</div><div class="fs16 fw7 mt4" style="font-feature-settings:\'tnum\'">' + items[i].price + '</div><div class="fs14 fw7 mt4 ' + cls(items[i].chg) + '">' + fmtPct(items[i].chg) + '</div>';
   });
 
-  // Chips
+  // 首页基金三列卡片（参考图样式）
   const chipRow = document.getElementById('fund-chips');
   chipRow.innerHTML = funds.map(f => {
     const bp = f.buy_point || {};
     const chg = f.daily_change || 0;
     const yld = bp.is_holding ? bp.yield_pct : null;
-    return '<div class="card" style="flex:1;padding:14px 6px;text-align:center;cursor:pointer" onclick="switchTab(\'funds\')">' +
-      '<div class="muted" style="margin-bottom:4px">' + f.code + '</div>' +
-      '<div class="fs18 fw7 ' + cls(chg) + '" style="font-feature-settings:\'tnum\'">' + fmtPct(chg) + '</div>' +
+    return '<div class="card" style="flex:1;padding:12px 4px;text-align:center;cursor:pointer;min-width:0" onclick="switchTab(\'funds\')">' +
+      '<div class="muted" style="margin-bottom:2px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + f.code + '</div>' +
+      '<div class="fs17 fw7 ' + cls(chg) + '" style="font-feature-settings:\'tnum\';margin-top:2px">' + fmtPct(chg) + '</div>' +
       '<div style="font-size:12px;font-weight:600;margin-top:4px;color:' + (yld !== null ? (yld >= 0 ? 'var(--up)' : 'var(--down)') : 'var(--text3)') + '">' + (yld !== null ? fmtPct(yld) : '\u672a\u6301\u4ed3') + '</div>' +
-      '<div class="muted" style="font-size:9px;margin-top:3px">' + (f.name || f.code).substring(0,10) + '</div></div>';
+      '<div style="font-size:9px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (f.name || f.code).substring(0,8) + '</div></div>';
   }).join('');
 
   // Ranking
