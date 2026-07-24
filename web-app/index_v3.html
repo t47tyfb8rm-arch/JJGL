@@ -309,34 +309,39 @@ function renderFunds(d){
 function renderAI(d){
   const fs=d.funds||[];if(!fs.length)return;
   document.getElementById('ai-content').innerHTML=fs.map((f,i)=>{
-    const ai=f.ai_prediction||{},cg=f.daily_change||0;
+    const ai=f.ai_prediction||{};
+    // 涨跌幅：优先预估，其次模型，最后昨日
+    const est=f.estimated_change||f.model_estimated_change||0;
+    const cg=est!==0?est:(f.daily_change||0);
     const r7=f.return_7d,r1=f.return_1m,r3=f.return_3m,r6=f.return_6m;
-    return '<div style="padding:'+(i>0?'12px 0 0':'0')+';margin-top:'+(i>0?'12px':'0')+';border-top:'+(i>0?'.5px solid rgba(0,0,0,.04)':'none')+'">'+
-      // 标题行
-      '<div class="flex-b" style="margin-bottom:4px">'+
-        '<div><span class="fs15 fw7">'+f.code+'</span><span class="muted" style="margin-left:4px;font-size:11px">'+(f.name||'').substring(0,8)+'</span></div>'+
+    return '<div class="card" style="padding:14px 12px;margin-top:'+(i>0?'10px':'0')+'">'+
+      // 代码+名称 + 涨跌幅
+      '<div class="flex-b" style="margin-bottom:6px">'+
+        '<div><span class="fs15 fw7">'+f.code+'</span><span class="muted" style="margin-left:4px;font-size:11px">'+(f.name||'').substring(0,12)+'</span></div>'+
         '<span class="fs16 fw7 '+cl(cg)+'">'+fp(cg)+'</span>'+
       '</div>'+
-      // 趋势
-      '<div class="flex-b" style="margin-bottom:4px;font-size:12px">'+
-        '<span class="muted">趋势</span><span class="fw7">'+(ai.trend||'--')+' '+(ai.trend_emoji||'')+'</span>'+
+      // 趋势行
+      '<div class="flex-b" style="margin-bottom:6px;font-size:11px">'+
+        '<span class="muted">趋势</span>'+
+        '<span class="fw6" style="font-size:12px">'+(ai.trend||'--')+' '+(ai.trend_emoji||'')+'</span>'+
       '</div>'+
-      // 分析
-      '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,.03);border-radius:8px">'+(ai.advice||'暂无分析')+'</div>'+
-      // 标签
-      '<div class="flex" style="flex-wrap:wrap;gap:4px;margin-bottom:6px">'+
+      // 分析框
+      '<div style="font-size:11px;color:var(--t2);line-height:1.6;margin-bottom:8px;padding:8px 10px;background:rgba(0,0,0,.03);border-radius:8px">'+(ai.advice||'暂无分析')+'</div>'+
+      // 标签行1
+      '<div class="flex" style="flex-wrap:wrap;gap:5px;margin-bottom:5px">'+
         '<span class="tag tag-blue">估值'+(ai.valuation_position||'--')+'</span>'+
         '<span class="tag tag-yellow">置信'+(ai.confidence||'--')+'</span>'+
         '<span class="tag tag-red">风险'+(ai.risk_level||'--')+'</span>'+
-        (ai.key_levels?'<span class="tag tag-blue">支撑'+(ai.key_levels.split('/')[0]||'')+'</span>':'')+
-        (ai.key_levels?'<span class="tag tag-blue">压力'+(ai.key_levels.split('/')[1]||'')+'</span>':'')+
+        (ai.key_levels?'<span class="tag tag-blue">支撑'+(ai.key_levels.split('/')[0]||'').replace('支撑','').trim()+'</span>':'')+
       '</div>'+
-      // 收益
-      '<div class="flex" style="font-size:11px;gap:8px">'+
-        '<span class="muted">7日</span><span style="font-weight:600;color:'+cl(r7)+'">'+(r7!=null?fp(r7):'--')+'</span>'+
-        '<span class="muted">1月</span><span style="font-weight:600;color:'+cl(r1)+'">'+(r1!=null?fp(r1):'--')+'</span>'+
-        '<span class="muted">3月</span><span style="font-weight:600;color:'+cl(r3)+'">'+(r3!=null?fp(r3):'--')+'</span>'+
-        '<span class="muted">6月</span><span style="font-weight:600;color:'+cl(r6)+'">'+(r6!=null?fp(r6):'--')+'</span>'+
+      // 标签行2
+      (ai.key_levels?'<div class="flex" style="flex-wrap:wrap;gap:5px;margin-bottom:6px"><span class="tag tag-blue">压力'+(ai.key_levels.split('/')[1]||'').replace('压力','').trim()+'</span></div>':'')+
+      // 收益行
+      '<div style="font-size:11px;color:var(--t3);display:flex;gap:10px;padding-top:6px;border-top:.5px solid rgba(0,0,0,.03)">'+
+        '<span>7日 <span style="color:'+cl(r7)+'">'+(r7!=null?fp(r7):'--')+'</span></span>'+
+        '<span>1月 <span style="color:'+cl(r1)+'">'+(r1!=null?fp(r1):'--')+'</span></span>'+
+        '<span>3月 <span style="color:'+cl(r3)+'">'+(r3!=null?fp(r3):'--')+'</span></span>'+
+        '<span>6月 <span style="color:'+cl(r6)+'">'+(r6!=null?fp(r6):'--')+'</span></span>'+
       '</div>'+
     '</div>';
   }).join('');
