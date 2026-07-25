@@ -2934,7 +2934,9 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
     news_sources = [
         "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=2",
         "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=2",
         "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=135&num=20&page=1",
     ]
 
@@ -2990,7 +2992,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
                 if importance <= 0:
                     # 如果重点关键词不足 10 条，用股票/财经源中的市场新闻补足，避免前端长期只有几条。
-                    if len(fallback_news) < 20:
+                    if len(fallback_news) < 40:
                         fallback_news.append((importance, ctime_ts, news_item))
                         seen_titles.add(title)
                     continue
