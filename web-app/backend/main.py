@@ -2970,9 +2970,11 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                     continue
                 # 转换时间戳为日期
                 time_str = ""
+                ctime_ts = 0
                 if ctime:
                     try:
-                        dt_obj = datetime.fromtimestamp(int(ctime))
+                        ctime_ts = int(ctime)
+                        dt_obj = datetime.fromtimestamp(ctime_ts)
                         time_str = dt_obj.strftime("%m-%d %H:%M")
                     except:
                         pass
@@ -2993,19 +2995,20 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 if importance <= 0:
                     # 如果重点关键词不足 10 条，用股票/财经源中的市场新闻补足，避免前端长期只有几条。
                     if len(fallback_news) < 20:
-                        fallback_news.append(news_item)
+                        fallback_news.append((importance, ctime_ts, news_item))
                         seen_titles.add(title)
                     continue
                 seen_titles.add(title)
 
-                all_news.append(news_item)
+                all_news.append((importance, ctime_ts, news_item))
 
         except Exception as e:
             print(f"从 {url[:60]} 获取资讯失败: {e}")
             continue
 
     # === 写入 10 分钟缓存 ===
-    result = (all_news + fallback_news)[:10] if (all_news or fallback_news) else [
+    merged_news = sorted(all_news + fallback_news, key=lambda x: (x[0], x[1]), reverse=True)
+    result = [item for _, _, item in merged_news[:10]] if merged_news else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
     NEWS_CACHE["data"] = result
