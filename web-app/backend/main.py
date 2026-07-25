@@ -1257,7 +1257,7 @@ BEARISH_KEYWORDS = ["下跌", "下挫", "破位", "创新低", "下滑", "萎缩
                     "诉讼", "调查", "处罚", "通报", "违规", "暴跌", "下挫", "重挫", "跳水",
                     "危机", "动荡", "恐慌", "避险", "走弱", "走跌", "跌", "亏", "挫",
                     "制裁", "限制", "禁令", "关税", "摩擦", "冲突", "瘫痪", "中断"]
-IMPORTANT_STOCK_KEYWORDS = ["A股", "上证", "沪指", "深成指", "创业板", "科创", "科创50", "沪深300", "中证", "股票", "股市", "两市", "板块", "半导体", "芯片", "科技", "AI", "人工智能", "新能源", "券商", "银行", "央行", "降准", "降息", "LPR", "利率", "国债", "债券", "资金面", "北向", "成交额", "基金"]
+IMPORTANT_STOCK_KEYWORDS = ["A股", "上证", "沪指", "深成指", "创业板", "科创", "科创50", "沪深300", "中证", "股票", "股市", "两市", "板块", "半导体", "芯片", "科技", "AI", "人工智能", "新能源", "券商", "银行", "央行", "降准", "降息", "LPR", "利率", "国债", "债券", "资金面", "北向", "成交额", "基金", "美股", "港股", "纳指", "道指", "标普", "外围", "欧洲央行", "美联储", "逆回购", "DR001", "MLF", "通胀", "CPI", "PPI", "关税", "贸易", "原油", "石油", "黄金", "美元", "汇率", "人民币", "存储", "内存", "晶圆", "光通信", "三星", "博通", "英伟达", "特斯拉", "苹果", "微软", "伊朗", "中东", "地缘"]
 
 EVENT_TAGS = {
     "央行": ["央行", "人民银行", "货币政策", "降准", "降息", "MLF", "逆回购", "LPR", "公开市场", "PBOC", "美联储", "Fed"],
@@ -1269,6 +1269,9 @@ EVENT_TAGS = {
     "利率": ["利率", "回购", "票据", "国债", "债券", "美债", "美债收益率", "10年期", "10Y"],
     "地缘": ["制裁", "战争", "冲突", "海峡", "霍尔木兹", "台海", "俄乌", "中东", "伊朗"],
     "AI科技": ["AI", "人工智能", "OpenAI", "ChatGPT", "芯片", "半导体", "英伟达", "黄仁勋", "Meta", "微软", "谷歌", "Apple", "苹果"],
+    "海外": ["美股", "港股", "纳指", "道指", "标普", "外围", "欧洲央行", "美联储"],
+    "商品": ["原油", "石油", "黄金", "有色", "铜", "大宗商品", "化工品"],
+    "流动性": ["逆回购", "DR001", "MLF", "资金面", "票据"],
 }
 
 
@@ -2936,6 +2939,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     ]
 
     all_news = []
+    fallback_news = []
     seen_titles = set()
 
     for url in news_sources:
@@ -2964,11 +2968,6 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 # 过滤广告/无关内容
                 if any(x in title for x in ['下载', '手机', 'APP', '开户', '登录', '广告']):
                     continue
-                importance = news_importance_score(title)
-                if importance <= 0:
-                    continue
-                seen_titles.add(title)
-
                 # 转换时间戳为日期
                 time_str = ""
                 if ctime:
@@ -2980,22 +2979,33 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
                 # 情绪 + 事件标签判别
                 sentiment, tags = classify_news(title)
+                importance = news_importance_score(title)
 
-                all_news.append(NewsItem(
+                news_item = NewsItem(
                     title=title,
                     url=link,
                     time=time_str,
                     fetched_at=fetched_at,
                     sentiment=sentiment,
-                    tags=tags
-                ))
+                    tags=tags or ["市场"]
+                )
+
+                if importance <= 0:
+                    # 如果重点关键词不足 10 条，用股票/财经源中的市场新闻补足，避免前端长期只有几条。
+                    if len(fallback_news) < 20:
+                        fallback_news.append(news_item)
+                        seen_titles.add(title)
+                    continue
+                seen_titles.add(title)
+
+                all_news.append(news_item)
 
         except Exception as e:
             print(f"从 {url[:60]} 获取资讯失败: {e}")
             continue
 
     # === 写入 10 分钟缓存 ===
-    result = all_news[:10] if all_news else [
+    result = (all_news + fallback_news)[:10] if (all_news or fallback_news) else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
     NEWS_CACHE["data"] = result
