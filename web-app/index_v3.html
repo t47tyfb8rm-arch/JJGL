@@ -242,6 +242,16 @@ body.dark .fund-date-top.is-fresh,body.dark .date-pill.is-fresh{background:linea
 .hero-metrics>div:last-child{border-radius:13px 18px 18px 13px!important}
 body.dark .app-top:after,body.dark .app-top.sub-top:after{background:rgba(139,183,255,.08)}
 body.dark .product-hero.index-hero:after{background:rgba(139,183,255,.075)}
+/* Top card v2: a cleaner floating shell with a softer curved lower edge. */
+.app-top,.app-top.sub-top{margin:0 10px 8px!important;padding:13px 16px 12px!important;min-height:70px!important;border-radius:0 0 28px 28px!important;background:#F8FAFD!important;box-shadow:0 10px 24px rgba(23,74,142,.07)!important}
+.app-top:before,.app-top.sub-top:before{content:"";position:absolute;left:18px;right:18px;bottom:0;height:10px;border-radius:0 0 24px 24px;background:linear-gradient(180deg,rgba(36,95,175,0),rgba(36,95,175,.045));pointer-events:none}
+.app-top:after,.app-top.sub-top:after{left:50%;right:auto;bottom:5px;width:72px;height:3px;transform:translateX(-50%);background:rgba(23,74,142,.08);border-radius:999px}
+.app-top .app-top-row,.app-top.sub-top .app-top-row{min-height:45px!important;position:relative;z-index:1}
+.app-top .home-title,.app-top.sub-top .home-title{letter-spacing:.01em!important}
+.app-top .icon-btn,.app-top .top-pill,.app-top .mini-add-btn{box-shadow:0 5px 14px rgba(23,74,142,.075)!important}
+body.dark .app-top,body.dark .app-top.sub-top{background:#111827!important;box-shadow:none!important}
+body.dark .app-top:before,body.dark .app-top.sub-top:before{background:linear-gradient(180deg,rgba(139,183,255,0),rgba(139,183,255,.055))}
+body.dark .app-top:after,body.dark .app-top.sub-top:after{background:rgba(139,183,255,.12)}
 </style>
 </head>
 <body>
