@@ -2865,7 +2865,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         return None
 
 
-async def fetch_market_news() -> List[NewsItem]:
+async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     """
     获取重点股市资讯（新浪财经滚动新闻），列表每 10 分钟重新抓取一次。
     筛选 A股/指数/科创/债券/政策/基金相关内容，降低泛财经噪音。
@@ -2873,7 +2873,7 @@ async def fetch_market_news() -> List[NewsItem]:
     # === 10 分钟缓存 ===
     now_ts = time.time()
     fetched_at = datetime.now().strftime("%m-%d %H:%M")
-    if NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:
+    if (not force) and NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:
         return NEWS_CACHE["data"]
 
     # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
@@ -3164,7 +3164,7 @@ async def get_portfolio(force: int = 0):
     is_trading = is_trading_time()
     disclosed = _is_today_disclosed()
     if PORTFOLIO_CACHE["data"] is not None:
-        if disclosed:
+        if disclosed and force == 0:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
             cached_response = PORTFOLIO_CACHE["data"]
             news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
@@ -3185,7 +3185,7 @@ async def get_portfolio(force: int = 0):
     bond_history_task = fetch_index_history_for_code("sh000113", 7)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
     hs300_history_task = fetch_index_history_for_code("sh000300", 7)
-    news_task = fetch_market_news()  # 新闻也并行，不卡主流程
+    news_task = fetch_market_news(force=bool(force))  # 新闻也并行，不卡主流程；force=1 时绕过新闻缓存
 
     (
         index_base, index_history, bond_index_base, bond_history,
