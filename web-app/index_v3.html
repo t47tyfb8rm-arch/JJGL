@@ -246,13 +246,18 @@ body.dark #tai.tab-c .section-h,body.dark #tbuy.tab-c .section-h,body.dark #tfun
 </div>
 <!-- ===== FUNDS ===== -->
 <div id="tfunds" class="tab-c">
-  <div class="section-h funds-head"><span>基金组合</span><button class="mini-add-btn" onclick="openAddFund()">新增</button></div>
+  <div class="app-top sub-top">
+    <div class="app-top-row">
+      <div><div class="home-title">基金组合</div></div>
+      <div class="app-actions"><button class="mini-add-btn" onclick="openAddFund()">新增</button></div>
+    </div>
+  </div>
   <div id="fund-detail-list"></div>
 </div>
 
 <!-- ===== AI ===== -->
 <div id="tai" class="tab-c">
-  <div class="section-h">AI 分析</div>
+  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">AI 分析</div></div></div></div>
   <div class="card px tight-card ai-panel">
     <div class="ai-copilot-head"><div><div class="panel-kicker">AI Copilot</div><div class="panel-title">策略建议</div></div><span class="ai-live-pill">实时</span></div>
     <div id="ai-signal-board"><div class="t2 pb">加载中...</div></div>
@@ -262,7 +267,7 @@ body.dark #tai.tab-c .section-h,body.dark #tbuy.tab-c .section-h,body.dark #tfun
 
 <!-- ===== BUY ===== -->
 <div id="tbuy" class="tab-c">
-  <div class="section-h">买点监控</div>
+  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">买点监控</div></div></div></div>
   <div class="card px tight-card buy-panel" style="margin-top:10px">
     <div class="panel-kicker">Buy Point</div><div class="panel-title">买点监控</div>
     <div id="buy-signals"><div class="t2 pb">加载中...</div></div>
@@ -275,7 +280,7 @@ body.dark #tai.tab-c .section-h,body.dark #tbuy.tab-c .section-h,body.dark #tfun
 
 <!-- ===== PROFILE ===== -->
 <div id="tprofile" class="tab-c">
-  <div class="section-h">市场简报</div>
+  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div></div></div></div>
   <div class="card px tight-card profile-panel">
     <div class="panel-kicker">Market Brief</div><div class="panel-title">持仓资讯与操作参考</div>
     <div class="muted" id="news-refresh-time" style="margin:-4px 0 8px">资讯更新 --</div>
