@@ -252,6 +252,36 @@ body.dark .product-hero.index-hero:after{background:rgba(139,183,255,.075)}
 body.dark .app-top,body.dark .app-top.sub-top{background:#111827!important;box-shadow:none!important}
 body.dark .app-top:before,body.dark .app-top.sub-top:before{background:linear-gradient(180deg,rgba(139,183,255,0),rgba(139,183,255,.055))}
 body.dark .app-top:after,body.dark .app-top.sub-top:after{background:rgba(139,183,255,.12)}
+/* Dark mode v2: full-page adaptation, softer slate cards, readable section titles. */
+body.dark{--ink:#F1F5FB;--text:#D3DCE9;--muted:#9AA8BA;--t2:#A9B6C8;--t3:#7F8DA3;--bg:#0F1724;--card:#1B2638;--soft:#25344A;--cream:#202D42;--line:#314157;--shadow:0 14px 34px rgba(0,0,0,.34);--tiny:0 6px 18px rgba(0,0,0,.22);background:radial-gradient(circle at 14% -10%,rgba(90,139,220,.16),transparent 32%),linear-gradient(180deg,#0F1724 0%,#141D2B 46%,#0E1521 100%)!important;color:var(--ink)!important}
+body.dark html,html:has(body.dark){background:#0F1724!important}
+body.dark .content{background:transparent!important}
+body.dark .app-top,body.dark .app-top.sub-top{background:linear-gradient(180deg,#131C2A 0%,#101827 100%)!important;box-shadow:0 10px 26px rgba(0,0,0,.26)!important}
+body.dark .home-title,body.dark .section-title-row h3,body.dark .panel-title,body.dark .product-card-title{color:#F1F5FB!important}
+body.dark .section-title-row span,body.dark .app-subtitle,body.dark .hero-title,body.dark .muted,body.dark .t2{color:#9AA8BA!important}
+body.dark .product-hero.index-hero,body.dark #tai .ai-panel,body.dark #tbuy .buy-panel,body.dark #tprofile .profile-panel,body.dark #tfunds .tight-card.fund-pro-card{background:linear-gradient(160deg,#1C2940 0%,#142033 100%)!important;border:1px solid rgba(139,183,255,.08)!important;box-shadow:0 12px 28px rgba(0,0,0,.28)!important}
+body.dark .product-hero.index-hero:after{background:rgba(139,183,255,.055)!important}
+body.dark .hero-side,body.dark .hero-metrics>div{background:rgba(37,52,74,.82)!important;color:var(--text)!important}
+body.dark .spark-line{stroke:#73A7FF!important}.spark-area{fill:rgba(36,95,175,.12)}body.dark .spark-area{fill:rgba(115,167,255,.12)!important}.spark-dot{fill:var(--brand)}body.dark .spark-dot{fill:#73A7FF!important;stroke:rgba(115,167,255,.20)!important}
+body.dark .fund-chip.product,body.dark .history-card,body.dark .ai-detail,body.dark .news-item,body.dark .buy-distance-row{background:linear-gradient(160deg,#1B2638 0%,#172236 100%)!important;border:1px solid rgba(139,183,255,.07)!important;box-shadow:0 8px 22px rgba(0,0,0,.24)!important}
+body.dark .fund-chip.product:after,body.dark .history-card:after,body.dark .buy-distance-row:before{background:linear-gradient(180deg,#5C9CFF,#2F6FD6)!important;box-shadow:none!important}
+body.dark .chip-name,body.dark .row-title,body.dark .ai-code,body.dark .watch-name,body.dark .news-title{color:#E6EDF7!important}
+body.dark .chip-code,body.dark .fund-meta,body.dark .chip-sub,body.dark .hero-note,body.dark .label{color:#9AA8BA!important}
+body.dark .tab-bar{background:linear-gradient(180deg,#151E2C 0%,#101827 100%)!important;border-top:1px solid rgba(139,183,255,.08)!important;box-shadow:0 -12px 32px rgba(0,0,0,.36)!important}
+body.dark .tab-i{color:#7F8DA3!important}body.dark .tab-i svg{color:#7F8DA3!important}
+body.dark .tab-i.active{background:#22324B!important}body.dark .tab-i.active,body.dark .tab-i.active svg,body.dark .tab-i.active span{color:#8BB7FF!important}
+body.dark .icon-btn,body.dark .top-pill{background:#22324B!important;color:#8BB7FF!important;box-shadow:0 6px 16px rgba(0,0,0,.18)!important}
+body.dark .up{color:#FF7D85!important}body.dark .down{color:#67D0A5!important}
+/* Top card v3: remove decorative shell, use a clean native app header. */
+.app-top,.app-top.sub-top{margin:0!important;padding:13px 16px 12px!important;min-height:70px!important;border-radius:0 0 20px 20px!important;background:#F8FAFD!important;border-bottom:1px solid rgba(217,228,241,.72)!important;box-shadow:0 6px 18px rgba(23,74,142,.055)!important;overflow:hidden!important}
+.app-top:before,.app-top:after,.app-top.sub-top:before,.app-top.sub-top:after{display:none!important}
+.app-top .app-top-row,.app-top.sub-top .app-top-row{min-height:45px!important}
+.app-top .icon-btn,.app-top .top-pill,.app-top .mini-add-btn{box-shadow:0 4px 12px rgba(23,74,142,.06)!important}
+body.dark .app-top,body.dark .app-top.sub-top{background:#111A29!important;border-bottom:1px solid rgba(139,183,255,.08)!important;box-shadow:0 8px 22px rgba(0,0,0,.22)!important}
+body.dark .app-top .icon-btn,body.dark .app-top .top-pill,body.dark .app-top .mini-add-btn{background:#1D2A40!important;box-shadow:none!important}
+/* Hero cleanup: no decorative blob behind the Today Change chip. */
+.product-hero.index-hero:after,body.dark .product-hero.index-hero:after{display:none!important;content:none!important}
+.hero-side{position:relative!important;z-index:2!important}
 </style>
 </head>
 <body>
