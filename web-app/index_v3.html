@@ -192,6 +192,10 @@ body.dark #tai .section-h,body.dark #tfunds .section-h,body.dark #tprofile .sect
 #tfunds .fund-period-row .label,#tfunds .fund-period-row .num{font-size:11px!important}
 #tfunds .fund-card-foot .fund-analysis summary{font-size:14px!important}
 #tfunds .fund-mini-actions .subtle-btn,#tfunds .fund-mini-actions .danger-btn,#tfunds .fund-mini-actions .buy-primary{font-size:12px!important}
+#tai .section-h,#tbuy .section-h,#tfunds .section-h,#tprofile .section-h{position:sticky!important;top:8px!important;z-index:32!important;margin:10px 14px 10px!important;padding:16px 18px!important;min-height:54px!important;border-radius:20px!important;font-size:21px!important;font-weight:760!important;display:flex!important;align-items:center!important;background:linear-gradient(180deg,#FFFFFF 0%,#ECF5FF 100%)!important;box-shadow:0 10px 28px rgba(31,86,174,.10)!important;border:1px solid rgba(210,229,250,.96)!important}
+#tfunds .funds-head{justify-content:space-between!important}
+#tbuy .buy-panel:first-child{position:relative!important;top:auto!important;z-index:auto!important;margin-top:0!important}
+body.dark #tai .section-h,body.dark #tbuy .section-h,body.dark #tfunds .section-h,body.dark #tprofile .section-h{background:linear-gradient(180deg,#1D2A40 0%,#182234 100%)!important;border-color:rgba(125,175,245,.12)!important;box-shadow:none!important}
 </style>
 </head>
 <body>
@@ -246,6 +250,7 @@ body.dark #tai .section-h,body.dark #tfunds .section-h,body.dark #tprofile .sect
 
 <!-- ===== BUY ===== -->
 <div id="tbuy" class="tab-c">
+  <div class="section-h">买点监控</div>
   <div class="card px tight-card buy-panel" style="margin-top:10px">
     <div class="panel-kicker">Buy Point</div><div class="panel-title">买点监控</div>
     <div id="buy-signals"><div class="t2 pb">加载中...</div></div>
