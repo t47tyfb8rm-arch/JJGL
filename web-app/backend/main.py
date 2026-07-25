@@ -1256,7 +1256,9 @@ BEARISH_KEYWORDS = ["下跌", "下挫", "破位", "创新低", "下滑", "萎缩
                     "诉讼", "调查", "处罚", "通报", "违规", "暴跌", "下挫", "重挫", "跳水",
                     "危机", "动荡", "恐慌", "避险", "走弱", "走跌", "跌", "亏", "挫",
                     "制裁", "限制", "禁令", "关税", "摩擦", "冲突", "瘫痪", "中断"]
-IMPORTANT_STOCK_KEYWORDS = ["A股", "上证", "沪指", "深成指", "创业板", "科创", "科创50", "沪深300", "中证", "股票", "股市", "两市", "板块", "半导体", "芯片", "科技", "AI", "人工智能", "新能源", "券商", "银行", "央行", "降准", "降息", "LPR", "利率", "国债", "债券", "资金面", "北向", "成交额", "基金"]`n`nEVENT_TAGS = {
+IMPORTANT_STOCK_KEYWORDS = ["A股", "上证", "沪指", "深成指", "创业板", "科创", "科创50", "沪深300", "中证", "股票", "股市", "两市", "板块", "半导体", "芯片", "科技", "AI", "人工智能", "新能源", "券商", "银行", "央行", "降准", "降息", "LPR", "利率", "国债", "债券", "资金面", "北向", "成交额", "基金"]
+
+EVENT_TAGS = {
     "央行": ["央行", "人民银行", "货币政策", "降准", "降息", "MLF", "逆回购", "LPR", "公开市场", "PBOC", "美联储", "Fed"],
     "政策": ["政策", "改革", "规划", "意见", "方案", "指导", "通知", "文件", "国务院", "证监会", "银保监"],
     "财报": ["业绩", "盈利", "营收", "利润", "季报", "年报", "中报", "财报", "净利润", "营收增长", "预增", "预减", "预亏", "预喜"],
@@ -1421,7 +1423,10 @@ def _next_market_open_ts(now: datetime) -> float:
 FUND_DETAIL_CACHE: dict = {}  # {fund_code: {"period_returns": ..., "history": ..., "_saved_at": ts}}
 FUND_DETAIL_CACHE_TTL = 60  # 秒
 
-# ============= 新闻 10 分钟缓存 =============`n# 资讯列表每 10 分钟重新抓取一次，避免同一时段长期不更新`nNEWS_LIST_CACHE_TTL = 600`nNEWS_CACHE: dict = {"data": None, "saved_at": 0.0}
+# ============= 新闻 10 分钟缓存 =============
+# 资讯列表每 10 分钟重新抓取一次，避免同一时段长期不更新
+NEWS_LIST_CACHE_TTL = 600
+NEWS_CACHE: dict = {"data": None, "saved_at": 0.0}
 
 def _get_news_bucket(now: datetime) -> str:
     """根据当前时间返回新闻时段 bucket：AM / PM / NIGHT"""
@@ -2858,13 +2863,19 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
 
 async def fetch_market_news() -> List[NewsItem]:
     """
-    获取重点股市资讯（新浪财经滚动新闻），列表每 10 分钟重新抓取一次。`n    筛选 A股/指数/科创/债券/政策/基金相关内容，降低泛财经噪音。
+    获取重点股市资讯（新浪财经滚动新闻），列表每 10 分钟重新抓取一次。
+    筛选 A股/指数/科创/债券/政策/基金相关内容，降低泛财经噪音。
     """
-    # === 10 分钟缓存 ===`n    now_ts = time.time()`n    if NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:`n        return NEWS_CACHE["data"]
+    # === 10 分钟缓存 ===
+    now_ts = time.time()
+    if NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:
+        return NEWS_CACHE["data"]
 
     # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
     news_sources = [
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=1",`n        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=1",`n        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=135&num=20&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=135&num=20&page=1",
     ]
 
     all_news = []
@@ -2925,7 +2936,13 @@ async def fetch_market_news() -> List[NewsItem]:
             print(f"从 {url[:60]} 获取资讯失败: {e}")
             continue
 
-    # === 写入 10 分钟缓存 ===`n    result = all_news[:10] if all_news else [`n        NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), tags=["股市"]),`n    ]`n    NEWS_CACHE["data"] = result`n    NEWS_CACHE["saved_at"] = now_ts`n    return result
+    # === 写入 10 分钟缓存 ===
+    result = all_news[:10] if all_news else [
+        NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), tags=["股市"]),
+    ]
+    NEWS_CACHE["data"] = result
+    NEWS_CACHE["saved_at"] = now_ts
+    return result
 
 
 def _parse_tencent_kline(text: str, stock_code: str = "sh000001") -> List[tuple]:
