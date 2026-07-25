@@ -2931,6 +2931,109 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     if (not force) and NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:
         return NEWS_CACHE["data"]
 
+    # 新浪 7x24 快讯比滚动新闻更新更及时，先抓它；滚动新闻作为兜底。
+    live_news_sources = [
+        "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=30&zhibo_id=152&tag_id=0",
+        "https://zhibo.sina.com.cn/api/zhibo/feed?page=2&page_size=30&zhibo_id=152&tag_id=0",
+    ]
+
+    def _json_from_text(text: str) -> dict:
+        """兼容 JSON / JSONP 返回。"""
+        text = text.strip()
+        if text.startswith("{"):
+            return json.loads(text)
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            return json.loads(text[start:end + 1])
+        return {}
+
+    def _strip_html(text: str) -> str:
+        text = re.sub(r"<[^>]+>", "", text or "")
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _walk_dicts(obj):
+        if isinstance(obj, dict):
+            yield obj
+            for value in obj.values():
+                yield from _walk_dicts(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                yield from _walk_dicts(value)
+
+    def _parse_time(raw) -> tuple:
+        if raw is None:
+            return "", 0
+        try:
+            ts = int(float(raw))
+            if ts > 10_000_000_000:
+                ts = ts // 1000
+            return datetime.fromtimestamp(ts).strftime("%m-%d %H:%M"), ts
+        except Exception:
+            pass
+        text = str(raw).strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%m-%d %H:%M"):
+            try:
+                dt = datetime.strptime(text[:len(fmt)], fmt)
+                if fmt.startswith("%m"):
+                    dt = dt.replace(year=datetime.now().year)
+                return dt.strftime("%m-%d %H:%M"), int(dt.timestamp())
+            except Exception:
+                continue
+        return text[:16], 0
+
+    async def _collect_live_news():
+        items = []
+        for url in live_news_sources:
+            try:
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    r = await client.get(url, headers=HTTP_HEADERS)
+                    r.raise_for_status()
+                    data = _json_from_text(r.text)
+                for item in _walk_dicts(data):
+                    title = _strip_html(item.get("rich_text") or item.get("content") or item.get("title") or item.get("summary") or "")
+                    if not title or len(title) < 8:
+                        continue
+                    link = item.get("url") or item.get("link") or item.get("docurl") or "https://finance.sina.com.cn/7x24/"
+                    raw_time = item.get("create_time") or item.get("created_at") or item.get("ctime") or item.get("time") or item.get("timestamp")
+                    time_str, ctime_ts = _parse_time(raw_time)
+                    if not time_str:
+                        time_str = fetched_at
+                    items.append((title, link, time_str, ctime_ts))
+            except Exception as e:
+                print(f"从新浪7x24获取资讯失败: {e}")
+        return items
+
+    async def _collect_eastmoney_news():
+        """东方财富快讯：103/104 偏股市证券，109 偏基金。"""
+        items = []
+        columns = ["103", "104", "109"]
+        base_url = "https://np-weblist.eastmoney.com/comm/web/getFastNewsList"
+        for column in columns:
+            try:
+                params = {
+                    "client": "web",
+                    "biz": "web_724",
+                    "fastColumn": column,
+                    "sortEnd": "",
+                    "pageSize": "20",
+                    "req_trace": str(int(time.time() * 1000)),
+                }
+                headers = {**HTTP_HEADERS, "Referer": "https://kuaixun.eastmoney.com/"}
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    r = await client.get(base_url, params=params, headers=headers)
+                    r.raise_for_status()
+                    data = r.json()
+                for item in data.get("data", {}).get("fastNewsList", []):
+                    title = _strip_html(item.get("title") or item.get("summary") or "")
+                    if not title or len(title) < 8:
+                        continue
+                    time_str, ctime_ts = _parse_time(item.get("showTime") or item.get("showTimeStr") or item.get("ctime"))
+                    link = item.get("url") or item.get("shareUrl") or "https://kuaixun.eastmoney.com/"
+                    items.append((title, link, time_str or fetched_at, ctime_ts, column))
+            except Exception as e:
+                print(f"从东方财富快讯栏目{column}获取资讯失败: {e}")
+        return items
+
     # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
     news_sources = [
         "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=1",
@@ -2943,6 +3046,46 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     all_news = []
     fallback_news = []
     seen_titles = set()
+
+    for title, link, time_str, ctime_ts, column in await _collect_eastmoney_news():
+        if title in seen_titles:
+            continue
+        if any(x in title for x in ['下载', '手机', 'APP', '开户', '登录', '广告']):
+            continue
+        sentiment, tags = classify_news(title)
+        importance = news_importance_score(title)
+        source_tag = "基金" if column == "109" else "股市"
+        news_item = NewsItem(
+            title=title[:180],
+            url=link,
+            time=time_str,
+            fetched_at=fetched_at,
+            sentiment=sentiment,
+            tags=tags or [source_tag]
+        )
+        seen_titles.add(title)
+        # 东财股市/基金栏目是目标资讯源，即使关键词少也优先进入候选池。
+        all_news.append((importance + 4, ctime_ts, news_item))
+
+    for title, link, time_str, ctime_ts in await _collect_live_news():
+        if title in seen_titles:
+            continue
+        if any(x in title for x in ['下载', '手机', 'APP', '开户', '登录', '广告']):
+            continue
+        sentiment, tags = classify_news(title)
+        importance = news_importance_score(title)
+        news_item = NewsItem(
+            title=title[:180],
+            url=link,
+            time=time_str,
+            fetched_at=fetched_at,
+            sentiment=sentiment,
+            tags=tags or ["7x24"]
+        )
+        seen_titles.add(title)
+        # 7x24 快讯本身就是“新鲜度”源，弱相关也作为候选兜底，避免晚间无新闻。
+        target = all_news if importance > 0 else fallback_news
+        target.append((importance + 2, ctime_ts, news_item))
 
     for url in news_sources:
         try:
@@ -2959,7 +3102,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
                 if not title or not link:
                     continue
-                if len(title) < 8 or len(title) > 80:
+                if len(title) < 8 or len(title) > 140:
                     continue
                 if title in seen_titles:
                     continue
