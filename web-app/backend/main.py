@@ -2971,9 +2971,19 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         except Exception:
             pass
         text = str(raw).strip()
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%m-%d %H:%M"):
+        candidates = []
+        m = re.search(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}", text)
+        if m:
+            candidates.append((m.group(0), "%Y-%m-%d %H:%M:%S"))
+        m = re.search(r"\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}", text)
+        if m:
+            candidates.append((m.group(0), "%Y-%m-%d %H:%M"))
+        m = re.search(r"\d{2}-\d{2}\s+\d{2}:\d{2}", text)
+        if m:
+            candidates.append((m.group(0), "%m-%d %H:%M"))
+        for value, fmt in candidates:
             try:
-                dt = datetime.strptime(text[:len(fmt)], fmt)
+                dt = datetime.strptime(value, fmt)
                 if fmt.startswith("%m"):
                     dt = dt.replace(year=datetime.now().year)
                 return dt.strftime("%m-%d %H:%M"), int(dt.timestamp())
