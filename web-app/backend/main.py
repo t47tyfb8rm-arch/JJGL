@@ -1237,6 +1237,7 @@ class NewsItem(BaseModel):
     title: str
     url: str
     time: str = ""
+    fetched_at: str = ""
     sentiment: str = "neutral"   # bullish | bearish | neutral
     tags: List[str] = []         # 事件标签，如 ["央行", "降准"]
 
@@ -2871,6 +2872,7 @@ async def fetch_market_news() -> List[NewsItem]:
     """
     # === 10 分钟缓存 ===
     now_ts = time.time()
+    fetched_at = datetime.now().strftime("%m-%d %H:%M")
     if NEWS_CACHE["data"] is not None and (now_ts - NEWS_CACHE.get("saved_at", 0.0)) < NEWS_LIST_CACHE_TTL:
         return NEWS_CACHE["data"]
 
@@ -2931,6 +2933,7 @@ async def fetch_market_news() -> List[NewsItem]:
                     title=title,
                     url=link,
                     time=time_str,
+                    fetched_at=fetched_at,
                     sentiment=sentiment,
                     tags=tags
                 ))
@@ -2941,7 +2944,7 @@ async def fetch_market_news() -> List[NewsItem]:
 
     # === 写入 10 分钟缓存 ===
     result = all_news[:10] if all_news else [
-        NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), tags=["股市"]),
+        NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
     NEWS_CACHE["data"] = result
     NEWS_CACHE["saved_at"] = now_ts
@@ -3163,7 +3166,14 @@ async def get_portfolio(force: int = 0):
     if PORTFOLIO_CACHE["data"] is not None:
         if disclosed:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
-            return PORTFOLIO_CACHE["data"]
+            cached_response = PORTFOLIO_CACHE["data"]
+            news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
+            if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
+                cached_response.news = await fetch_market_news()
+                cached_response.time = now.strftime("%H:%M:%S")
+                PORTFOLIO_CACHE["data"] = cached_response
+                PORTFOLIO_CACHE["saved_at"] = now_ts
+            return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             return PORTFOLIO_CACHE["data"]
