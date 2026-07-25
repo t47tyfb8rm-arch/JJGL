@@ -1500,18 +1500,21 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
                         # 兼容老格式: {code: float} —— 视为未确认的历史虚拟成本，忽略
                         if isinstance(v, (int, float)):
                             continue
-                        # 新格式: {code: {buy_nav, buy_date, is_holding}} —— 只保留 is_holding=True
-                        elif isinstance(v, dict) and bool(v.get("is_holding", False)):
+                        # 新格式: {code: {buy_nav, buy_date, is_holding}} —— 保留用户真实交易记录
+                        # is_holding=False 的已卖出记录也要保留，否则重启后已实现收益会从历史累计收益中丢失。
+                        elif isinstance(v, dict):
+                            is_holding = bool(v.get("is_holding", False))
                             result[k] = {
-                                "buy_nav": float(v.get("buy_nav", v.get("cost_nav", 0))),
+                                "buy_nav": float(v.get("buy_nav", v.get("cost_nav", 0)) or 0),
                                 "buy_date": str(v.get("buy_date", "")),
-                                "buy_price": float(v.get("buy_price", v.get("buy_nav", 0))),
-                                "shares": float(v.get("shares", 1.0) or 1.0),
+                                "buy_price": float(v.get("buy_price", v.get("buy_nav", 0)) or 0),
+                                "shares": float(v.get("shares", 1.0 if is_holding else 0.0) or 0.0),
                                 "realized_yield_pct": float(v.get("realized_yield_pct", 0.0) or 0.0),
                                 "transactions": v.get("transactions", []),
-                                "is_holding": True
+                                "is_holding": is_holding,
+                                "sell_date": str(v.get("sell_date", "")),
+                                "sell_price": float(v.get("sell_price", 0.0) or 0.0)
                             }
-                        # 其他（is_holding=False 的历史残留）：忽略，不进入内存
                     return result
     except Exception as e:
         print(f"加载成本净值失败: {e}")
@@ -3374,9 +3377,6 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
         is_holding = False
         BUY_POINT_REFS[fund_code] = {"ref_nav": round(sell_nav or current_nav, 4), "ref_date": sell_date}
         save_buy_point_refs(BUY_POINT_REFS)
-        if fund_code in HISTORICAL_YIELDS and isinstance(HISTORICAL_YIELDS[fund_code], dict):
-            HISTORICAL_YIELDS[fund_code]["date"] = sell_date
-            HISTORICAL_YIELDS[fund_code]["yield"] = 0.0
 
     save_cost_navs_to_file(COST_NAVS)
     PORTFOLIO_CACHE["data"] = None
