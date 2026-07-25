@@ -2943,8 +2943,6 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     seen_titles = set()
 
     for url in news_sources:
-        if len(all_news) >= 15:
-            break
         try:
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 r = await client.get(url, headers=HTTP_HEADERS)
@@ -2953,8 +2951,6 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
             items = data.get('result', {}).get('data', [])
             for item in items:
-                if len(all_news) >= 15:
-                    break
                 title = item.get('title', '').strip()
                 link = item.get('url', '')
                 ctime = item.get('ctime', '')
@@ -3007,7 +3003,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             continue
 
     # === 写入 10 分钟缓存 ===
-    merged_news = sorted(all_news + fallback_news, key=lambda x: (x[0], x[1]), reverse=True)
+    merged_news = sorted(all_news + fallback_news, key=lambda x: (x[1], x[0]), reverse=True)
     result = [item for _, _, item in merged_news[:10]] if merged_news else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
