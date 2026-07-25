@@ -1448,6 +1448,51 @@ BUY_POINT_CONFIG = {
     "004746": {"drop_threshold": 5.0},    # 下跌5个点
 }
 
+fund_settings_file = os.path.join(current_dir, "fund_settings.json")
+
+
+def load_fund_settings() -> Dict[str, dict]:
+    try:
+        if os.path.exists(fund_settings_file):
+            with open(fund_settings_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"加载基金关注配置失败: {e}")
+    return {}
+
+
+def save_fund_settings(settings: Dict[str, dict]) -> bool:
+    try:
+        with open(fund_settings_file, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存基金关注配置失败: {e}")
+        return False
+
+
+FUND_SETTINGS: Dict[str, dict] = load_fund_settings()
+
+
+def apply_fund_settings() -> None:
+    for code, cfg in FUND_SETTINGS.items():
+        code = str(code).strip()
+        if not code:
+            continue
+        if code not in WATCHED_FUNDS:
+            WATCHED_FUNDS.append(code)
+        HISTORICAL_YIELDS[code] = {
+            "yield": float(cfg.get("historical_yield", 0.0) or 0.0),
+            "date": str(cfg.get("historical_date") or cfg.get("follow_date") or datetime.now().strftime("%Y-%m-%d"))
+        }
+        BUY_POINT_CONFIG[code] = {
+            "drop_threshold": float(cfg.get("drop_threshold", 5.0) or 5.0)
+        }
+
+
+apply_fund_settings()
+
 # 买点参考价缓存 —— 持久化每只基金的"下一个交易日起点净值"
 # 结构: { fund_code: { "ref_nav": 1.4507, "ref_date": "2026-06-21" } }
 # 规则：一旦保存，ref_nav 就固定不变，作为买点计算的起点
@@ -3270,6 +3315,52 @@ async def get_portfolio(force: int = 0):
 async def get_all_cost_navs():
     """获取所有基金的初始买入净值配置"""
     return {"cost_navs": COST_NAVS}
+
+
+@app.post("/api/funds/watch")
+async def add_watched_fund(payload: dict):
+    """新增关注基金，并保存关注日期、买点阈值和历史收益率配置"""
+    fund_code = str(payload.get("code", "")).strip()
+    if not fund_code or len(fund_code) != 6 or not fund_code.isdigit():
+        raise HTTPException(status_code=400, detail="基金代码必须是6位数字")
+
+    follow_date = str(payload.get("follow_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+    drop_threshold = float(payload.get("drop_threshold", 5.0) or 5.0)
+    historical_yield = float(payload.get("historical_yield", 0.0) or 0.0)
+
+    fund = await fetch_fund_from_eastmoney(fund_code, force=1)
+    if not fund:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 未找到")
+
+    FUND_SETTINGS[fund_code] = {
+        "code": fund_code,
+        "name": fund.name,
+        "follow_date": follow_date,
+        "historical_yield": round(historical_yield, 2),
+        "historical_date": follow_date,
+        "drop_threshold": round(drop_threshold, 2)
+    }
+    if not save_fund_settings(FUND_SETTINGS):
+        raise HTTPException(status_code=500, detail="保存基金配置失败")
+
+    if fund_code not in WATCHED_FUNDS:
+        WATCHED_FUNDS.append(fund_code)
+    HISTORICAL_YIELDS[fund_code] = {"yield": round(historical_yield, 2), "date": follow_date}
+    BUY_POINT_CONFIG[fund_code] = {"drop_threshold": round(drop_threshold, 2)}
+    if fund_code not in BUY_POINT_REFS and fund.current_nav > 0:
+        BUY_POINT_REFS[fund_code] = {"ref_nav": round(fund.current_nav, 4), "ref_date": follow_date}
+        save_buy_point_refs(BUY_POINT_REFS)
+
+    PORTFOLIO_CACHE["data"] = None
+    PORTFOLIO_CACHE["saved_at"] = 0.0
+    return {
+        "ok": True,
+        "code": fund_code,
+        "name": fund.name,
+        "follow_date": follow_date,
+        "drop_threshold": round(drop_threshold, 2),
+        "historical_yield": round(historical_yield, 2)
+    }
 
 
 @app.post("/api/buy/{fund_code}")
