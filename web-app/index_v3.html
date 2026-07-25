@@ -230,6 +230,18 @@ body.dark .app-top,body.dark .app-top.sub-top{background:#111827!important;borde
 body.dark .product-hero.index-hero,body.dark .ai-panel,body.dark #tai .ai-panel,body.dark #tbuy .buy-panel,body.dark #tprofile .profile-panel,body.dark #tfunds .tight-card.fund-pro-card{background:linear-gradient(160deg,#1D2A40 0%,#162033 100%)!important;border-color:rgba(125,175,245,.10)!important;box-shadow:none!important}
 body.dark .fund-date-top,body.dark .date-pill{background:#223049!important;color:#9AA8B8!important;border-color:rgba(125,175,245,.08)!important}
 body.dark .fund-date-top.is-fresh,body.dark .date-pill.is-fresh{background:linear-gradient(135deg,#5F471B 0%,#8A651F 100%)!important;color:#FFE8B8!important;border-color:rgba(255,210,126,.18)!important;box-shadow:none!important}
+/* Final shape pass: keep colors and sizes, soften the top into product-style cards. */
+.app-top,.app-top.sub-top{border-radius:0 0 24px 24px!important;border-bottom:0!important;overflow:hidden!important}
+.app-top:after,.app-top.sub-top:after{content:"";position:absolute;left:34px;right:34px;bottom:-1px;height:1px;background:rgba(23,74,142,.055);border-radius:999px}
+.product-hero.index-hero{border-radius:26px 26px 30px 20px!important;overflow:hidden!important}
+.product-hero.index-hero:after{content:"";position:absolute;right:-26px;top:-30px;width:128px;height:112px;border-radius:38px 26px 42px 60px;background:rgba(36,95,175,.055);transform:rotate(8deg);pointer-events:none}
+.hero-top,.index-chart-wrap,.hero-metrics{z-index:1}
+.hero-side{border-radius:18px 14px 20px 14px!important}
+.hero-metrics>div:first-child{border-radius:18px 13px 13px 18px!important}
+.hero-metrics>div:nth-child(2){border-radius:15px!important}
+.hero-metrics>div:last-child{border-radius:13px 18px 18px 13px!important}
+body.dark .app-top:after,body.dark .app-top.sub-top:after{background:rgba(139,183,255,.08)}
+body.dark .product-hero.index-hero:after{background:rgba(139,183,255,.075)}
 </style>
 </head>
 <body>
