@@ -2776,9 +2776,16 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         def _period_return(offset_days: int) -> float:
             if not history or current_nav <= 0:
                 return 0.0
-            if len(history) <= offset_days:
-                offset_days = len(history) - 1
-            old_nav = history[offset_days].nav
+            try:
+                latest_date = datetime.strptime(history[0].date[:10], "%Y-%m-%d")
+                target_date = latest_date - timedelta(days=offset_days)
+                base_item = next(
+                    (item for item in history if datetime.strptime(item.date[:10], "%Y-%m-%d") <= target_date),
+                    history[-1]
+                )
+            except Exception:
+                base_item = history[min(offset_days, len(history) - 1)]
+            old_nav = base_item.nav
             if old_nav > 0:
                 return round((current_nav - old_nav) / old_nav * 100, 2)
             return 0.0
@@ -2786,7 +2793,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         def _r(key: str) -> float:
             v = period_returns.get(key)
             if v is None:
-                return _period_return({"Z": 7, "Y": 22, "3Y": 65, "6Y": 130, "1N": 260}.get(key, 7))
+                return _period_return({"Z": 7, "Y": 30, "3Y": 90, "6Y": 180, "1N": 365}.get(key, 7))
             return round(v, 2)
 
         # ===== 14:30 后锁定当日快照（gsz/model/actual）=====
