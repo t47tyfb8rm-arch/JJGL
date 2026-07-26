@@ -1240,6 +1240,8 @@ class NewsItem(BaseModel):
     fetched_at: str = ""
     sentiment: str = "neutral"   # bullish | bearish | neutral
     tags: List[str] = []         # 事件标签，如 ["央行", "降准"]
+    event_date: str = ""         # 明确的未来事件日期，如 2026-07-29
+    importance: int = 0          # 事件重要性评分，前端可用于重点日期排序
 
 
 # 情绪判别关键词
@@ -2958,8 +2960,9 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
     # 新浪 7x24 快讯比滚动新闻更新更及时，先抓它；滚动新闻作为兜底。
     live_news_sources = [
-        "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=30&zhibo_id=152&tag_id=0",
-        "https://zhibo.sina.com.cn/api/zhibo/feed?page=2&page_size=30&zhibo_id=152&tag_id=0",
+        "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=50&zhibo_id=152&tag_id=0",
+        "https://zhibo.sina.com.cn/api/zhibo/feed?page=2&page_size=50&zhibo_id=152&tag_id=0",
+        "https://zhibo.sina.com.cn/api/zhibo/feed?page=3&page_size=50&zhibo_id=152&tag_id=0",
     ]
 
     def _json_from_text(text: str) -> dict:
@@ -3016,6 +3019,37 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 continue
         return text[:16], 0
 
+    def _event_date_from_title(title: str) -> str:
+        """提取未来一周明确事件日期，支持 7月29日 / 7/31 / 下周一。"""
+        base = datetime.now()
+        text = title or ""
+        m = re.search(r"(\d{1,2})[月/\.-](\d{1,2})[日号]?", text)
+        if m:
+            month, day = int(m.group(1)), int(m.group(2))
+            year = base.year + (1 if month < base.month - 1 else 0)
+            try:
+                dt = datetime(year, month, day)
+                if 0 <= (dt.date() - base.date()).days <= 7:
+                    return dt.strftime("%Y-%m-%d")
+            except Exception:
+                return ""
+        week_map = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+        m = re.search(r"下周([一二三四五六日天])", text)
+        if m:
+            days = 7 - base.weekday() + week_map[m.group(1)]
+            if 0 <= days <= 7:
+                return (base + timedelta(days=days)).strftime("%Y-%m-%d")
+        return ""
+
+    def _enrich_item(item: NewsItem, priority: int) -> NewsItem:
+        item.importance = int(priority)
+        event_date = _event_date_from_title(item.title)
+        if event_date:
+            item.event_date = event_date
+            if "重点日" not in item.tags:
+                item.tags = ["重点日"] + (item.tags or [])
+        return item
+
     async def _collect_live_news():
         items = []
         for url in live_news_sources:
@@ -3050,7 +3084,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                     "biz": "web_724",
                     "fastColumn": column,
                     "sortEnd": "",
-                    "pageSize": "20",
+                    "pageSize": "50",
                     "req_trace": str(int(time.time() * 1000)),
                 }
                 headers = {**HTTP_HEADERS, "Referer": "https://kuaixun.eastmoney.com/"}
@@ -3071,11 +3105,12 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
     # 新浪财经滚动新闻接口lid=2516(财经)/1686(股票)/135(首页)
     news_sources = [
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=1",
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=30&page=2",
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=1",
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=30&page=2",
-        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=135&num=20&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=50&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=50&page=2",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=1686&num=50&page=3",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=50&page=1",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=50&page=2",
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=135&num=40&page=1",
     ]
 
     all_news = []
@@ -3108,7 +3143,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         )
         seen_titles.add(title)
         # 东财股市/基金栏目是目标资讯源，即使关键词少也优先进入候选池。
-        _push_news(all_news, importance + 4, ctime_ts, news_item, strict_event=True)
+        _push_news(all_news, importance + 4, ctime_ts, _enrich_item(news_item, importance + 4), strict_event=True)
 
     for title, link, time_str, ctime_ts in await _collect_live_news():
         if title in seen_titles:
@@ -3128,7 +3163,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         seen_titles.add(title)
         # 7x24 快讯本身就是“新鲜度”源，弱相关也作为候选兜底，避免晚间无新闻。
         target = all_news if importance > 0 else fallback_news
-        _push_news(target, importance + 2, ctime_ts, news_item, strict_event=True)
+        _push_news(target, importance + 2, ctime_ts, _enrich_item(news_item, importance + 2), strict_event=True)
 
     for url in news_sources:
         try:
@@ -3179,12 +3214,12 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 if importance <= 0:
                     # 如果重点关键词不足 10 条，用股票/财经源中的市场新闻补足，避免前端长期只有几条。
                     if len(fallback_news) < 40:
-                        _push_news(fallback_news, importance, ctime_ts, news_item)
+                        _push_news(fallback_news, importance, ctime_ts, _enrich_item(news_item, importance))
                         seen_titles.add(title)
                     continue
                 seen_titles.add(title)
 
-                _push_news(all_news, importance, ctime_ts, news_item)
+                _push_news(all_news, importance, ctime_ts, _enrich_item(news_item, importance))
 
         except Exception as e:
             print(f"从 {url[:60]} 获取资讯失败: {e}")
@@ -3201,7 +3236,25 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             continue
         event_news.append((priority, ctime_ts, item))
 
-    result = [item for _, _, item in event_news[:9]] if event_news else [
+    event_candidates = []
+    used_titles = set()
+    for priority, ctime_ts, item in event_news:
+        if item.event_date or any(kw in item.title for kw in ["长鑫", "美联储", "议息", "A50", "交割", "上市", "财报", "业绩"]):
+            event_candidates.append((priority + 6, ctime_ts, item))
+
+    result = []
+    for _, _, item in sorted(event_candidates, key=lambda x: (x[0], x[1]), reverse=True)[:3]:
+        if item.title not in used_titles:
+            result.append(item)
+            used_titles.add(item.title)
+    for _, _, item in event_news:
+        if len(result) >= 9:
+            break
+        if item.title not in used_titles:
+            result.append(item)
+            used_titles.add(item.title)
+
+    result = result if result else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
     if opinion_news:
