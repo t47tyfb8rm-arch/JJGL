@@ -1258,6 +1258,8 @@ BEARISH_KEYWORDS = ["下跌", "下挫", "破位", "创新低", "下滑", "萎缩
                     "危机", "动荡", "恐慌", "避险", "走弱", "走跌", "跌", "亏", "挫",
                     "制裁", "限制", "禁令", "关税", "摩擦", "冲突", "瘫痪", "中断"]
 IMPORTANT_STOCK_KEYWORDS = ["A股", "上证", "沪指", "深成指", "创业板", "科创", "科创50", "沪深300", "中证", "股票", "股市", "两市", "板块", "半导体", "芯片", "科技", "AI", "人工智能", "新能源", "券商", "银行", "央行", "降准", "降息", "LPR", "利率", "国债", "债券", "资金面", "北向", "成交额", "基金", "美股", "港股", "纳指", "道指", "标普", "外围", "欧洲央行", "美联储", "逆回购", "DR001", "MLF", "通胀", "CPI", "PPI", "关税", "贸易", "原油", "石油", "黄金", "美元", "汇率", "人民币", "存储", "内存", "晶圆", "光通信", "三星", "博通", "英伟达", "特斯拉", "苹果", "微软", "伊朗", "中东", "地缘"]
+OPINION_NEWS_KEYWORDS = ["观点", "评论", "点评", "解读", "研报", "策略", "建议", "认为", "预计", "预期", "看好", "看空", "提示", "提醒", "机构", "券商", "分析师", "首席", "专家", "投资者", "市场人士", "人士称", "表示", "称", "或", "有望"]
+REAL_EVENT_KEYWORDS = ["公告", "发布", "获批", "签署", "启动", "完成", "通过", "落地", "召开", "举行", "上市", "停牌", "复牌", "涨停", "跌停", "大涨", "大跌", "收涨", "收跌", "开盘", "收盘", "成交", "上调", "下调", "增持", "减持", "回购", "分红", "发行", "处罚", "调查", "起诉", "突发", "刚刚"]
 
 EVENT_TAGS = {
     "央行": ["央行", "人民银行", "货币政策", "降准", "降息", "MLF", "逆回购", "LPR", "公开市场", "PBOC", "美联储", "Fed"],
@@ -1283,6 +1285,15 @@ def news_importance_score(title: str) -> int:
     if any(kw in title for kw in ["娱乐", "体育", "彩票", "房产", "旅游"]):
         score -= 3
     return score
+
+
+def is_opinion_news(title: str) -> bool:
+    """7x24 中很多是观点/评论，只作为辅助信息，不挤占主资讯列表。"""
+    if any(kw in title for kw in REAL_EVENT_KEYWORDS):
+        return False
+    return any(kw in title for kw in OPINION_NEWS_KEYWORDS)
+
+
 def classify_news(title: str) -> tuple:
     """对单条新闻做情绪 + 事件标签判别
     返回: (sentiment, tags)
@@ -3055,7 +3066,15 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
     all_news = []
     fallback_news = []
+    opinion_news = []
     seen_titles = set()
+
+    def _push_news(pool, priority: int, ctime_ts: int, item: NewsItem):
+        if is_opinion_news(item.title):
+            item.tags = ["观点汇总", "7x24观点"]
+            opinion_news.append((ctime_ts, item))
+            return
+        pool.append((priority, ctime_ts, item))
 
     for title, link, time_str, ctime_ts, column in await _collect_eastmoney_news():
         if title in seen_titles:
@@ -3075,7 +3094,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         )
         seen_titles.add(title)
         # 东财股市/基金栏目是目标资讯源，即使关键词少也优先进入候选池。
-        all_news.append((importance + 4, ctime_ts, news_item))
+        _push_news(all_news, importance + 4, ctime_ts, news_item)
 
     for title, link, time_str, ctime_ts in await _collect_live_news():
         if title in seen_titles:
@@ -3095,7 +3114,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         seen_titles.add(title)
         # 7x24 快讯本身就是“新鲜度”源，弱相关也作为候选兜底，避免晚间无新闻。
         target = all_news if importance > 0 else fallback_news
-        target.append((importance + 2, ctime_ts, news_item))
+        _push_news(target, importance + 2, ctime_ts, news_item)
 
     for url in news_sources:
         try:
@@ -3146,12 +3165,12 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 if importance <= 0:
                     # 如果重点关键词不足 10 条，用股票/财经源中的市场新闻补足，避免前端长期只有几条。
                     if len(fallback_news) < 40:
-                        fallback_news.append((importance, ctime_ts, news_item))
+                        _push_news(fallback_news, importance, ctime_ts, news_item)
                         seen_titles.add(title)
                     continue
                 seen_titles.add(title)
 
-                all_news.append((importance, ctime_ts, news_item))
+                _push_news(all_news, importance, ctime_ts, news_item)
 
         except Exception as e:
             print(f"从 {url[:60]} 获取资讯失败: {e}")
@@ -3159,9 +3178,22 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
 
     # === 写入 10 分钟缓存 ===
     merged_news = sorted(all_news + fallback_news, key=lambda x: (x[1], x[0]), reverse=True)
-    result = [item for _, _, item in merged_news[:10]] if merged_news else [
+    result = [item for _, _, item in merged_news[:9]] if merged_news else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
+    if opinion_news:
+        latest_opinions = sorted(opinion_news, key=lambda x: x[0], reverse=True)[:5]
+        opinion_titles = [item.title for _, item in latest_opinions[:3]]
+        opinion_item = NewsItem(
+            title=("7x24观点汇总：" + "；".join(opinion_titles))[:180],
+            url="https://finance.sina.com.cn/7x24/",
+            time=latest_opinions[0][1].time or fetched_at,
+            fetched_at=fetched_at,
+            sentiment="neutral",
+            tags=["观点汇总", "7x24观点"]
+        )
+        result.append(opinion_item)
+        result = sorted(result, key=lambda item: _parse_time(item.time)[1], reverse=True)[:10]
     NEWS_CACHE["data"] = result
     NEWS_CACHE["saved_at"] = now_ts
     return result
