@@ -341,6 +341,27 @@ body.dark #tfunds .hist30-row:first-child{border-top:0!important}
 #tbuy .buy-distance-row+.buy-distance-row,#tbuy .history-card+.history-card{margin-top:0!important}
 #tbuy .buy-distance-title .name,#tbuy .history-card .chip-name{min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 #tbuy .buy-distance-meta,#tbuy .history-card .fund-meta{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+/* Final sizing pass: one math model for Buy page cards.
+   Panel: 12+12 padding + 20 title + 10 gap + 3*64 rows + 2*8 gaps = 258px (+ border allowance). */
+#tbuy .buy-panel,#tbuy .buy-panel.soft{height:262px!important;min-height:262px!important;max-height:262px!important;padding:12px!important;overflow:hidden!important}
+#tbuy .panel-title{height:20px!important;min-height:20px!important;max-height:20px!important;line-height:20px!important;margin:0 0 10px!important}
+#buy-signals,#profit-benchmark{display:block!important;min-height:0!important;height:208px!important;overflow:hidden!important}
+#buy-signals .buy-board{display:block!important;height:208px!important;min-height:208px!important;max-height:208px!important;overflow:hidden!important}
+#buy-signals .buy-distance-list,#profit-benchmark{display:grid!important;grid-template-rows:repeat(3,64px)!important;gap:8px!important;align-content:start!important}
+#tbuy .buy-distance-row,#tbuy .history-card{height:64px!important;min-height:64px!important;max-height:64px!important;margin:0!important;padding:8px 12px 8px 17px!important;grid-template-columns:minmax(0,1fr) 68px!important;gap:10px!important;align-items:center!important}
+#tbuy .buy-distance-row+.buy-distance-row,#tbuy .history-card+.history-card{margin-top:0!important}
+#tbuy .buy-distance-title,#tbuy .history-main .fund-line{height:17px!important;min-height:17px!important;max-height:17px!important;line-height:17px!important;align-items:center!important}
+#tbuy .buy-distance-title .code,#tbuy .history-card .chip-code{font-size:10px!important;line-height:17px!important}
+#tbuy .buy-distance-title .name,#tbuy .history-card .chip-name{font-size:12px!important;line-height:17px!important}
+#tbuy .buy-decision-chip{height:16px!important;line-height:16px!important;font-size:9px!important;padding:0 6px!important}
+#tbuy .buy-distance-track{height:5px!important;margin-top:5px!important}
+#tbuy .buy-distance-meta,#tbuy .history-card .fund-meta{height:13px!important;margin-top:4px!important;font-size:10px!important;line-height:13px!important}
+#tbuy .buy-distance-value,#tbuy .history-card .fund-side{min-width:68px!important}
+#tbuy .buy-distance-value .num,#tbuy .history-total{font-size:16px!important;line-height:17px!important}
+#tbuy .buy-distance-value>span,#tbuy .history-card .chip-sub{height:12px!important;margin-top:3px!important;font-size:10px!important;line-height:12px!important}
+#tbuy .buy-distance-row:before,#tbuy .history-card:after{top:9px!important;bottom:9px!important}
+#tfunds .fund-card-foot .fund-analysis summary,#tfunds .fund-mini-actions .subtle-btn,#tfunds .fund-mini-actions .danger-btn,#tfunds .fund-mini-actions .buy-primary,#tfunds .action-row .subtle-btn,#tfunds .action-row .danger-btn,#tfunds .action-row .buy-primary{height:40px!important;min-height:40px!important;max-height:40px!important;line-height:40px!important;padding-top:0!important;padding-bottom:0!important;display:flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important}
+#tfunds .fund-card-foot .fund-analysis summary{border-radius:18px!important}
 </style>
 </head>
 <body>
