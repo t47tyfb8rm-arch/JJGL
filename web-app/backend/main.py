@@ -3191,15 +3191,33 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             continue
 
     # === 写入 10 分钟缓存 ===
+    # 最后一层再过滤一次，避免“称/表示/预计/研报/点评”等评论类内容漏进主列表。
     merged_news = sorted(all_news + fallback_news, key=lambda x: (x[1], x[0]), reverse=True)
-    result = [item for _, _, item in merged_news[:9]] if merged_news else [
+    event_news = []
+    for priority, ctime_ts, item in merged_news:
+        if is_opinion_news(item.title) or any("观点" in str(tag) for tag in (item.tags or [])):
+            item.tags = ["观点汇总", "7x24观点"]
+            opinion_news.append((ctime_ts, item))
+            continue
+        event_news.append((priority, ctime_ts, item))
+
+    result = [item for _, _, item in event_news[:9]] if event_news else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
     if opinion_news:
-        latest_opinions = sorted(opinion_news, key=lambda x: x[0], reverse=True)[:5]
-        opinion_titles = [item.title for _, item in latest_opinions[:3]]
+        latest_opinions = sorted(opinion_news, key=lambda x: x[0], reverse=True)[:12]
+        opinion_titles = []
+        seen_opinion_titles = set()
+        for _, item in latest_opinions:
+            title = item.title.strip()
+            if not title or title in seen_opinion_titles:
+                continue
+            seen_opinion_titles.add(title)
+            opinion_titles.append(title)
+            if len(opinion_titles) >= 5:
+                break
         opinion_item = NewsItem(
-            title=("7x24观点汇总：" + "；".join(opinion_titles))[:180],
+            title=("7x24观点汇总：" + "；".join(opinion_titles))[:220],
             url="https://finance.sina.com.cn/7x24/",
             time=latest_opinions[0][1].time or fetched_at,
             fetched_at=fetched_at,
