@@ -1262,6 +1262,7 @@ OPINION_NEWS_KEYWORDS = ["观点", "评论", "点评", "解读", "研报", "策�
 OPINION_SOURCE_KEYWORDS = ["机构", "券商", "分析师", "首席", "专家", "市场人士", "投资者", "私募", "公募", "基金经理", "经济学家", "交易员"]
 OPINION_ACTION_KEYWORDS = ["认为", "预计", "预期", "表示", "称", "建议", "看好", "看空", "提示", "提醒", "判断", "解读"]
 REAL_EVENT_KEYWORDS = ["公告", "发布", "获批", "签署", "启动", "完成", "通过", "落地", "召开", "举行", "上市", "停牌", "复牌", "涨停", "跌停", "大涨", "大跌", "收涨", "收跌", "开盘", "收盘", "成交", "上调", "下调", "增持", "减持", "回购", "分红", "发行", "处罚", "调查", "起诉", "突发", "刚刚"]
+HARD_EVENT_KEYWORDS = ["公告", "获批", "签署", "启动", "完成", "通过", "落地", "召开", "举行", "上市", "停牌", "复牌", "涨停", "跌停", "大涨", "大跌", "收涨", "收跌", "开盘", "收盘", "成交额", "上调", "下调", "增持", "减持", "回购", "分红", "发行", "处罚", "调查", "起诉", "突发", "刚刚", "降准", "降息", "逆回购", "MLF", "LPR", "拿下", "达成", "供应", "通报", "宣布"]
 
 EVENT_TAGS = {
     "央行": ["央行", "人民银行", "货币政策", "降准", "降息", "MLF", "逆回购", "LPR", "公开市场", "PBOC", "美联储", "Fed"],
@@ -1292,11 +1293,19 @@ def news_importance_score(title: str) -> int:
 def is_opinion_news(title: str) -> bool:
     """7x24 中很多是观点/评论，只作为辅助信息，不挤占主资讯列表。"""
     title = re.sub(r"\s+", "", title or "")
-    if any(kw in title for kw in REAL_EVENT_KEYWORDS):
-        return False
+    if any(src in title for src in OPINION_SOURCE_KEYWORDS) and any(act in title for act in OPINION_ACTION_KEYWORDS):
+        return True
     if any(kw in title for kw in OPINION_NEWS_KEYWORDS):
         return True
-    return any(src in title for src in OPINION_SOURCE_KEYWORDS) and any(act in title for act in OPINION_ACTION_KEYWORDS)
+    return False
+
+
+def is_hard_event_news(title: str) -> bool:
+    """能进主列表的应是客观事件、政策动作、市场异动或公司公告。"""
+    title = re.sub(r"\s+", "", title or "")
+    if is_opinion_news(title):
+        return False
+    return any(kw in title for kw in HARD_EVENT_KEYWORDS)
 
 
 def classify_news(title: str) -> tuple:
@@ -3074,8 +3083,8 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     opinion_news = []
     seen_titles = set()
 
-    def _push_news(pool, priority: int, ctime_ts: int, item: NewsItem):
-        if is_opinion_news(item.title):
+    def _push_news(pool, priority: int, ctime_ts: int, item: NewsItem, strict_event: bool = False):
+        if is_opinion_news(item.title) or (strict_event and not is_hard_event_news(item.title)):
             item.tags = ["观点汇总", "7x24观点"]
             opinion_news.append((ctime_ts, item))
             return
@@ -3099,7 +3108,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         )
         seen_titles.add(title)
         # 东财股市/基金栏目是目标资讯源，即使关键词少也优先进入候选池。
-        _push_news(all_news, importance + 4, ctime_ts, news_item)
+        _push_news(all_news, importance + 4, ctime_ts, news_item, strict_event=True)
 
     for title, link, time_str, ctime_ts in await _collect_live_news():
         if title in seen_titles:
@@ -3119,7 +3128,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
         seen_titles.add(title)
         # 7x24 快讯本身就是“新鲜度”源，弱相关也作为候选兜底，避免晚间无新闻。
         target = all_news if importance > 0 else fallback_news
-        _push_news(target, importance + 2, ctime_ts, news_item)
+        _push_news(target, importance + 2, ctime_ts, news_item, strict_event=True)
 
     for url in news_sources:
         try:
