@@ -531,6 +531,37 @@ body.dark .app-top .icon-btn,body.dark .app-top .top-pill,body.dark .app-top .mi
   border:1px solid rgba(255,255,255,.045)!important;
   box-shadow:0 6px 16px rgba(0,0,0,.24)!important;
 }
+/* AI strategy cards: make each fund visually separated. */
+#tai #ai-content{display:grid!important;gap:10px!important}
+#tai .ai-detail{
+  margin:0!important;
+  padding-bottom:8px!important;
+  border-radius:18px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F3F8FE 100%)!important;
+  border:1px solid rgba(210,229,250,.92)!important;
+  box-shadow:0 8px 20px rgba(23,74,142,.085)!important;
+}
+#tai .ai-detail:before{
+  top:12px!important;
+  bottom:12px!important;
+  width:5px!important;
+  border-radius:0 8px 8px 0!important;
+}
+#tai .ai-detail+.ai-detail{margin-top:0!important}
+#tai .ai-card-head-no-meter{padding:12px 12px 4px 16px!important}
+#tai .ai-useful-line{margin:6px 12px 4px 16px!important}
+#tai .ai-detail.ai-up{background:linear-gradient(160deg,#FFFFFF 0%,#FFF6F4 100%)!important}
+#tai .ai-detail.ai-down{background:linear-gradient(160deg,#FFFFFF 0%,#F1FAF6 100%)!important}
+#tai .ai-detail.ai-neutral{background:linear-gradient(160deg,#FFFFFF 0%,#F3F8FE 100%)!important}
+body.dark #tai #ai-content{gap:10px!important}
+body.dark #tai .ai-detail{
+  background:linear-gradient(160deg,#171A20 0%,#111419 100%)!important;
+  border:1px solid rgba(255,255,255,.07)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.30)!important;
+}
+body.dark #tai .ai-detail.ai-up{background:linear-gradient(160deg,#1B1719 0%,#111419 100%)!important}
+body.dark #tai .ai-detail.ai-down{background:linear-gradient(160deg,#141B18 0%,#111419 100%)!important}
+body.dark #tai .ai-detail.ai-neutral{background:linear-gradient(160deg,#171A20 0%,#111419 100%)!important}
 </style>
 </head>
 <body>
