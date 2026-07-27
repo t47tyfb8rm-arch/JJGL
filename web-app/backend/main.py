@@ -1402,6 +1402,8 @@ class PortfolioResponse(BaseModel):
     """持仓响应模型"""
     date: str
     time: str
+    is_trading_day: bool = False
+    display_trade_date: str = ""
     index: IndexInfo
     funds: List[FundInfo]
     news: List[NewsItem]
@@ -1458,6 +1460,18 @@ def _latest_disclosed_date() -> str:
     while n.weekday() >= 5:
         n -= timedelta(days=1)
     return n.strftime("%Y-%m-%d")
+
+
+def _display_trade_date(now: Optional[datetime] = None) -> str:
+    """
+    基金卡片显示日期：
+    - 交易日显示当天日期，盘中未披露净值时仍显示当天但不高亮
+    - 非交易日显示上一个可披露交易日
+    """
+    now = now or datetime.now()
+    if is_trading_day(now):
+        return now.strftime("%Y-%m-%d")
+    return _latest_disclosed_date()
 
 
 def _is_today_disclosed() -> bool:
@@ -3973,6 +3987,8 @@ async def get_portfolio(force: int = 0):
     response = PortfolioResponse(
         date=now.strftime("%Y-%m-%d"),
         time=now.strftime("%H:%M:%S"),
+        is_trading_day=is_trading_day(now),
+        display_trade_date=_display_trade_date(now),
         index=index_info,
         funds=funds,
         news=news,
