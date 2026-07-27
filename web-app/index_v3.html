@@ -833,6 +833,56 @@ body.dark #tfunds .fund-list-panel .tight-card.fund-pro-card{
   border-left:0!important;
   border-right:0!important;
 }
+/* Fund rows final: remove every per-fund card shell inside the portfolio panel. */
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  padding:13px 14px 12px 18px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:none!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:not(:last-child){
+  border-bottom:1px solid rgba(47,111,214,.08)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:active{
+  transform:none!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:before{
+  left:0!important;
+  top:17px!important;
+  bottom:17px!important;
+  width:4px!important;
+  border-radius:0 8px 8px 0!important;
+}
+#tfunds .fund-list-panel .fund-period-row>div{
+  background:#EEF5FD!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+#tfunds .fund-list-panel .fund-mini-actions .subtle-btn,
+#tfunds .fund-list-panel .fund-mini-actions .danger-btn,
+#tfunds .fund-list-panel .fund-mini-actions .buy-primary{
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  background:none!important;
+  background-color:transparent!important;
+  background-image:none!important;
+  border-color:transparent!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:not(:last-child){
+  border-bottom-color:rgba(255,255,255,.065)!important;
+}
+body.dark #tfunds .fund-list-panel .fund-period-row>div{
+  background:#202020!important;
+}
 </style>
 </head>
 <body>
