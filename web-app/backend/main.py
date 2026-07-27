@@ -2986,8 +2986,14 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         snap = fund_entry_lock.get("daily_snapshot")
         if snap and snap.get("date") == snap_key:
             # 复用当日快照（gsz/model/actual）
-            est_change = snap.get("gsz", est_change)
-            model_estimated_change = snap.get("model", model_estimated_change)
+            snap_gsz = snap.get("gsz")
+            snap_model = snap.get("model")
+            # 旧快照里经常会出现 gsz/model=0.0。0 只能表示“当时没取到有效估值”，
+            # 不能覆盖刚刚按指数模型重新算出的盘中预估，否则前端会全部显示 +0.00%。
+            if snap_gsz is not None and abs(float(snap_gsz or 0)) >= 0.005:
+                est_change = snap_gsz
+            if snap_model is not None and abs(float(snap_model or 0)) >= 0.005:
+                model_estimated_change = snap_model
             daily_change = snap.get("actual", daily_change)
         elif now.hour > 14 or (now.hour == 14 and now.minute >= 30):
             # 14:30 后第一次：写入快照（条件：actual 必须有值，否则明早 9:30 再锁）
@@ -3000,6 +3006,18 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                     "save_time": now.strftime("%H:%M")
                 }
 
+        display_estimated_change = 0.0
+        for _est_value in (corrected_est_change, model_estimated_change, est_change, get_last_est_change(fund_code)):
+            try:
+                _est_num = float(_est_value or 0.0)
+            except Exception:
+                _est_num = 0.0
+            if abs(_est_num) >= 0.005:
+                display_estimated_change = round(_est_num, 3)
+                break
+            if display_estimated_change == 0.0 and _est_value is not None:
+                display_estimated_change = round(_est_num, 3)
+
         return FundInfo(
             code=fund_code,
             name=fund_name,
@@ -3010,7 +3028,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             daily_change=round(daily_change, 2),
             estimated=est_nav > 0,
             estimated_nav=est_nav,
-            estimated_change=est_change,
+            estimated_change=display_estimated_change,
             estimated_time=est_time,
             history=history,
             buy_point=buy_point,
