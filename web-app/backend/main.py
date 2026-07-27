@@ -183,8 +183,9 @@ FUND_SPECIFIC_MODELS = {
     },
     "020741": {  # 华泰保兴安悦债券C（纯债基金）
         "type": "bond_baseline",
-        "baseline_window": 5,
-        "description": "纯债基线：5日滚动均值(短期趋势) + gsz残差修正(gsz常为0.00%的偏差)"
+        "baseline_window": 10,
+        "short_window": 3,
+        "description": "纯债趋势：近3日/10日自身净值趋势为主，国债指数只做小权重修正"
     }
 }
 
@@ -454,29 +455,36 @@ async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_d
         return est, bench_change, bench_name
 
     if model_type == "bond_baseline":
-        # 纯债估算兜底：近 5 日实际收益均值代表票息/短期趋势。
-        # 国债指数 beta 会在后续债基分支里叠加，避免单靠国债指数导致日收益失真。
+        # 纯债估算兜底：天天基金 gsz 对债基经常为 0.00% 或长时间不动。
+        # 这里改为基金自身净值趋势为主：近3日反映短期变化，近10日反映票息/中期均值。
+        # 国债指数 beta 会在后续债基分支里只做小权重修正，避免单靠国债导致日收益失真。
         win = model_config.get("baseline_window", 5)
-        # 同步拉取最近 5 天历史（轻量）
-        recent_hist = fetch_fund_history_sync(fund_code, days=win + 2)
+        short_win = model_config.get("short_window", 3)
+        recent_hist = fetch_fund_history_sync(fund_code, days=win + 6)
         recent_changes = [h.get("daily_change") for h in recent_hist
-                          if h.get("daily_change") is not None][-win:]
+                          if h.get("daily_change") is not None and abs(float(h.get("daily_change") or 0.0)) <= 0.8][-win:]
         if len(recent_changes) < 3:
             # 数据不足时退化为残差修正
             model_stats = get_index_model_estimate(fund_code)
             cstats = get_correction_stats(fund_code)
             offset = cstats.get("mean_residual", 0.0) if cstats.get("sample_count", 0) >= 3 else 0.0
             return round(offset, 3), 0.0, "gsz残差"
-        baseline = round(sum(recent_changes) / len(recent_changes), 4)
+        short_changes = recent_changes[-short_win:]
+        short_avg = sum(short_changes) / len(short_changes)
+        long_avg = sum(recent_changes) / len(recent_changes)
+        last_change = recent_changes[-1]
+        baseline = round(short_avg * 0.55 + long_avg * 0.35 + last_change * 0.10, 4)
         # 叠加 gsz 残差（如果有 ≥3 样本）
         cstats = get_correction_stats(fund_code)
         residual_offset = 0.0
         if cstats.get("sample_count", 0) >= 3:
-            residual_offset = cstats.get("mean_residual", 0.0)
+            # 债基 gsz 样本噪声较大，残差只轻微修正。
+            residual_offset = cstats.get("mean_residual", 0.0) * 0.35
         est = round(baseline + residual_offset, 3)
+        est = max(-0.18, min(0.18, est))
         # 用最近 N 天的标准差作为"预测区间"参考（用于 UI 显示）
         std = round((sum((x - baseline) ** 2 for x in recent_changes) / max(1, len(recent_changes) - 1)) ** 0.5, 4)
-        return est, baseline, f"5日均值 {std:.4f}%"
+        return est, baseline, f"债基趋势 {short_win}/{win}日 σ{std:.4f}%"
 
     return None, None, ""
 
@@ -2891,40 +2899,42 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 bond_r_squared = cached_beta.get("r_squared", 0.0)
 
             # 使用计算出的 Beta 系数推算估算净值：
-            # - 如果天天基金给出非零估值，优先保留它；
-            # - 如果天天估值缺失或为 0，用“近5日票息趋势 + 国债指数 beta”混合估算。
+            # - 债基展示优先用自身趋势模型；
+            # - 天天估值只在有效时保留作参考，国债指数按相关性做小权重方向修正。
             if bond_index and bond_index.current > 0:
                 bond_signal = round(bond_index.daily_change * bond_beta, 3)
                 baseline_signal = model_estimated_change if abs(float(model_estimated_change or 0.0)) >= 0.001 else 0.0
-                hybrid_change = round(baseline_signal * 0.65 + bond_signal * 0.35, 3)
+                bond_weight = 0.18 if bond_r_squared > 0.6 else (0.10 if bond_r_squared > 0.3 else 0.04)
+                hybrid_change = round(baseline_signal * (1 - bond_weight) + bond_signal * bond_weight, 3)
                 if abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
-                    hybrid_change = bond_signal
+                    hybrid_change = round(bond_signal * bond_weight, 3)
+                hybrid_change = max(-0.18, min(0.18, hybrid_change))
                 # 如果估算净值有数据但涨跌为0，用混合估算补齐
                 if est_nav > 0 and est_change == 0:
-                    print(f"[债券推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}")
+                    print(f"[债券推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
                     est_change = hybrid_change
                     if previous_nav > 0:
                         est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
+                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
                     print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
                 elif est_nav == 0 and previous_nav > 0:
-                    print(f"[债券非交易推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}")
+                    print(f"[债券非交易推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
                     est_change = hybrid_change
                     est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
+                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
                     print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 elif abs(float(est_change or 0.0)) >= 0.005:
                     # 天天基金给出有效非零估值时，展示仍优先用它；模型字段保留混合估算作对照。
                     model_estimated_change = hybrid_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
+                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
 
             # 将Beta系数传递给AI预判（用于置信度判断）
             bond_analysis_extra = {
@@ -3024,7 +3034,8 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
 
         display_estimated_change = 0.0
         if model_type == "bond_baseline":
-            _display_candidates = (est_change, corrected_est_change, model_estimated_change, get_last_est_change(fund_code))
+            # 债基 gsz 盘中经常为 0 或不稳定，展示优先使用自身趋势模型。
+            _display_candidates = (model_estimated_change, corrected_est_change, est_change, get_last_est_change(fund_code))
         elif model_type in ("index_following", "multi_factor"):
             _display_candidates = (model_estimated_change, corrected_est_change, est_change, get_last_est_change(fund_code))
         else:
