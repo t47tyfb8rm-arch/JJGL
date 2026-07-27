@@ -176,13 +176,10 @@ FUND_SPECIFIC_MODELS = {
         "description": "被动跟踪科创50指数，残差 = fund_actual - 科创50_actual"
     },
     "004746": {  # 易方达上证50增强C（增强型指数）
-        "type": "multi_factor",
-        "factors": [
-            {"code": "sh000016", "name": "上证50", "default_weight": 0.85},
-            {"code": "sh000300", "name": "沪深300", "default_weight": 0.10},
-            {"code": "sh000905", "name": "中证500", "default_weight": 0.05},
-        ],
-        "description": "增强型指数，多因子加权回归（α + β·上证50 + γ·沪深300 + δ·中证500）"
+        "type": "index_following",
+        "benchmark_code": "sh000016",  # 上证50指数
+        "benchmark_name": "上证50",
+        "description": "增强型指数基金盘中优先跟踪上证50实时涨跌，避免多因子回归权重漂移导致估值接近0"
     },
     "020741": {  # 华泰保兴安悦债券C（纯债基金）
         "type": "bond_baseline",
@@ -3007,7 +3004,11 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 }
 
         display_estimated_change = 0.0
-        for _est_value in (corrected_est_change, model_estimated_change, est_change, get_last_est_change(fund_code)):
+        if model_type in ("index_following", "multi_factor", "bond_baseline"):
+            _display_candidates = (model_estimated_change, corrected_est_change, est_change, get_last_est_change(fund_code))
+        else:
+            _display_candidates = (corrected_est_change, model_estimated_change, est_change, get_last_est_change(fund_code))
+        for _est_value in _display_candidates:
             try:
                 _est_num = float(_est_value or 0.0)
             except Exception:
