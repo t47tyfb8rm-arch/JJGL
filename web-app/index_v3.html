@@ -742,6 +742,44 @@ body.dark #tfunds .fund-list-heading span{background:linear-gradient(180deg,#6D7
 #tfunds .fund-list-heading em{flex-shrink:0!important;font-style:normal!important;font-size:12px!important;color:var(--muted)!important;line-height:1.2!important}
 body.dark #tfunds .fund-list-heading{background:#171717!important;border-color:rgba(255,255,255,.06)!important;box-shadow:none!important}
 body.dark #tfunds .fund-list-heading .panel-title{color:#F3F4F6!important}
+/* Fund list module: heading and fund rows live in one unified card. */
+#tfunds .fund-list-panel{
+  margin:0 14px 10px!important;
+  padding:13px 12px 12px!important;
+  border-radius:20px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EEF6FF 100%)!important;
+  border:1px solid rgba(206,226,247,.88)!important;
+  box-shadow:0 9px 24px rgba(31,86,174,.08)!important;
+  overflow:hidden!important;
+}
+#tfunds .fund-list-panel .fund-list-heading{
+  margin:0 0 10px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#tfunds .fund-list-panel #fund-detail-list{
+  padding:0!important;
+  display:grid!important;
+  gap:8px!important;
+}
+#tfunds .fund-list-panel .tight-card.fund-pro-card{
+  margin:0!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.92),rgba(245,250,255,.86))!important;
+  box-shadow:none!important;
+  border-color:rgba(47,111,214,.075)!important;
+}
+body.dark #tfunds .fund-list-panel{
+  background:#171717!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel .tight-card.fund-pro-card{
+  background:#1A1A1A!important;
+  border-color:rgba(255,255,255,.055)!important;
+}
 </style>
 </head>
 <body>
@@ -786,8 +824,10 @@ body.dark #tfunds .fund-list-heading .panel-title{color:#F3F4F6!important}
       <div class="app-actions fund-top-stat"><button class="mini-add-btn" id="fund-top-action" onclick="openAddFund()">新增</button></div>
     </div>
   </div>
-  <div class="fund-list-heading"><div><div class="panel-kicker">Portfolio</div><div class="panel-title">持仓基金</div></div><em>关注基金情况</em></div>
-  <div id="fund-detail-list"></div>
+  <div class="fund-list-panel">
+    <div class="fund-list-heading"><div><div class="panel-kicker">Portfolio</div><div class="panel-title">持仓基金</div></div><em>关注基金情况</em></div>
+    <div id="fund-detail-list"></div>
+  </div>
 </div>
 
 <!-- ===== AI ===== -->
