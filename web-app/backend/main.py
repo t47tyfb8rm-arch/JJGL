@@ -454,7 +454,8 @@ async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_d
         return est, bench_change, bench_name
 
     if model_type == "bond_baseline":
-        # 纯债基线：5日滚动均值(短期趋势) + gsz残差修正
+        # 纯债估算兜底：近 5 日实际收益均值代表票息/短期趋势。
+        # 国债指数 beta 会在后续债基分支里叠加，避免单靠国债指数导致日收益失真。
         win = model_config.get("baseline_window", 5)
         # 同步拉取最近 5 天历史（轻量）
         recent_hist = fetch_fund_history_sync(fund_code, days=win + 2)
@@ -2889,23 +2890,41 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 bond_beta = cached_beta.get("beta", 0.5)
                 bond_r_squared = cached_beta.get("r_squared", 0.0)
 
-            # 使用计算出的Beta系数推算估算净值
+            # 使用计算出的 Beta 系数推算估算净值：
+            # - 如果天天基金给出非零估值，优先保留它；
+            # - 如果天天估值缺失或为 0，用“近5日票息趋势 + 国债指数 beta”混合估算。
             if bond_index and bond_index.current > 0:
-                # 如果估算净值有数据但涨跌为0，用国债指数推算涨跌
+                bond_signal = round(bond_index.daily_change * bond_beta, 3)
+                baseline_signal = model_estimated_change if abs(float(model_estimated_change or 0.0)) >= 0.001 else 0.0
+                hybrid_change = round(baseline_signal * 0.65 + bond_signal * 0.35, 3)
+                if abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
+                    hybrid_change = bond_signal
+                # 如果估算净值有数据但涨跌为0，用混合估算补齐
                 if est_nav > 0 and est_change == 0:
-                    print(f"[债券推算] {fund_code}: 国债指数涨跌={bond_index.daily_change}, beta={bond_beta:.3f}")
-                    est_change = round(bond_index.daily_change * bond_beta, 3)
+                    print(f"[债券推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}")
+                    est_change = hybrid_change
                     if previous_nav > 0:
                         est_nav = round(previous_nav * (1 + est_change / 100), 4)
+                    model_estimated_change = est_change
+                    model_benchmark_change = bond_index.daily_change
+                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
                     print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
                 elif est_nav == 0 and previous_nav > 0:
-                    print(f"[债券非交易推算] {fund_code}: 无估算数据，国债指数涨跌={bond_index.daily_change}, beta={bond_beta:.3f}")
-                    est_change = round(bond_index.daily_change * bond_beta, 3)
+                    print(f"[债券非交易推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}")
+                    est_change = hybrid_change
                     est_nav = round(previous_nav * (1 + est_change / 100), 4)
+                    model_estimated_change = est_change
+                    model_benchmark_change = bond_index.daily_change
+                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
                     print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
+                elif abs(float(est_change or 0.0)) >= 0.005:
+                    # 天天基金给出有效非零估值时，展示仍优先用它；模型字段保留混合估算作对照。
+                    model_estimated_change = hybrid_change
+                    model_benchmark_change = bond_index.daily_change
+                    model_benchmark_name = f"5日均值+国债 beta {bond_beta:.2f}"
 
             # 将Beta系数传递给AI预判（用于置信度判断）
             bond_analysis_extra = {
@@ -3004,7 +3023,9 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 }
 
         display_estimated_change = 0.0
-        if model_type in ("index_following", "multi_factor", "bond_baseline"):
+        if model_type == "bond_baseline":
+            _display_candidates = (est_change, corrected_est_change, model_estimated_change, get_last_est_change(fund_code))
+        elif model_type in ("index_following", "multi_factor"):
             _display_candidates = (model_estimated_change, corrected_est_change, est_change, get_last_est_change(fund_code))
         else:
             _display_candidates = (corrected_est_change, model_estimated_change, est_change, get_last_est_change(fund_code))
@@ -3371,7 +3392,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             result.append(item)
             used_titles.add(item.title)
     for _, _, item in event_news:
-        if len(result) >= 9:
+        if len(result) >= 20:
             break
         if item.title not in used_titles:
             result.append(item)
@@ -3387,7 +3408,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 continue
             relaxed_news.append((priority, ctime_ts, item))
             used_titles.add(item.title)
-            if len(relaxed_news) >= 9:
+            if len(relaxed_news) >= 20:
                 break
         result = [item for _, _, item in relaxed_news]
 
@@ -3415,7 +3436,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             tags=["观点汇总", "7x24观点"]
         )
         result.append(opinion_item)
-        result = sorted(result, key=lambda item: _parse_time(item.time)[1], reverse=True)[:10]
+    result = sorted(result, key=lambda item: _parse_time(item.time)[1], reverse=True)[:20]
     NEWS_CACHE["data"] = result
     NEWS_CACHE["saved_at"] = now_ts
     return result
