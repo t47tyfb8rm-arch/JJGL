@@ -1404,6 +1404,8 @@ class PortfolioResponse(BaseModel):
     time: str
     is_trading_day: bool = False
     display_trade_date: str = ""
+    latest_disclosed_date: str = ""
+    market_status: str = "closed"
     index: IndexInfo
     funds: List[FundInfo]
     news: List[NewsItem]
@@ -1465,12 +1467,8 @@ def _latest_disclosed_date() -> str:
 def _display_trade_date(now: Optional[datetime] = None) -> str:
     """
     基金卡片显示日期：
-    - 交易日显示当天日期，盘中未披露净值时仍显示当天但不高亮
-    - 非交易日显示上一个可披露交易日
+    - 显示最新已披露净值日期，避免次日/盘前把昨天实际收益误判成今天预估
     """
-    now = now or datetime.now()
-    if is_trading_day(now):
-        return now.strftime("%Y-%m-%d")
     return _latest_disclosed_date()
 
 
@@ -3989,6 +3987,8 @@ async def get_portfolio(force: int = 0):
         time=now.strftime("%H:%M:%S"),
         is_trading_day=is_trading_day(now),
         display_trade_date=_display_trade_date(now),
+        latest_disclosed_date=_latest_disclosed_date(),
+        market_status=market_status(),
         index=index_info,
         funds=funds,
         news=news,
