@@ -3675,8 +3675,6 @@ async def get_portfolio(force: int = 0):
             print(f"基金获取异常: {result}")
 
     # 新闻已在指数 gather 中并行拉取（news 变量已就绪）
-    funds = await enhance_funds_with_deepseek(funds, index_info, bond_index_info, news)
-
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
     # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
 
@@ -3695,6 +3693,26 @@ async def get_portfolio(force: int = 0):
     PORTFOLIO_CACHE["data"] = response
     PORTFOLIO_CACHE["saved_at"] = time.time()
 
+    return response
+
+
+@app.post("/api/ai/deepseek", response_model=PortfolioResponse)
+async def run_deepseek_analysis():
+    """手动触发 DeepSeek 分析，避免首页首屏被大模型调用阻塞。"""
+    if not os.getenv("DEEPSEEK_API_KEY", "").strip():
+        raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
+
+    if PORTFOLIO_CACHE["data"] is None:
+        await get_portfolio(force=1)
+    response = PORTFOLIO_CACHE["data"]
+    response.funds = await enhance_funds_with_deepseek(
+        response.funds,
+        response.index,
+        response.bond_index,
+        response.news,
+    )
+    PORTFOLIO_CACHE["data"] = response
+    PORTFOLIO_CACHE["saved_at"] = time.time()
     return response
 
 
