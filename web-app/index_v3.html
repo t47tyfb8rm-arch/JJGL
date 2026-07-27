@@ -934,6 +934,45 @@ body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pr
 body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:not(:last-child){
   border-bottom-color:rgba(255,255,255,.055)!important;
 }
+/* Bottom navigation: lighter floating dock to match the current card language. */
+.tab-bar{
+  left:50%!important;
+  bottom:8px!important;
+  width:calc(100% - 28px)!important;
+  max-width:452px!important;
+  padding:7px 8px calc(8px + env(safe-area-inset-bottom))!important;
+  border:1px solid rgba(206,226,247,.86)!important;
+  border-radius:24px!important;
+  background:rgba(255,255,255,.92)!important;
+  box-shadow:0 10px 24px rgba(31,86,174,.105)!important;
+  backdrop-filter:saturate(120%) blur(12px)!important;
+  -webkit-backdrop-filter:saturate(120%) blur(12px)!important;
+}
+.tab-i{
+  flex:1 1 20%!important;
+  min-height:46px!important;
+  border-radius:18px!important;
+  gap:2px!important;
+  color:#8D98A8!important;
+}
+.tab-i svg{width:20px!important;height:20px!important;color:#8D98A8!important}
+.tab-i .yen-icon{font-size:22px!important;line-height:20px!important}
+.tab-i.active{
+  background:linear-gradient(160deg,#EAF2FF 0%,#F3F8FF 100%)!important;
+  box-shadow:inset 0 0 0 1px rgba(47,111,214,.055)!important;
+}
+.tab-i.active,.tab-i.active svg,.tab-i.active span{color:var(--brand-dark)!important}
+body.dark .tab-bar{
+  background:rgba(17,17,17,.94)!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:0 -10px 28px rgba(0,0,0,.42)!important;
+}
+body.dark .tab-i,body.dark .tab-i svg{color:#777E88!important}
+body.dark .tab-i.active{
+  background:#202020!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)!important;
+}
+body.dark .tab-i.active,body.dark .tab-i.active svg,body.dark .tab-i.active span{color:#E7EEFB!important}
 </style>
 </head>
 <body>
