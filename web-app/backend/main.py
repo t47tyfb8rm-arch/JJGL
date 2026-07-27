@@ -3360,7 +3360,12 @@ async def enhance_funds_with_deepseek(
                 "type": f.type,
                 "nav_date": f.nav_date,
                 "daily_change": f.daily_change,
-                "estimated_change": f.estimated_change or f.model_estimated_change,
+                "estimated_change": (
+                    f.corrected_estimated_change
+                    or f.model_estimated_change
+                    or f.estimated_change
+                    or (f.ai_prediction.est_change if f.ai_prediction else 0)
+                ),
                 "return_7d": f.return_7d,
                 "return_1m": f.return_1m,
                 "return_6m": f.return_6m,
@@ -3382,10 +3387,10 @@ async def enhance_funds_with_deepseek(
     }
     prompt = (
         "你是基金组合策略分析助手。请基于给定JSON生成更有用的中文策略分析。"
-        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句话摘要不超过45字\","
-        "\"market_env\":\"市场/新闻影响\", \"position_advice\":\"操作建议\", \"risk_tips\":\"风险提示\","
-        "\"risk_level\":\"低/中/高\", \"trend\":\"趋势标签\"}}}。"
-        "不要给金额建议，不要夸大确定性，重点结合未来一周重要事件。"
+        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句话核心结论，必须和本地规则不同，不超过42字\","
+        "\"market_env\":\"市场/新闻影响，不超过60字\", \"position_advice\":\"当前动作建议，只能是观察/持有/等待买点/谨慎补仓/止盈观察之一，并补一句理由\", "
+        "\"risk_tips\":\"最主要风险，不超过50字\", \"risk_level\":\"低/中/高\", \"trend\":\"趋势标签，不超过6字\"}}}。"
+        "必须结合预估收益、买点距离、持仓状态、未来一周重要事件。不要给金额建议，不要夸大确定性。"
     )
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
@@ -3418,6 +3423,7 @@ async def enhance_funds_with_deepseek(
         f.ai_prediction.market_env = str(item.get("market_env") or f.ai_prediction.market_env)[:240]
         f.ai_prediction.position_advice = str(item.get("position_advice") or f.ai_prediction.position_advice)[:240]
         f.ai_prediction.risk_tips = str(item.get("risk_tips") or f.ai_prediction.risk_tips)[:240]
+        f.ai_prediction.confidence = "DeepSeek"
         if item.get("risk_level") in ["低", "中", "高"]:
             f.ai_prediction.risk_level = item["risk_level"]
         if item.get("trend"):
