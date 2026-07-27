@@ -883,6 +883,50 @@ body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pr
 body.dark #tfunds .fund-list-panel .fund-period-row>div{
   background:#202020!important;
 }
+/* Fund module intent: one large portfolio panel containing three distinct fund cards. */
+#tfunds .fund-list-panel{
+  padding:14px 12px 12px!important;
+}
+#tfunds .fund-list-panel .fund-list-heading{
+  padding:0 2px 12px!important;
+  margin:0 0 10px!important;
+  border-bottom:0!important;
+}
+#tfunds .fund-list-panel #fund-detail-list{
+  display:grid!important;
+  gap:9px!important;
+  padding:0!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  position:relative!important;
+  margin:0!important;
+  padding:12px 13px 11px 17px!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,#FFFFFF 0%,#F2F8FF 100%)!important;
+  border:1px solid rgba(47,111,214,.09)!important;
+  box-shadow:0 5px 14px rgba(31,86,174,.055)!important;
+  overflow:hidden!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:not(:last-child){
+  border-bottom:1px solid rgba(47,111,214,.09)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:active{
+  transform:scale(.995)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:before{
+  left:0!important;
+  top:14px!important;
+  bottom:14px!important;
+  width:4px!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  background:#1A1A1A!important;
+  border:1px solid rgba(255,255,255,.055)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:not(:last-child){
+  border-bottom-color:rgba(255,255,255,.055)!important;
+}
 </style>
 </head>
 <body>
