@@ -389,6 +389,49 @@ def get_index_model_estimate(fund_code: str) -> dict:
     }
 
 
+def bond_curve_proxy_signal(bond_index: Optional["IndexInfo"]) -> dict:
+    """国债曲线代理信号。
+
+    没有稳定的实时收益率曲线接口时，用国债指数近几日走势模拟利率曲线方向：
+    - 当日变化代表当天方向
+    - 近3日/5日均值代表短期利率趋势
+    - 波动过大时降低信号强度，避免债基估算被单日噪声带偏
+    """
+    if not bond_index or bond_index.current <= 0:
+        return {"signal": 0.0, "latest": 0.0, "momentum": 0.0, "vol": 0.0, "quality": "无数据"}
+
+    changes = [float(bond_index.daily_change or 0.0)]
+    for h in (bond_index.history or []):
+        try:
+            c = float(h.change)
+        except Exception:
+            continue
+        if abs(c) <= 0.5:
+            changes.append(c)
+
+    clean = [c for c in changes if abs(c) >= 0.0001][:7]
+    if not clean:
+        return {"signal": 0.0, "latest": 0.0, "momentum": 0.0, "vol": 0.0, "quality": "弱"}
+
+    latest = clean[0]
+    avg3 = sum(clean[:min(3, len(clean))]) / min(3, len(clean))
+    avg5 = sum(clean[:min(5, len(clean))]) / min(5, len(clean))
+    mean = sum(clean) / len(clean)
+    vol = (sum((x - mean) ** 2 for x in clean) / max(1, len(clean) - 1)) ** 0.5 if len(clean) >= 2 else 0.0
+
+    raw = latest * 0.50 + avg3 * 0.35 + avg5 * 0.15
+    damp = 0.65 if vol > 0.08 else (0.80 if vol > 0.05 else 1.0)
+    signal = round(max(-0.16, min(0.16, raw * damp)), 3)
+    quality = "强" if len(clean) >= 5 and vol <= 0.05 else ("中" if len(clean) >= 3 else "弱")
+    return {
+        "signal": signal,
+        "latest": round(latest, 3),
+        "momentum": round(avg3, 3),
+        "vol": round(vol, 4),
+        "quality": quality
+    }
+
+
 async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_date: str):
     """统一的基金专用模型计算入口
     1. index_following: 实时指数 + 残差修正
@@ -2902,39 +2945,44 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             # - 债基展示优先用自身趋势模型；
             # - 天天估值只在有效时保留作参考，国债指数按相关性做小权重方向修正。
             if bond_index and bond_index.current > 0:
-                bond_signal = round(bond_index.daily_change * bond_beta, 3)
+                curve_proxy = bond_curve_proxy_signal(bond_index)
+                direct_signal = round(bond_index.daily_change * bond_beta, 3)
+                curve_signal = round(curve_proxy.get("signal", 0.0) * bond_beta, 3)
+                bond_signal = round(curve_signal * 0.70 + direct_signal * 0.30, 3)
                 baseline_signal = model_estimated_change if abs(float(model_estimated_change or 0.0)) >= 0.001 else 0.0
-                bond_weight = 0.18 if bond_r_squared > 0.6 else (0.10 if bond_r_squared > 0.3 else 0.04)
+                bond_weight = 0.26 if bond_r_squared > 0.6 else (0.18 if bond_r_squared > 0.3 else 0.10)
+                if curve_proxy.get("quality") == "弱":
+                    bond_weight = min(bond_weight, 0.08)
                 hybrid_change = round(baseline_signal * (1 - bond_weight) + bond_signal * bond_weight, 3)
                 if abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
                     hybrid_change = round(bond_signal * bond_weight, 3)
                 hybrid_change = max(-0.18, min(0.18, hybrid_change))
                 # 如果估算净值有数据但涨跌为0，用混合估算补齐
                 if est_nav > 0 and est_change == 0:
-                    print(f"[债券推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
+                    print(f"[债券推算] {fund_code}: baseline={baseline_signal}, 曲线代理={curve_proxy}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
                     est_change = hybrid_change
                     if previous_nav > 0:
                         est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
                 elif est_nav == 0 and previous_nav > 0:
-                    print(f"[债券非交易推算] {fund_code}: baseline={baseline_signal}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
+                    print(f"[债券非交易推算] {fund_code}: baseline={baseline_signal}, 曲线代理={curve_proxy}, 国债信号={bond_signal}, beta={bond_beta:.3f}, weight={bond_weight:.2f}")
                     est_change = hybrid_change
                     est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 elif abs(float(est_change or 0.0)) >= 0.005:
                     # 天天基金给出有效非零估值时，展示仍优先用它；模型字段保留混合估算作对照。
                     model_estimated_change = hybrid_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+国债修正 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
 
             # 将Beta系数传递给AI预判（用于置信度判断）
             bond_analysis_extra = {
