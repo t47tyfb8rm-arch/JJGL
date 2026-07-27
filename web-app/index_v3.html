@@ -616,6 +616,26 @@ body.dark .news-reader-card{background:#1D2128!important;box-shadow:inset 0 0 0 
 body.dark .news-reader-card.primary{background:linear-gradient(180deg,#171A20 0%,#111419 100%)!important;box-shadow:0 8px 20px rgba(0,0,0,.24)}
 body.dark .news-read-status,body.dark .fund-count-pill{background:#20242B;color:#DDE8FF;border:1px solid rgba(255,255,255,.045)}
 body.dark #tfunds #fund-top-action,body.dark #tfunds .fund-top-stat .mini-add-btn{background:#2A3039!important;color:#F5F6F8!important;border:1px solid #3A424E!important;box-shadow:0 7px 16px rgba(0,0,0,.28)!important}
+.news-dashboard{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 12px}
+.news-stat{padding:10px 8px;border-radius:14px;background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(47,111,214,.055)}
+.news-stat .k{font-size:11px;color:var(--muted);line-height:1.2}
+.news-stat .v{margin-top:4px;font-size:18px;font-weight:750;line-height:1}
+.news-stat.good .v{color:var(--red)}.news-stat.bad .v{color:var(--green)}.news-stat.neutral .v{color:var(--brand-dark)}
+.news-board-note{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 10px;font-size:12px;color:var(--muted)}
+.news-section-block{margin-top:13px}
+.news-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;padding:0 2px}
+.news-section-head b{font-size:14px;color:var(--ink)}
+.news-section-head span{font-size:11px;color:var(--muted)}
+.news-stack{display:grid;gap:8px}
+.news-item.news-compact{margin-top:0!important;padding:11px 12px 11px 14px!important;border-radius:15px}
+.news-item.news-compact .news-title{font-size:13px!important;line-height:1.42!important}
+.news-row-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.news-row-meta .news-time{margin:0!important;padding-left:4px!important}
+.news-open-hint{margin-top:7px;padding-left:4px;font-size:11px;color:var(--brand-dark)}
+.news-opinion-card{background:linear-gradient(160deg,rgba(105,79,163,.08),rgba(255,255,255,.25))!important}
+.news-empty{padding:16px;border-radius:16px;background:rgba(255,255,255,.56);color:var(--muted);font-size:13px}
+body.dark .news-stat,body.dark .news-empty{background:#1D2128!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.055)}
+body.dark .news-opinion-card{background:linear-gradient(160deg,#1E2028 0%,#16191F 100%)!important}
 </style>
 </head>
 <body>
@@ -671,7 +691,7 @@ body.dark #tfunds #fund-top-action,body.dark #tfunds .fund-top-stat .mini-add-bt
     <div id="ai-signal-board" class="ai-date-board"><div class="t2 pb">加载中...</div></div>
   </div>
   <div class="card px tight-card ai-panel">
-    <div class="ai-copilot-head"><div><div class="panel-kicker">AI Copilot</div><div class="panel-title">策略建议</div></div><button class="ai-live-pill ai-action-pill" id="deepseek-btn" onclick="runDeepSeek()">DeepSeek分析</button></div>
+    <div class="ai-copilot-head"><div><div class="panel-kicker">AI Copilot</div><div class="panel-title">策略建议</div></div><span class="ai-live-pill">本地模型</span></div>
     <div id="ai-content"><div class="t2 pb">加载中...</div></div>
   </div>
 </div>
@@ -691,7 +711,7 @@ body.dark #tfunds #fund-top-action,body.dark #tfunds .fund-top-stat .mini-add-bt
 
 <!-- ===== PROFILE ===== -->
 <div id="tprofile" class="tab-c">
-  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新10条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
+  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
   <div class="card px tight-card profile-panel">
     <div class="panel-kicker">Market Brief</div><div class="panel-title">持仓资讯与操作参考</div>
     <div class="muted" id="news-refresh-time" style="margin:-4px 0 8px">资讯更新 --</div>
@@ -917,6 +937,17 @@ function newsReaderGrouped(n){const items=Array.isArray(n.items)?n.items:[];if(!
 function newsReaderStatus(n,loading,failed,full){if(Array.isArray(n.items))return'<span class="news-read-status ok">观点汇总</span>';if(loading)return'<span class="news-read-status loading">全文提取中</span>';if(full)return'<span class="news-read-status ok">全文已加载</span>';if(failed)return'<span class="news-read-status fail">摘要模式</span>';return'<span class="news-read-status">本地内容</span>'}
 function newsReaderHtml(n,full,loading,failed){const url=newsUrl(n),summary=newsReaderSummary(n),grouped=newsReaderGrouped(n),localFull=localFullText(n),body=full||localFull||newsText(n)||summary||n.title||n.text||'暂无正文内容',title=grouped?'原文/来源':'全文阅读',status=newsReaderStatus(n,loading,failed,!!full||!!localFull),loadingHtml=loading?'<div class="news-reader-loading">正在提取网页全文，先展示本地摘要</div>':'',failHtml=failed?'<div class="news-reader-muted">暂时没有提取到网页全文，已保留摘要和来源链接。</div>':'';return '<div class="news-reader-tags">'+newsTagHtml(n)+status+'</div>'+(summary?'<div class="news-reader-card"><div class="news-reader-heading">摘要</div><div class="news-reader-muted">'+hi(summary)+'</div></div>':'')+grouped+'<div class="news-reader-card primary"><div class="news-reader-heading">'+title+' '+status+'</div>'+loadingHtml+failHtml+'<div class="news-reader-text">'+hi(body)+'</div>'+(url?'<div class="news-reader-source">来源：'+esc(url)+'</div>':'')+'</div>'}
 async function openNews(i){const n=newsCache[i]||{},title=n.title||n.text||'市场资讯',meta=[n.date||n.time||'',classifyNewsCategory(n),n.fetched_at?('更新 '+n.fetched_at):'',n.source||''].filter(Boolean).join(' · ')||'本地资讯',url=newsUrl(n),hasLocal=!!localFullText(n)||Array.isArray(n.items);document.getElementById('news-title').textContent=title;document.getElementById('news-meta').textContent=meta;document.getElementById('news-body').innerHTML=newsReaderHtml(n,'',!!url&&!hasLocal,false);document.getElementById('news-modal').classList.add('show');if(url&&!hasLocal){try{const r=await fetch(API+'/api/news-content?url='+encodeURIComponent(url),{cache:'no-store'});const j=await r.json();if(j&&j.ok&&j.content){document.getElementById('news-body').innerHTML=newsReaderHtml(n,j.content,false,false);if(j.title)document.getElementById('news-title').textContent=j.title;if(j.date)document.getElementById('news-meta').textContent=[j.date,classifyNewsCategory(n),n.fetched_at?('更新 '+n.fetched_at):'',n.source||''].filter(Boolean).join(' · ')}else{document.getElementById('news-body').innerHTML=newsReaderHtml(n,'',false,true)}}catch(e){console.error(e);document.getElementById('news-body').innerHTML=newsReaderHtml(n,'',false,true)}}}
+function finalNewsTone(n){const s=String(n.sentiment||n.impact||'')+' '+newsText(n);if(/bullish|利好|上涨|反弹|走强|回暖|增长|突破|获批|回购|增持/.test(s))return'good';if(/bearish|利空|下跌|承压|回落|走弱|风险|下行|调查|处罚|制裁|加息/.test(s))return'bad';return'neutral'}
+function finalNewsCategory(n){return classifyNewsCategory?n&&(classifyNewsCategory(n)||'市场资讯'):'市场资讯'}
+function finalNewsBrief(n){const s=simpleNewsSummary(n)||newsSummary(n)||'';return String(s).replace(/^7x24观点汇总：/,'').slice(0,72)}
+function finalNewsIsHolding(n){const s=newsText(n);return /(011609|020741|004746|科创50|上证50|国债|债券|利率|半导体|芯片|长鑫|A股|上证|沪指|指数)/.test(s)}
+function finalNewsImpactText(n,tone){const target=newsTarget(n),cat=finalNewsCategory(n);if(isOpinionGroup(n))return'观点已合并，仅作辅助参考';if(tone==='good')return target+'偏利好，观察是否带动相关持仓修复';if(tone==='bad')return target+'偏利空，关注指数承压和买点变化';return cat+'影响中性，等待价格和净值确认'}
+function finalBuildNews(items){const sorted=(items||[]).slice().sort((a,b)=>newsTs(b)-newsTs(a)),events=[],holdings=[],opinions=[];sorted.forEach(n=>{if(isOpinionGroup(n)||isOpinionNews(n)){opinions.push(n);return}if(finalNewsIsHolding(n))holdings.push(n);else events.push(n)});const picked=[],seen=new Set();function add(arr,limit){arr.forEach(n=>{const key=String(n.title||n.text||'').slice(0,80);if(picked.length<limit&&!seen.has(key)){picked.push(n);seen.add(key)}})}add(events,8);add(holdings,15);add(sorted.filter(n=>!isOpinionGroup(n)&&!isOpinionNews(n)),19);if(opinions.length){const latest=opinions[0]||{};picked.push({title:'7x24观点汇总：'+opinions.slice(0,5).map(x=>x.title||x.text||'观点').join(' / '),time:latest.time||latest.date||'',date:latest.date||latest.time||'',fetched_at:latest.fetched_at,source:'7x24',sentiment:'neutral',tags:['观点汇总','7x24观点'],items:opinions.slice(0,20),summary:'已合并 '+opinions.length+' 条评论/观点，避免占用核心资讯列表。'})}return picked.slice(0,20)}
+function finalNewsStats(list){return list.reduce((a,n)=>{const t=finalNewsTone(n);a[t]=(a[t]||0)+1;return a},{good:0,bad:0,neutral:0})}
+function finalNewsCard(n,i,extraCls=''){const tone=finalNewsTone(n),title=n.title||n.text||'市场资讯',meta=n.date||n.time||n.source||'刚刚',summary=finalNewsBrief(n),impact=finalNewsImpactText(n,tone),op=isOpinionGroup(n);return '<div class="news-item news-compact news-'+tone+' '+extraCls+(op?' news-opinion-card':'')+'" onclick="openNews('+i+')"><div class="news-row-meta"><div class="news-time">'+esc(meta)+'</div><div class="news-tags">'+newsTagHtml(n)+'</div></div><div class="news-title">'+hi(title)+'</div>'+(summary?'<div class="news-summary">'+hi(summary)+'</div>':'')+'<div class="news-advice">'+hi(impact)+'</div><div class="news-open-hint">'+(op?'查看合并观点':'阅读全文')+'</div></div>'}
+function finalNewsSection(title,desc,arr){if(!arr.length)return'';return '<div class="news-section-block"><div class="news-section-head"><b>'+esc(title)+'</b><span>'+esc(desc)+'</span></div><div class="news-stack">'+arr.map(x=>finalNewsCard(x.item,x.index,x.cls||'')).join('')+'</div></div>'}
+function groupNewsItems(items){return finalBuildNews(items)}
+function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'资讯更新中...':'资讯更新 '+(fresh||((d.date||'')+' '+(d.time||'')).trim()||'--')+' · '+newsCache.length+'条';if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,6),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,10),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','政策 / 指数 / 海外',key)+finalNewsSection('持仓相关','与基金和指数相关',holding)+finalNewsSection('观点汇总','评论合并展示',opinions)+finalNewsSection('更多资讯','按新闻时间倒序',rest);if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
 </script>
 </body>
