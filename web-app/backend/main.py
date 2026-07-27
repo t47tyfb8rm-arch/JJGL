@@ -3379,6 +3379,15 @@ async def enhance_funds_with_deepseek(
             raise HTTPException(status_code=400, detail="DeepSeek 未配置或暂无基金数据")
         return funds
 
+    def _first_number(*values, default=0.0):
+        for value in values:
+            try:
+                if value is not None:
+                    return float(value)
+            except Exception:
+                continue
+        return default
+
     payload = {
         "market": {
             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -3402,11 +3411,11 @@ async def enhance_funds_with_deepseek(
                 "type": f.type,
                 "nav_date": f.nav_date,
                 "daily_change": f.daily_change,
-                "estimated_change": (
-                    f.corrected_estimated_change
-                    or f.model_estimated_change
-                    or f.estimated_change
-                    or (f.ai_prediction.est_change if f.ai_prediction else 0)
+                "estimated_change": _first_number(
+                    f.corrected_estimated_change,
+                    f.model_estimated_change,
+                    f.estimated_change,
+                    f.ai_prediction.est_change if f.ai_prediction else None,
                 ),
                 "return_7d": f.return_7d,
                 "return_1m": f.return_1m,
