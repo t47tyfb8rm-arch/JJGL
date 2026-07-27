@@ -3296,6 +3296,20 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             result.append(item)
             used_titles.add(item.title)
 
+    if not result:
+        # 如果严格事件筛选为空，退回到最新的非广告市场资讯，避免前端长期只有“后台更新中”。
+        relaxed_news = []
+        for priority, ctime_ts, item in merged_news:
+            if item.title in used_titles:
+                continue
+            if is_opinion_news(item.title) and len(relaxed_news) >= 6:
+                continue
+            relaxed_news.append((priority, ctime_ts, item))
+            used_titles.add(item.title)
+            if len(relaxed_news) >= 9:
+                break
+        result = [item for _, _, item in relaxed_news]
+
     result = result if result else [
         NewsItem(title="暂无重点股市资讯，稍后自动刷新", url="https://finance.sina.com.cn/", time=datetime.now().strftime("%m-%d %H:%M"), fetched_at=fetched_at, tags=["股市"]),
     ]
@@ -3802,6 +3816,19 @@ async def run_deepseek_analysis():
     PORTFOLIO_CACHE["data"] = response
     PORTFOLIO_CACHE["saved_at"] = time.time()
     return response
+
+
+@app.get("/api/news")
+async def get_market_news(force: int = 0):
+    """单独获取市场资讯。资讯页使用，不阻塞首页首屏。"""
+    news = await fetch_market_news(force=bool(force))
+    if PORTFOLIO_CACHE["data"] is not None:
+        PORTFOLIO_CACHE["data"].news = news
+    return {
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "news": news,
+    }
 
 
 @app.get("/api/cost-navs")
