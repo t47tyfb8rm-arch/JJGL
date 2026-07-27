@@ -643,6 +643,38 @@ body.dark .news-opinion-card{background:linear-gradient(160deg,#1E2028 0%,#16191
 #tfunds .fund-mini-actions{margin-top:8px!important;gap:7px!important}
 #tfunds .fund-mini-actions .subtle-btn,#tfunds .fund-mini-actions .danger-btn,#tfunds .fund-mini-actions .buy-primary,#tfunds .action-row .subtle-btn,#tfunds .action-row .danger-btn,#tfunds .action-row .buy-primary{height:30px!important;min-height:30px!important;max-height:30px!important;line-height:30px!important;border-radius:15px!important;font-size:11px!important;font-weight:650!important;padding:0 10px!important}
 #tfunds .fund-card-foot{margin-top:0!important}
+#tfunds #fund-detail-list{padding:6px 12px 0!important;display:grid!important;gap:8px!important}
+#tfunds .tight-card.fund-pro-card{position:relative;margin:0!important;padding:11px 12px 10px 15px!important;border-radius:18px!important;background:linear-gradient(145deg,#FFFFFF 0%,#F0F7FF 100%)!important;border:1px solid rgba(206,226,247,.88)!important;box-shadow:0 10px 24px rgba(31,86,174,.085)!important;overflow:hidden!important}
+#tfunds .tight-card.fund-pro-card:before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 8px 8px 0;background:linear-gradient(180deg,var(--brand),#82B5F7);box-shadow:0 0 12px rgba(47,111,214,.26)}
+#tfunds .fund-card-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important;gap:10px!important;margin:0!important}
+#tfunds .fund-code-stack{min-width:0!important;padding-left:4px!important;gap:3px!important}
+#tfunds .fund-code-stack .row-title{display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important;line-height:1.1!important}
+#tfunds .fund-code-stack .row-title span:first-child{font-size:12px!important;color:var(--muted)!important;font-weight:500!important;letter-spacing:.02em}
+#tfunds .fund-code-stack .row-title span:nth-child(2){font-size:15px!important;color:var(--ink)!important;font-weight:760!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#tfunds .fund-hold{display:inline-flex!important;align-items:center!important;width:max-content;max-width:100%;height:18px!important;padding:0 8px!important;border-radius:10px!important;background:rgba(47,111,214,.075)!important;font-size:11px!important;font-weight:720!important;line-height:18px!important}
+#tfunds .fund-hold.muted{color:var(--muted)!important;background:rgba(124,135,152,.08)!important}
+#tfunds .fund-date-box{min-width:82px!important;text-align:right!important}
+#tfunds .fund-date-top{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:82px!important;height:22px!important;padding:0 8px!important;border-radius:12px!important;background:#EEF4FA!important;color:#718095!important;font-size:11px!important;font-weight:680!important;line-height:22px!important}
+#tfunds .fund-date-top.is-fresh{background:#F2D995!important;color:#72520E!important;box-shadow:inset 0 0 0 1px rgba(145,101,20,.08)!important}
+#tfunds .fund-date-return{margin-top:5px!important;font-size:13px!important;font-weight:780!important;line-height:1.05!important}
+#tfunds .fund-date-return.est{color:var(--brand-dark)!important}
+#tfunds .fund-date-return.wait{color:var(--muted)!important;font-weight:650!important}
+#tfunds .fund-card-meta{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;margin:7px 0 0 4px!important;color:var(--muted)!important;font-size:11px!important;line-height:1.25!important;white-space:nowrap!important;overflow:hidden!important}
+#tfunds .fund-card-meta .muted{font-size:11px!important;color:var(--t3)!important}
+#tfunds .fund-period-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;margin-top:9px!important}
+#tfunds .fund-period-row>div{padding:7px 6px!important;border-radius:13px!important;background:rgba(47,111,214,.075)!important;box-shadow:inset 0 0 0 1px rgba(47,111,214,.035)!important;text-align:left!important}
+#tfunds .fund-period-row .label{font-size:11px!important;color:var(--muted)!important;line-height:1.15!important}
+#tfunds .fund-period-row .num{font-size:13px!important;font-weight:780!important;margin-top:3px!important;line-height:1.05!important}
+#tfunds .fund-card-foot{margin-top:8px!important}
+#tfunds .fund-analysis{display:none!important}
+#tfunds .fund-mini-actions{display:grid!important;margin-top:0!important;gap:7px!important;width:100%!important}
+#tfunds .fund-mini-actions .subtle-btn,#tfunds .fund-mini-actions .danger-btn,#tfunds .fund-mini-actions .buy-primary,#tfunds .action-row .subtle-btn,#tfunds .action-row .danger-btn,#tfunds .action-row .buy-primary{height:28px!important;min-height:28px!important;max-height:28px!important;border-radius:14px!important;font-size:11px!important;font-weight:680!important;line-height:28px!important;box-shadow:none!important}
+body.dark #tfunds .tight-card.fund-pro-card{background:linear-gradient(145deg,#171A20 0%,#111419 100%)!important;border-color:rgba(255,255,255,.065)!important;box-shadow:0 10px 24px rgba(0,0,0,.30)!important}
+body.dark #tfunds .fund-code-stack .row-title span:nth-child(2){color:#F1F3F6!important}
+body.dark #tfunds .fund-hold{background:#1D2128!important}
+body.dark #tfunds .fund-date-top{background:#1D2128!important;color:#A9AFB8!important}
+body.dark #tfunds .fund-date-top.is-fresh{background:#5A4319!important;color:#FFE0A1!important}
+body.dark #tfunds .fund-period-row>div{background:#1D2128!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)!important}
 </style>
 </head>
 <body>
