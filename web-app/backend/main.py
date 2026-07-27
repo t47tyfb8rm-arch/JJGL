@@ -1636,19 +1636,43 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
                 if isinstance(data, dict) and len(data) > 0:
                     result = {}
                     for k, v in data.items():
-                        # 兼容老格式: {code: float} —— 视为未确认的历史虚拟成本，忽略
+                        # 兼容老格式: {code: float}。旧版本里这个值可能就是用户持仓成本，
+                        # 不能直接忽略，否则重启后持仓收益会全部变成 0 / 未持仓。
                         if isinstance(v, (int, float)):
+                            result[k] = {
+                                "buy_nav": float(v),
+                                "buy_date": "",
+                                "buy_price": float(v),
+                                "shares": 1.0,
+                                "realized_yield_pct": 0.0,
+                                "yield_pct": 0.0,
+                                "total_return": 0.0,
+                                "transactions": [],
+                                "is_holding": True,
+                                "sell_date": "",
+                                "sell_price": 0.0
+                            }
                             continue
                         # 新格式: {code: {buy_nav, buy_date, is_holding}} —— 保留用户真实交易记录
                         # is_holding=False 的已卖出记录也要保留，否则重启后已实现收益会从历史累计收益中丢失。
                         elif isinstance(v, dict):
-                            is_holding = bool(v.get("is_holding", False))
+                            shares = float(v.get("shares", 1.0 if v.get("is_holding", False) else 0.0) or 0.0)
+                            is_holding = bool(
+                                v.get("is_holding", False)
+                                or v.get("holding", False)
+                                or (shares > 0 and not v.get("sell_date"))
+                            )
+                            stored_yield = float(
+                                v.get("yield_pct", v.get("total_return", v.get("holding_yield_pct", 0.0))) or 0.0
+                            )
                             result[k] = {
-                                "buy_nav": float(v.get("buy_nav", v.get("cost_nav", 0)) or 0),
+                                "buy_nav": float(v.get("buy_nav", v.get("cost_nav", v.get("buy_price", 0))) or 0),
                                 "buy_date": str(v.get("buy_date", "")),
                                 "buy_price": float(v.get("buy_price", v.get("buy_nav", 0)) or 0),
-                                "shares": float(v.get("shares", 1.0 if is_holding else 0.0) or 0.0),
+                                "shares": shares if shares > 0 else (1.0 if is_holding else 0.0),
                                 "realized_yield_pct": float(v.get("realized_yield_pct", 0.0) or 0.0),
+                                "yield_pct": stored_yield,
+                                "total_return": stored_yield,
                                 "transactions": v.get("transactions", []),
                                 "is_holding": is_holding,
                                 "sell_date": str(v.get("sell_date", "")),
@@ -2636,9 +2660,22 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
 
         if is_user_holding:
             # 已确定买入：以用户买入价为成本基准
-            cost_nav = holding_record["buy_nav"]
+            cost_nav = float(holding_record.get("buy_nav", 0.0) or 0.0)
             buy_date = holding_record.get("buy_date", "")
-            yield_pct = round((current_nav - cost_nav) / cost_nav * 100, 2)
+            stored_holding_yield = 0.0
+            for _yield_key in ("yield_pct", "total_return", "holding_yield_pct", "current_return"):
+                try:
+                    _yield_value = float(holding_record.get(_yield_key, 0.0) or 0.0)
+                except Exception:
+                    _yield_value = 0.0
+                if abs(_yield_value) > 0.0001:
+                    stored_holding_yield = _yield_value
+                    break
+            if cost_nav <= 0 and current_nav > 0 and abs(stored_holding_yield) > 0.0001:
+                cost_nav = round(current_nav / (1 + stored_holding_yield / 100), 4)
+            yield_pct = round((current_nav - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 else stored_holding_yield
+            if abs(yield_pct) < 0.0001 and abs(stored_holding_yield) > 0.0001:
+                yield_pct = round(stored_holding_yield, 2)
             # 已买入的基金不再判断"买点"，而是展示真实持有收益
             can_buy = False
             drop_pct = 0.0
