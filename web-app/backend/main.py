@@ -3331,10 +3331,13 @@ async def enhance_funds_with_deepseek(
     index_info: IndexInfo,
     bond_index: Optional[IndexInfo],
     news: List[NewsItem],
+    strict: bool = False,
 ) -> List[FundInfo]:
-    """用 DeepSeek 增强策略分析。未配置密钥或调用失败时静默回退本地规则。"""
+    """用 DeepSeek 增强策略分析。自动场景可回退，手动场景必须明确成功或报错。"""
     api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if not api_key or not funds:
+        if strict:
+            raise HTTPException(status_code=400, detail="DeepSeek 未配置或暂无基金数据")
         return funds
 
     payload = {
@@ -3409,16 +3412,42 @@ async def enhance_funds_with_deepseek(
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
+            content = content.strip()
+            if content.startswith("```"):
+                content = content.strip("`")
+                if content.lower().startswith("json"):
+                    content = content[4:].strip()
             data = json.loads(content)
     except Exception as e:
         print(f"DeepSeek 分析失败，使用本地规则: {e}")
+        if strict:
+            raise HTTPException(status_code=502, detail=f"DeepSeek 分析失败：{e}")
         return funds
 
     ai_map = data.get("funds", {}) if isinstance(data, dict) else {}
+    if strict and not ai_map:
+        raise HTTPException(status_code=502, detail="DeepSeek 未返回有效基金分析")
+
+    normalized_ai_map = {}
+    if isinstance(ai_map, dict):
+        for key, val in ai_map.items():
+            code = re.sub(r"\D", "", str(key))[-6:]
+            if code:
+                normalized_ai_map[code] = val
+
+    changed_count = 0
     for f in funds:
-        item = ai_map.get(f.code) or {}
+        item = normalized_ai_map.get(f.code) or ai_map.get(f.code) or {}
         if not item or not f.ai_prediction:
             continue
+        before = (
+            f.ai_prediction.advice,
+            f.ai_prediction.market_env,
+            f.ai_prediction.position_advice,
+            f.ai_prediction.risk_tips,
+            f.ai_prediction.risk_level,
+            f.ai_prediction.trend,
+        )
         f.ai_prediction.advice = str(item.get("advice") or f.ai_prediction.advice)[:120]
         f.ai_prediction.market_env = str(item.get("market_env") or f.ai_prediction.market_env)[:240]
         f.ai_prediction.position_advice = str(item.get("position_advice") or f.ai_prediction.position_advice)[:240]
@@ -3428,6 +3457,19 @@ async def enhance_funds_with_deepseek(
             f.ai_prediction.risk_level = item["risk_level"]
         if item.get("trend"):
             f.ai_prediction.trend = str(item["trend"])[:12]
+        after = (
+            f.ai_prediction.advice,
+            f.ai_prediction.market_env,
+            f.ai_prediction.position_advice,
+            f.ai_prediction.risk_tips,
+            f.ai_prediction.risk_level,
+            f.ai_prediction.trend,
+        )
+        if after != before:
+            changed_count += 1
+
+    if strict and changed_count == 0:
+        raise HTTPException(status_code=502, detail="DeepSeek 已返回，但没有产生可展示的新分析")
     return funds
 
 
@@ -3755,6 +3797,7 @@ async def run_deepseek_analysis():
         response.index,
         response.bond_index,
         response.news,
+        strict=True,
     )
     PORTFOLIO_CACHE["data"] = response
     PORTFOLIO_CACHE["saved_at"] = time.time()
