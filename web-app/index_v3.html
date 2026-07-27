@@ -973,6 +973,32 @@ body.dark .tab-i.active{
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)!important;
 }
 body.dark .tab-i.active,body.dark .tab-i.active svg,body.dark .tab-i.active span{color:#E7EEFB!important}
+/* Bottom navigation correction: slimmer attached tray, less empty safe-area mass. */
+.tab-bar{
+  bottom:0!important;
+  width:100%!important;
+  max-width:480px!important;
+  padding:8px 14px calc(8px + env(safe-area-inset-bottom))!important;
+  border:0!important;
+  border-top:1px solid rgba(206,226,247,.78)!important;
+  border-radius:24px 24px 0 0!important;
+  background:rgba(255,255,255,.96)!important;
+  box-shadow:0 -8px 24px rgba(31,86,174,.10)!important;
+}
+.tab-i{
+  min-height:48px!important;
+  border-radius:18px!important;
+}
+.tab-i.active{
+  background:#EAF2FF!important;
+  box-shadow:none!important;
+}
+body.dark .tab-bar{
+  background:#111111!important;
+  border-top-color:rgba(255,255,255,.06)!important;
+  box-shadow:0 -10px 28px rgba(0,0,0,.36)!important;
+}
+body.dark .tab-i.active{background:#202020!important;box-shadow:none!important}
 </style>
 </head>
 <body>
