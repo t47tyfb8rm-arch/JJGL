@@ -3932,7 +3932,8 @@ async def get_portfolio(force: int = 0):
 
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
 async def run_deepseek_analysis():
-    """手动触发 DeepSeek 分析，避免首页首屏被大模型调用阻塞。"""
+    """DeepSeek 分析暂时关闭，避免影响首屏速度和误触发。"""
+    raise HTTPException(status_code=410, detail="DeepSeek 分析已暂时关闭")
     if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
