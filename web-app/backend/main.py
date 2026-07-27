@@ -1465,6 +1465,18 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 def get_deepseek_api_key() -> str:
     raw = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not raw:
+        for path in [
+            os.path.join(BASE_DIR, "deepseek.key"),
+            os.path.join(os.path.dirname(BASE_DIR), "deepseek.key"),
+            "/opt/fund-manager/deepseek.key",
+        ]:
+            try:
+                if os.path.exists(path):
+                    raw = open(path, "r", encoding="utf-8").read().strip()
+                    break
+            except Exception:
+                pass
     match = re.search(r"sk-[A-Za-z0-9_-]+", raw)
     return match.group(0) if match else raw.encode("ascii", "ignore").decode("ascii").strip()
 
