@@ -4335,6 +4335,7 @@ _NEWS_CACHE_TTL = 600  # 10 分钟
 async def get_news_content(url: str):
     """抓取并提取新闻正文（纯文本，不含图片），10 分钟缓存"""
     import time as _t
+    import html as _html
     now = _t.time()
 
     # 缓存命中
@@ -4378,33 +4379,104 @@ async def get_news_content(url: str):
     except Exception:
         pass
 
-    # 回退：BeautifulSoup 简单提取
+    def _clean_lines(raw: str) -> List[str]:
+        raw = _html.unescape(raw or "")
+        raw = re.sub(r"\r", "\n", raw)
+        raw = re.sub(r"[ \t\u3000]+", " ", raw)
+        raw = re.sub(r"\n{3,}", "\n\n", raw)
+        bad_patterns = [
+            r"责任编辑[:：]?.*",
+            r"风险提示[:：]?.*",
+            r"免责声明[:：]?.*",
+            r"本文来自.*",
+            r"文章来源[:：]?.*",
+            r"举报.*",
+            r"分享.*",
+            r"打开APP.*",
+            r"下载.*APP.*",
+            r"点击.*查看.*",
+            r"海量资讯.*",
+            r"广告.*",
+        ]
+        lines: List[str] = []
+        seen = set()
+        for line in raw.split("\n"):
+            line = line.strip(" \t　\r\n")
+            if len(line) < 9:
+                continue
+            if any(re.search(p, line, re.I) for p in bad_patterns):
+                continue
+            if re.fullmatch(r"[\d\s:：/\-.年月日]+", line):
+                continue
+            if line in seen:
+                continue
+            seen.add(line)
+            lines.append(line)
+        return lines
+
+    content_lines = _clean_lines(content)
+    if content_lines:
+        content = "\n\n".join(content_lines[:120])
+
+    # 回退：BeautifulSoup 多候选提取
     if not content:
         try:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, "html.parser")
             if not title and soup.title:
                 title = soup.title.get_text(strip=True)
-            for s in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                s.decompose()
-            article = (
-                soup.find("article")
-                or soup.find("main")
-                or soup.find(id="content")
-                or soup.find(id="article")
-                or soup.find(class_="content")
-                or soup.find(class_="article")
+            meta_title = soup.find("meta", attrs={"property": "og:title"}) or soup.find("meta", attrs={"name": "title"})
+            if meta_title and meta_title.get("content"):
+                title = title or meta_title.get("content", "").strip()
+            meta_date = (
+                soup.find("meta", attrs={"property": "article:published_time"})
+                or soup.find("meta", attrs={"name": "publishdate"})
+                or soup.find("meta", attrs={"name": "pubdate"})
+                or soup.find("meta", attrs={"name": "date"})
             )
-            target = article or soup.body or soup
-            text = target.get_text(separator="\n", strip=True)
-            lines = [ln.strip() for ln in text.split("\n") if ln.strip() and len(ln.strip()) > 8]
-            content = "\n".join(lines[:200])
+            if meta_date and meta_date.get("content"):
+                date_str = date_str or meta_date.get("content", "").strip()
+            for s in soup(["script", "style", "nav", "footer", "header", "aside", "form", "iframe", "noscript"]):
+                s.decompose()
+            selectors = [
+                "article",
+                "main",
+                '[class*="article"]',
+                '[id*="article"]',
+                '[class*="content"]',
+                '[id*="content"]',
+                '[class*="detail"]',
+                '[id*="detail"]',
+                '[class*="text"]',
+                '[class*="body"]',
+                '[id*="body"]',
+            ]
+            candidates = []
+            for selector in selectors:
+                candidates.extend(soup.select(selector)[:8])
+            if soup.body:
+                candidates.append(soup.body)
+
+            best_lines: List[str] = []
+            best_score = 0
+            for node in candidates:
+                text = node.get_text(separator="\n", strip=True)
+                lines = _clean_lines(text)
+                long_count = sum(1 for ln in lines if len(ln) >= 28)
+                score = sum(len(ln) for ln in lines) + long_count * 80
+                if score > best_score:
+                    best_score = score
+                    best_lines = lines
+
+            content = "\n\n".join(best_lines[:160])
         except Exception as e:
             return {"url": url, "ok": False, "error": f"解析失败: {e}"}
 
     # 截断过长内容
     if len(content) > 8000:
         content = content[:8000] + "\n\n...(已截断)"
+    if not content or len(content.strip()) < 40:
+        return {"url": url, "ok": False, "error": "未提取到有效正文", "title": title, "date": date_str}
 
     data = {
         "url": url,
