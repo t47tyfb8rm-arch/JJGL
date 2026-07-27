@@ -1358,6 +1358,7 @@ class PortfolioResponse(BaseModel):
     news: List[NewsItem]
     bond_index: Optional[IndexInfo] = None  # 债券指数（用于债券基金参考）
     hs300_index: Optional[IndexInfo] = None  # 沪深300指数
+    sz_index: Optional[IndexInfo] = None  # 深证成指
     historical_yields: Dict[str, dict] = {}  # 历史收益基准（含日期）
 
 
@@ -3737,20 +3738,22 @@ async def get_portfolio(force: int = 0):
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             return PORTFOLIO_CACHE["data"]
 
-    # 并行获取市场指数：上证指数 + 上证历史 + 国债指数 + 国债历史 + 沪深300 + 沪深300历史（全部一次性 gather）
+    # 并行获取市场指数：上证指数 + 上证历史 + 国债指数 + 国债历史 + 沪深300 + 深证成指
     index_task = fetch_sh_index()
     index_history_task = fetch_index_history(14)
     bond_index_task = fetch_generic_index("sh000012", "国债指数")
     bond_history_task = fetch_index_history_for_code("sh000113", 7)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
     hs300_history_task = fetch_index_history_for_code("sh000300", 7)
+    sz_index_task = fetch_generic_index("sz399001", "深证指数")
+    sz_history_task = fetch_index_history_for_code("sz399001", 7)
 
     (
         index_base, index_history, bond_index_base, bond_history,
-        hs300_base, hs300_history
+        hs300_base, hs300_history, sz_index_base, sz_history
     ) = await asyncio.gather(
         index_task, index_history_task, bond_index_task, bond_history_task,
-        hs300_task, hs300_history_task
+        hs300_task, hs300_history_task, sz_index_task, sz_history_task
     )
 
     # 构建完整指数数据
@@ -3782,6 +3785,15 @@ async def get_portfolio(force: int = 0):
         history=hs300_history
     )
 
+    sz_index_info = IndexInfo(
+        code=sz_index_base.code,
+        name=sz_index_base.name,
+        current=sz_index_base.current,
+        previous=sz_index_base.previous,
+        daily_change=sz_index_base.daily_change,
+        history=sz_history
+    )
+
     # 并行获取所有基金数据（含实时净值 + 历史净值 + AI预判）
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
     fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
@@ -3811,6 +3823,7 @@ async def get_portfolio(force: int = 0):
         news=news,
         bond_index=bond_index_info,
         hs300_index=hs300_info,
+        sz_index=sz_index_info,
         historical_yields=HISTORICAL_YIELDS
     )
 
