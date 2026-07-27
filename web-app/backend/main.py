@@ -3576,6 +3576,16 @@ async def fetch_generic_index(code: str, name: str) -> IndexInfo:
     """
     raw = await _fetch_tencent_kline_for_code(code, request_days=30)
     if not raw or len(raw) == 0:
+        rt = await fetch_realtime_index(code)
+        if rt and rt.get("current", 0) > 0:
+            return IndexInfo(
+                code=code.replace("sh", "").replace("sz", ""),
+                name=name,
+                current=round(float(rt.get("current", 0)), 2),
+                previous=round(float(rt.get("previous", 0)), 2),
+                daily_change=round(float(rt.get("change_pct", 0)), 2),
+                history=[]
+            )
         return IndexInfo(
             code=code.replace("sh", "").replace("sz", ""),
             name=name,
