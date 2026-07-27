@@ -780,6 +780,59 @@ body.dark #tfunds .fund-list-panel .tight-card.fund-pro-card{
   background:#1A1A1A!important;
   border-color:rgba(255,255,255,.055)!important;
 }
+/* Fund list final merge: make rows part of one panel, not separate cards. */
+#tfunds .fund-list-panel{
+  padding:14px 0 10px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#EEF6FF 100%)!important;
+  border-radius:22px!important;
+}
+#tfunds .fund-list-panel .fund-list-heading{
+  margin:0!important;
+  padding:0 16px 12px!important;
+  border-bottom:1px solid rgba(47,111,214,.075)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list{
+  padding:0!important;
+  gap:0!important;
+}
+#tfunds .fund-list-panel .tight-card.fund-pro-card{
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  margin:0!important;
+  padding:13px 14px 12px 17px!important;
+}
+#tfunds .fund-list-panel .tight-card.fund-pro-card:not(:last-child){
+  border-bottom:1px solid rgba(47,111,214,.075)!important;
+}
+#tfunds .fund-list-panel .tight-card.fund-pro-card:before{
+  left:0!important;
+  top:18px!important;
+  bottom:18px!important;
+  width:5px!important;
+  box-shadow:none!important;
+}
+#tfunds .fund-list-panel .fund-period-row>div{
+  background:rgba(47,111,214,.065)!important;
+}
+#tfunds .fund-list-panel .fund-mini-actions .subtle-btn,
+#tfunds .fund-list-panel .fund-mini-actions .danger-btn,
+#tfunds .fund-list-panel .fund-mini-actions .buy-primary{
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel{
+  background:#171717!important;
+}
+body.dark #tfunds .fund-list-panel .fund-list-heading,
+body.dark #tfunds .fund-list-panel .tight-card.fund-pro-card:not(:last-child){
+  border-bottom-color:rgba(255,255,255,.06)!important;
+}
+body.dark #tfunds .fund-list-panel .tight-card.fund-pro-card{
+  background:transparent!important;
+  border-left:0!important;
+  border-right:0!important;
+}
 </style>
 </head>
 <body>
