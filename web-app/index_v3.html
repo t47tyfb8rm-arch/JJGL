@@ -721,6 +721,27 @@ body.dark #tfunds .fund-period-row>div{background:#1D2128!important;box-shadow:i
 #tfunds .fund-list-heading em{font-style:normal!important;font-size:12px!important;color:var(--muted)!important;line-height:1.2!important}
 body.dark #tfunds .fund-list-heading span{background:linear-gradient(180deg,#6D7786,#A7B5CA)!important;box-shadow:none!important}
 #tfunds .fund-code-stack .row-title span:nth-child(2){font-size:14px!important;font-weight:730!important}
+/* Fund section header: align with card-based panels used by AI/Buy/Profile. */
+#tfunds .fund-list-heading{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:12px!important;
+  margin:0 14px 8px!important;
+  padding:12px 14px!important;
+  border-radius:18px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F0F7FF 100%)!important;
+  border:1px solid rgba(206,226,247,.88)!important;
+  box-shadow:0 8px 22px rgba(31,86,174,.075)!important;
+  color:var(--ink)!important;
+}
+#tfunds .fund-list-heading>div{display:block!important;min-width:0!important}
+#tfunds .fund-list-heading .panel-kicker{font-size:10px!important;letter-spacing:.08em!important;text-transform:uppercase!important;color:var(--muted)!important;line-height:1.1!important}
+#tfunds .fund-list-heading .panel-title{margin-top:3px!important;margin-bottom:0!important;font-size:16px!important;font-weight:760!important;line-height:1.2!important;color:var(--ink)!important}
+#tfunds .fund-list-heading span{display:none!important}
+#tfunds .fund-list-heading em{flex-shrink:0!important;font-style:normal!important;font-size:12px!important;color:var(--muted)!important;line-height:1.2!important}
+body.dark #tfunds .fund-list-heading{background:#171717!important;border-color:rgba(255,255,255,.06)!important;box-shadow:none!important}
+body.dark #tfunds .fund-list-heading .panel-title{color:#F3F4F6!important}
 </style>
 </head>
 <body>
@@ -765,7 +786,7 @@ body.dark #tfunds .fund-list-heading span{background:linear-gradient(180deg,#6D7
       <div class="app-actions fund-top-stat"><button class="mini-add-btn" id="fund-top-action" onclick="openAddFund()">新增</button></div>
     </div>
   </div>
-  <div class="fund-list-heading"><div><span></span>持仓基金</div><em>关注基金情况</em></div>
+  <div class="fund-list-heading"><div><div class="panel-kicker">Portfolio</div><div class="panel-title">持仓基金</div></div><em>关注基金情况</em></div>
   <div id="fund-detail-list"></div>
 </div>
 
