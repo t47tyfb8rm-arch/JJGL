@@ -4713,6 +4713,7 @@ async def serve_v3(full_path: str = ""):
         return FileResponse(index_path)
     return JSONResponse({"error": "v3 page not found"}, status_code=404)
 
+@app.get("/v4")
 @app.get("/v4/{full_path:path}")
 async def serve_v4(full_path: str = ""):
     index_path = os.path.join(STATIC_DIR, "..", "index_v4.html")
