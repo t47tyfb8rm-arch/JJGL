@@ -1458,6 +1458,8 @@ FUND_DETAIL_CACHE_TTL = 60  # 秒
 # 资讯列表每 10 分钟重新抓取一次，避免同一时段长期不更新
 NEWS_LIST_CACHE_TTL = 600
 NEWS_CACHE: dict = {"data": None, "saved_at": 0.0}
+DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 def _get_news_bucket(now: datetime) -> str:
     """根据当前时间返回新闻时段 bucket：AM / PM / NIGHT"""
@@ -3234,6 +3236,10 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             item.tags = ["观点汇总", "7x24观点"]
             opinion_news.append((ctime_ts, item))
             continue
+        if (not item.event_date) and (not is_hard_event_news(item.title)) and priority < 5:
+            item.tags = ["观点汇总", "7x24观点"]
+            opinion_news.append((ctime_ts, item))
+            continue
         event_news.append((priority, ctime_ts, item))
 
     event_candidates = []
@@ -3282,6 +3288,105 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     NEWS_CACHE["data"] = result
     NEWS_CACHE["saved_at"] = now_ts
     return result
+
+
+async def enhance_funds_with_deepseek(
+    funds: List[FundInfo],
+    index_info: IndexInfo,
+    bond_index: Optional[IndexInfo],
+    news: List[NewsItem],
+) -> List[FundInfo]:
+    """用 DeepSeek 增强策略分析。未配置密钥或调用失败时静默回退本地规则。"""
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if not api_key or not funds:
+        return funds
+
+    payload = {
+        "market": {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "sh_index": {"value": index_info.current, "change": index_info.daily_change},
+            "bond_index": {"value": bond_index.current if bond_index else 0, "change": bond_index.daily_change if bond_index else 0},
+        },
+        "news": [
+            {
+                "title": n.title,
+                "time": n.time,
+                "event_date": n.event_date,
+                "importance": n.importance,
+                "tags": n.tags,
+            }
+            for n in (news or [])[:12]
+        ],
+        "funds": [
+            {
+                "code": f.code,
+                "name": f.name,
+                "type": f.type,
+                "nav_date": f.nav_date,
+                "daily_change": f.daily_change,
+                "estimated_change": f.estimated_change or f.model_estimated_change,
+                "return_7d": f.return_7d,
+                "return_1m": f.return_1m,
+                "return_6m": f.return_6m,
+                "buy_point": {
+                    "is_holding": bool(f.buy_point and f.buy_point.is_holding),
+                    "yield_pct": f.buy_point.yield_pct if f.buy_point else 0,
+                    "drop_pct": f.buy_point.drop_pct if f.buy_point else 0,
+                    "progress_pct": f.buy_point.progress_pct if f.buy_point else 0,
+                },
+                "local_ai": {
+                    "trend": f.ai_prediction.trend if f.ai_prediction else "",
+                    "advice": f.ai_prediction.advice if f.ai_prediction else "",
+                    "risk_level": f.ai_prediction.risk_level if f.ai_prediction else "",
+                    "key_levels": f.ai_prediction.key_levels if f.ai_prediction else "",
+                },
+            }
+            for f in funds
+        ],
+    }
+    prompt = (
+        "你是基金组合策略分析助手。请基于给定JSON生成更有用的中文策略分析。"
+        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句话摘要不超过45字\","
+        "\"market_env\":\"市场/新闻影响\", \"position_advice\":\"操作建议\", \"risk_tips\":\"风险提示\","
+        "\"risk_level\":\"低/中/高\", \"trend\":\"趋势标签\"}}}。"
+        "不要给金额建议，不要夸大确定性，重点结合未来一周重要事件。"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+            resp = await client.post(
+                DEEPSEEK_API_URL,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                    ],
+                    "temperature": 0.2,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            data = json.loads(content)
+    except Exception as e:
+        print(f"DeepSeek 分析失败，使用本地规则: {e}")
+        return funds
+
+    ai_map = data.get("funds", {}) if isinstance(data, dict) else {}
+    for f in funds:
+        item = ai_map.get(f.code) or {}
+        if not item or not f.ai_prediction:
+            continue
+        f.ai_prediction.advice = str(item.get("advice") or f.ai_prediction.advice)[:120]
+        f.ai_prediction.market_env = str(item.get("market_env") or f.ai_prediction.market_env)[:240]
+        f.ai_prediction.position_advice = str(item.get("position_advice") or f.ai_prediction.position_advice)[:240]
+        f.ai_prediction.risk_tips = str(item.get("risk_tips") or f.ai_prediction.risk_tips)[:240]
+        if item.get("risk_level") in ["低", "中", "高"]:
+            f.ai_prediction.risk_level = item["risk_level"]
+        if item.get("trend"):
+            f.ai_prediction.trend = str(item["trend"])[:12]
+    return funds
 
 
 def _parse_tencent_kline(text: str, stock_code: str = "sh000001") -> List[tuple]:
@@ -3570,6 +3675,7 @@ async def get_portfolio(force: int = 0):
             print(f"基金获取异常: {result}")
 
     # 新闻已在指数 gather 中并行拉取（news 变量已就绪）
+    funds = await enhance_funds_with_deepseek(funds, index_info, bond_index_info, news)
 
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
     # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
