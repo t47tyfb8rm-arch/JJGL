@@ -4713,6 +4713,13 @@ async def serve_v3(full_path: str = ""):
         return FileResponse(index_path)
     return JSONResponse({"error": "v3 page not found"}, status_code=404)
 
+@app.get("/v4/{full_path:path}")
+async def serve_v4(full_path: str = ""):
+    index_path = os.path.join(STATIC_DIR, "..", "index_v4.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"error": "v4 page not found"}, status_code=404)
+
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
     """SPA fallback：未匹配到 API/静态文件的路由均返回 index.html"""
