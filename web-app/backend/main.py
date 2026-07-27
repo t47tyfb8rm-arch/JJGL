@@ -1458,8 +1458,44 @@ FUND_DETAIL_CACHE_TTL = 60  # 秒
 # 资讯列表每 10 分钟重新抓取一次，避免同一时段长期不更新
 NEWS_LIST_CACHE_TTL = 600
 NEWS_CACHE: dict = {"data": None, "saved_at": 0.0}
+NEWS_REFRESHING = False
 DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+
+def fallback_news_items() -> List[NewsItem]:
+    now_str = datetime.now().strftime("%m-%d %H:%M")
+    return [NewsItem(
+        title="资讯后台更新中，稍后自动刷新",
+        url="https://finance.sina.com.cn/",
+        time=now_str,
+        fetched_at=now_str,
+        tags=["后台更新"],
+        source="系统"
+    )]
+
+
+def current_news_or_placeholder() -> List[NewsItem]:
+    return NEWS_CACHE["data"] or fallback_news_items()
+
+
+async def refresh_news_background(force: bool = False) -> None:
+    global NEWS_REFRESHING
+    if NEWS_REFRESHING:
+        return
+    NEWS_REFRESHING = True
+    try:
+        await fetch_market_news(force=force)
+    except Exception as e:
+        print(f"后台刷新资讯失败: {e}")
+    finally:
+        NEWS_REFRESHING = False
+
+
+def schedule_news_refresh(force: bool = False) -> None:
+    if NEWS_REFRESHING:
+        return
+    asyncio.create_task(refresh_news_background(force=force))
 
 def _get_news_bucket(now: datetime) -> str:
     """根据当前时间返回新闻时段 bucket：AM / PM / NIGHT"""
@@ -3607,10 +3643,9 @@ async def get_portfolio(force: int = 0):
             cached_response = PORTFOLIO_CACHE["data"]
             news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
-                cached_response.news = await fetch_market_news()
-                cached_response.time = now.strftime("%H:%M:%S")
-                PORTFOLIO_CACHE["data"] = cached_response
-                PORTFOLIO_CACHE["saved_at"] = now_ts
+                schedule_news_refresh()
+            cached_response.news = current_news_or_placeholder()
+            cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
@@ -3623,14 +3658,13 @@ async def get_portfolio(force: int = 0):
     bond_history_task = fetch_index_history_for_code("sh000113", 7)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
     hs300_history_task = fetch_index_history_for_code("sh000300", 7)
-    news_task = fetch_market_news(force=bool(force))  # 新闻也并行，不卡主流程；force=1 时绕过新闻缓存
 
     (
         index_base, index_history, bond_index_base, bond_history,
-        hs300_base, hs300_history, news
+        hs300_base, hs300_history
     ) = await asyncio.gather(
         index_task, index_history_task, bond_index_task, bond_history_task,
-        hs300_task, hs300_history_task, news_task
+        hs300_task, hs300_history_task
     )
 
     # 构建完整指数数据
@@ -3674,7 +3708,12 @@ async def get_portfolio(force: int = 0):
         elif isinstance(result, Exception):
             print(f"基金获取异常: {result}")
 
-    # 新闻已在指数 gather 中并行拉取（news 变量已就绪）
+    news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
+    if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL or force:
+        schedule_news_refresh(force=bool(force))
+    news = current_news_or_placeholder()
+
+    # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
     # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
 
