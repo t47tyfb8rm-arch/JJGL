@@ -1463,6 +1463,12 @@ DEEPSEEK_API_URL = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 
+def get_deepseek_api_key() -> str:
+    raw = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    match = re.search(r"sk-[A-Za-z0-9_-]+", raw)
+    return match.group(0) if match else raw.encode("ascii", "ignore").decode("ascii").strip()
+
+
 def fallback_news_items() -> List[NewsItem]:
     now_str = datetime.now().strftime("%m-%d %H:%M")
     return [NewsItem(
@@ -3348,7 +3354,7 @@ async def enhance_funds_with_deepseek(
     strict: bool = False,
 ) -> List[FundInfo]:
     """用 DeepSeek 增强策略分析。自动场景可回退，手动场景必须明确成功或报错。"""
-    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    api_key = get_deepseek_api_key()
     if not api_key or not funds:
         if strict:
             raise HTTPException(status_code=400, detail="DeepSeek 未配置或暂无基金数据")
@@ -3800,7 +3806,7 @@ async def get_portfolio(force: int = 0):
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
 async def run_deepseek_analysis():
     """手动触发 DeepSeek 分析，避免首页首屏被大模型调用阻塞。"""
-    if not os.getenv("DEEPSEEK_API_KEY", "").strip():
+    if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
     if PORTFOLIO_CACHE["data"] is None:
