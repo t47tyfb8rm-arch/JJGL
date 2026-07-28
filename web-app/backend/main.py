@@ -4710,7 +4710,14 @@ async def auth(password: str = ""):
 async def serve_v3(full_path: str = ""):
     index_path = os.path.join(STATIC_DIR, "..", "index_v3.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+        )
     return JSONResponse({"error": "v3 page not found"}, status_code=404)
 
 @app.get("/v4")
@@ -4718,7 +4725,14 @@ async def serve_v3(full_path: str = ""):
 async def serve_v4(full_path: str = ""):
     index_path = os.path.join(STATIC_DIR, "..", "index_v4.html")
     if os.path.exists(index_path):
-        return FileResponse(index_path)
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            }
+        )
     return JSONResponse({"error": "v4 page not found"}, status_code=404)
 
 @app.get("/{full_path:path}", include_in_schema=False)
