@@ -1,9 +1,9 @@
-﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>基金管家 V4</title>
+<title>基金管家</title>
 <meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -27,8 +27,7 @@ body.dark .product-hero.index-hero,body.dark .ai-panel,body.dark .profile-card-l
 .buy-panel{margin:14px!important;padding:20px 18px!important}.buy-panel.soft{background:#FFFFFF}.hist-detail{margin-top:14px;border:0;padding-top:0}.hist-detail summary{list-style:none;font-size:12px;color:var(--brand-dark);cursor:pointer;padding:8px 0}.hist-row{display:grid;grid-template-columns:52px 1fr 54px;gap:8px;align-items:center;padding:8px 0;border:0;font-size:12px}.hist-bar{height:4px;border-radius:4px;background:#DCE7F5;overflow:hidden}.hist-fill{height:100%;border-radius:4px}.profile-card-lg{margin:14px!important;padding:22px 18px!important;color:var(--text);background:linear-gradient(160deg,#FFFFFF 0%,#EDF4FF 100%)}.profile-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.profile-title{font-size:22px;font-weight:600;color:var(--ink)}.profile-avatar{width:48px!important;height:48px!important;border-radius:18px!important;background:#E3EEFC!important;color:var(--brand-dark)!important;display:flex;align-items:center;justify-content:center;font-size:18px}.profile-hero-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}.profile-hero-grid .label{font-size:11px;color:var(--muted)}.profile-hero-grid .num{display:block;margin-top:4px;font-size:14px;color:var(--text);font-weight:600}.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
 .btn,.subtle-btn,.danger-btn,.ghost-btn{width:100%;height:38px;min-height:38px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer}.btn,.buy-primary{background:var(--brand)!important;border:1px solid var(--brand)!important;color:#fff!important}.subtle-btn,.danger-btn,.ghost-btn{background:#FFFFFF!important;border:1px solid var(--line)!important;color:var(--text)!important}.trade-modal{position:fixed;inset:0;z-index:200;display:none;align-items:flex-end;justify-content:center;background:rgba(36,48,71,.22);padding:0 10px calc(10px + env(safe-area-inset-bottom))}.trade-modal.show{display:flex}.trade-sheet{width:100%;max-width:460px;padding:20px 18px;background:#FFFFFF}.trade-title{font-size:20px;color:var(--ink);margin-bottom:4px}.trade-sub{font-size:12px;color:var(--muted);margin-bottom:14px}.trade-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.trade-field{min-width:0}.trade-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}.trade-field input{width:100%;height:40px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--text);font-size:14px;padding:0 10px}.trade-actions{display:grid;grid-template-columns:1fr 1.5fr;gap:8px;margin-top:14px}.trade-note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px}.news-item{padding:14px;background:#EEF4FB;border-radius:16px;margin-top:12px}.news-item:first-child{margin-top:0}.news-title{font-size:14px;line-height:1.65;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.history-card{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin:0 0 10px;padding:15px 16px;background:#FFFFFF;border-radius:18px;box-shadow:var(--tiny);overflow:hidden}.history-card:after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--brand),#74A7F2)}.history-main{min-width:0;padding-left:4px}.history-total{font-size:23px;line-height:1.05;font-weight:600}.history-meta{grid-column:1/3;margin-top:-2px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tx-row{display:grid;grid-template-columns:54px 1fr auto;align-items:center;gap:8px;padding:9px 0;border-top:1px solid rgba(47,111,214,.06)}.tx-type{display:inline-flex;align-items:center;justify-content:center;height:22px;border-radius:12px;background:var(--soft);color:var(--brand-dark);font-size:12px}
 .tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;z-index:100;background:#FFFFFF;display:flex;justify-content:space-evenly;padding:9px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);border-radius:24px 24px 0 0;box-shadow:0 -10px 30px rgba(31,86,174,.14)}.tab-i{display:flex;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10px;color:#9AA5B5;cursor:pointer;min-height:50px;border-radius:18px}.tab-i svg{width:21px;height:21px;color:#9AA5B5;stroke-width:1.55}.tab-i.active{background:#EAF1FB}.tab-i.active,.tab-i.active svg,.tab-i.active span{color:var(--brand-dark)}.tab-i span{line-height:1.1}
-.tab-bar .tab-i[data-t="home"]{order:1}.tab-bar .tab-i[data-t="ai"]{order:2}.tab-bar .tab-i[data-t="buy"]{order:3}.tab-bar .tab-i[data-t="market"]{order:4}.tab-bar .tab-i[data-t="funds"]{order:5}.tab-bar .tab-i[data-t="profile"]{order:6}
-.tab-bar.is-six .tab-i{min-width:0}.tab-bar.is-six .tab-i svg{width:20px;height:20px}.tab-bar.is-six .tab-i span{font-size:10px}
+.tab-bar .tab-i[data-t="home"]{order:1}.tab-bar .tab-i[data-t="ai"]{order:2}.tab-bar .tab-i[data-t="buy"]{order:3}.tab-bar .tab-i[data-t="funds"]{order:4}.tab-bar .tab-i[data-t="profile"]{order:5}
 #tai .section-h,#tbuy .section-h,#tprofile .section-h{padding-top:14px;font-size:20px}#tai .ai-panel,#tbuy .buy-panel,#tprofile .profile-panel{margin:10px 14px!important;padding:14px!important}.panel-title{font-size:19px;margin-bottom:10px}.ai-copilot-head{margin-bottom:10px!important}#tai .buy-row,#tbuy .buy-row,#tbuy .history-card{margin-bottom:8px;margin-top:8px;padding:10px 12px}.buy-row:first-child,#tbuy .history-card:first-child{margin-top:0}.hist-detail{margin-top:6px}.hist-detail summary{padding:4px 0}.news-item{display:block;padding:11px 12px;margin-top:8px;text-decoration:none;color:inherit}
 body{font-size:14px}.home-title{font-size:21px}.app-subtitle,.muted,.t2{font-size:11px}.hero-value{font-size:32px}.hero-side .num{font-size:19px}.section-title-row h3,.section-h{font-size:18px}.panel-title{font-size:18px}.product-card-title{font-size:16px}.row-title,.chip-name,.ai-code{font-size:14px}.chip-code,.fund-meta,.chip-sub,.buy-status,.watch-value{font-size:11px}.chip-change,.history-total{font-size:21px}.hero-metrics .num,.fund-compare .num,.actual-row .num{font-size:13px}.btn,.subtle-btn,.danger-btn,.ghost-btn{font-size:12px}
 .ai-detail{position:relative;margin-top:10px;background:rgba(255,255,255,.86);border-radius:16px;overflow:hidden;box-shadow:0 5px 16px rgba(31,86,174,.07)}body.dark .ai-detail{background:rgba(29,42,64,.92)}.ai-detail:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand)}.ai-detail.ai-up:before{background:var(--red)}.ai-detail.ai-down:before{background:var(--green)}.ai-detail.ai-neutral:before{background:#89A2BC}.ai-detail:first-child{margin-top:0}.ai-card-head{display:grid;grid-template-columns:minmax(0,1fr) 66px;gap:8px;align-items:start;padding:11px 11px 8px 15px}.ai-summary-main{min-width:0}.ai-title-line{display:flex;align-items:center;gap:6px;min-width:0}.ai-brief{margin-top:5px;font-size:11px;color:var(--muted);white-space:normal;line-height:1.45}.ai-badge{flex-shrink:0;display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:10px;font-size:10px;font-weight:500}.ai-badge.up{color:#B84848;background:#FCEAEA}.ai-badge.down{color:#23785B;background:#E6F4EE}.ai-badge.neutral{color:#516B8B;background:#E9F0F8}.ai-side{text-align:right;font-size:12px;font-weight:600}.ai-side .muted{display:block;margin-top:3px}.ai-body{padding:0 11px 12px 15px;font-size:11px;line-height:1.7;color:var(--text);word-break:break-word}.ai-mini-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;color:var(--muted)}.ai-mini-tags span{padding:4px 8px;border-radius:11px;font-size:10px;font-weight:500}.ai-tag-risk-low{color:#23785B;background:#E6F4EE}.ai-tag-risk-mid{color:#9A6A1F;background:#FFF3D9}.ai-tag-risk-high{color:#B84848;background:#FCEAEA}.ai-tag-valuation{color:#516B8B;background:#E9F0F8}.ai-tag-confidence{color:#694FA3;background:#EFEAFB}.ai-tag-level{color:#59606C;background:#EEF1F5}.news-item{position:relative;background:#FFFFFF!important;box-shadow:0 5px 16px rgba(31,86,174,.06);overflow:hidden}.news-item:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#89A2BC}.news-item.news-good:before{background:var(--red)}.news-item.news-bad:before{background:var(--green)}.news-item.news-neutral:before{background:#89A2BC}.news-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;padding-left:4px}.news-tag{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:10px;font-size:10px;font-weight:500}.news-good .news-impact,.news-tag-good{color:#B84848;background:#FCEAEA}.news-bad .news-impact,.news-tag-bad{color:#23785B;background:#E6F4EE}.news-neutral .news-impact,.news-tag-neutral{color:#516B8B;background:#E9F0F8}.news-tag-target{color:#694FA3;background:#EFEAFB}.news-summary{margin-top:5px;padding-left:4px;font-size:12px;line-height:1.55;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.news-advice{margin-top:8px;padding:8px 9px;border-radius:12px;background:var(--soft);font-size:11px;line-height:1.45;color:var(--text)}body.dark .news-item{background:#1D2A40!important}.news-modal{position:fixed;inset:0;z-index:220;display:none;align-items:flex-end;background:rgba(36,48,71,.28);padding:0 10px calc(10px + env(safe-area-inset-bottom))}.news-modal.show{display:flex}.news-sheet{position:relative;width:100%;max-width:460px;max-height:82dvh;overflow:auto;padding:18px 18px 86px;background:#FFFFFF}.news-sheet-head{position:sticky;top:-18px;z-index:2;margin:-18px -18px 0;padding:18px;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}body.dark .news-sheet-head{background:rgba(24,34,52,.96)}.news-detail-title{font-size:18px;font-weight:600;color:var(--ink);line-height:1.35}.news-detail-meta{margin-top:6px;font-size:11px;color:var(--muted)}.news-detail-body{margin-top:14px;font-size:13px;line-height:1.75;color:var(--text)}.news-section{margin-top:12px;padding:12px;border-radius:14px;background:var(--soft)}.news-section-title{font-size:11px;color:var(--muted);margin-bottom:6px}.news-full{white-space:pre-wrap}.news-close{width:36px;height:36px;border:0;border-radius:18px;background:var(--soft);color:var(--brand-dark);font-size:20px}.news-bottom-actions{position:sticky;bottom:-86px;z-index:3;margin:18px -18px -86px;padding:12px 18px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(255,255,255,.72),#FFFFFF 42%);border-top:1px solid var(--line)}body.dark .news-bottom-actions{background:linear-gradient(180deg,rgba(24,34,52,.72),#182234 42%)}.news-bottom-close{width:100%;height:42px;border:0;border-radius:22px;background:var(--brand);color:#fff;font-size:14px;font-weight:500}
@@ -1528,89 +1527,6 @@ body.dark .sector-card{
   background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
   border-color:rgba(255,255,255,.055)!important;
 }
-/* v4-profile-market-brief-20260728: compact market temperature summary with full detail in modal. */
-#tprofile .sector-panel{
-  cursor:pointer;
-}
-#tprofile .sector-panel:active{
-  transform:scale(.995);
-}
-.sector-summary-grid{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:7px;
-}
-.sector-summary-chip{
-  min-width:0;
-  padding:8px 6px;
-  border-radius:13px;
-  background:rgba(47,111,214,.065);
-  text-align:center;
-}
-.sector-summary-chip .n{
-  font-size:10px;
-  color:var(--muted);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.sector-summary-chip .v{
-  margin-top:3px;
-  font-size:13px;
-  font-weight:780;
-}
-.sector-open-all{
-  margin-top:8px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:8px;
-  font-size:10px;
-  color:var(--muted);
-}
-.sector-open-all b{
-  color:var(--brand-dark);
-  font-weight:700;
-}
-.sector-detail-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:8px;
-}
-.sector-detail-grid .sector-card{
-  min-height:62px;
-}
-.news-section-block.is-collapsed .news-stack .news-item:nth-child(n+5){
-  display:none;
-}
-.news-section-block.is-small .news-stack .news-item:nth-child(n+4){
-  display:none;
-}
-.news-more-entry{
-  margin-top:10px;
-  height:38px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:19px;
-  background:rgba(47,111,214,.08);
-  color:var(--brand-dark);
-  font-size:12px;
-  font-weight:700;
-}
-body.dark .sector-summary-chip,
-body.dark .news-more-entry{
-  background:rgba(125,175,245,.08);
-}
-/* v4-sector-twelve-card-20260728: show the full 12-module market temperature board. */
-#tprofile .sector-grid.is-six{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:8px!important;
-}
-#tprofile .sector-grid.is-six .sector-card{
-  min-height:58px!important;
-}
 /* Put news refresh time into the title row to save vertical space. */
 #tprofile .profile-panel .panel-title{
   display:flex!important;
@@ -1632,166 +1548,6 @@ body.dark .news-more-entry{
 }
 body.dark #tprofile .profile-panel #news-refresh-time{
   color:#9CA3AD!important;
-}
-/* v4-market-tab-20260728: independent market tab with six theme cards. */
-#tmarket .market-temp-top{
-  position:relative!important;
-  margin:0 14px 10px!important;
-  padding:16px 16px 14px!important;
-  min-height:0!important;
-  border-radius:24px!important;
-  background:linear-gradient(180deg,#FFFFFF 0%,#EDF5FF 100%)!important;
-  border:1px solid rgba(205,225,248,.9)!important;
-  box-shadow:0 12px 28px rgba(31,86,174,.08)!important;
-  cursor:pointer;
-}
-#tmarket .market-temp-top .app-top-row{min-height:42px!important}
-#tmarket .market-temp-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-end;
-  gap:12px;
-  margin:8px 0 10px;
-}
-#tmarket .market-temp-note{
-  font-size:11px;
-  color:var(--muted);
-}
-#tmarket .sector-score{
-  text-align:right;
-  flex-shrink:0;
-}
-#tmarket .sector-score .num{
-  font-size:22px!important;
-  font-weight:780!important;
-}
-#tmarket .sector-score span{
-  display:block;
-  margin-top:2px;
-  font-size:10px!important;
-  color:var(--muted);
-}
-#tmarket #theme-sector-list{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:7px!important;
-}
-#tmarket .sector-card{
-  min-height:52px!important;
-  padding:8px 7px!important;
-  border-radius:14px!important;
-  background:linear-gradient(180deg,rgba(242,248,255,.95),rgba(255,255,255,.74))!important;
-  border:1px solid rgba(209,226,248,.84)!important;
-  box-shadow:0 6px 16px rgba(31,86,174,.045)!important;
-}
-#tmarket .sector-row{display:block!important}
-#tmarket .sector-name{
-  max-width:100%;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  font-size:10px!important;
-  color:var(--muted)!important;
-}
-#tmarket .sector-value{
-  margin-top:4px;
-  font-size:14px!important;
-  font-weight:760!important;
-}
-#tmarket .sector-note{display:none!important}
-#tmarket .sector-open-all{
-  margin-top:2px!important;
-  padding:0 1px!important;
-}
-body.dark #tmarket .market-temp-top{
-  background:linear-gradient(180deg,#171717 0%,#111111 100%)!important;
-  border-color:rgba(255,255,255,.07)!important;
-  box-shadow:none!important;
-}
-body.dark #tmarket .sector-card{
-  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025))!important;
-  border-color:rgba(255,255,255,.06)!important;
-  box-shadow:none!important;
-}
-/* v4-market-temperature-card-20260728: separate market temperature card. */
-#tprofile .market-temp-card{
-  padding:13px 13px 12px!important;
-  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,247,255,.82))!important;
-  border:1px solid rgba(205,225,248,.9)!important;
-  box-shadow:0 12px 28px rgba(31,86,174,.08)!important;
-}
-#tprofile .market-temp-card .sector-headline{
-  margin-bottom:10px!important;
-  align-items:flex-start!important;
-}
-#tprofile .market-temp-card .sector-title:before{
-  content:'MARKET';
-  display:block;
-  margin-bottom:2px;
-  font-size:10px;
-  letter-spacing:3px;
-  color:var(--muted);
-  font-weight:500;
-}
-#tprofile .market-temp-card .sector-title{
-  font-size:18px!important;
-  line-height:1.15!important;
-}
-#tprofile .market-temp-card .sector-sub{
-  margin-top:4px!important;
-  font-size:11px!important;
-}
-#tprofile .market-temp-card .sector-score .num{
-  font-size:22px!important;
-}
-#tprofile .market-temp-card .sector-score span{
-  font-size:10px!important;
-}
-#tprofile .market-temp-card .sector-grid{
-  display:grid!important;
-  grid-template-columns:repeat(3,minmax(0,1fr))!important;
-  gap:7px!important;
-}
-#tprofile .market-temp-card .sector-card{
-  min-height:52px!important;
-  padding:8px 7px!important;
-  border-radius:14px!important;
-  background:linear-gradient(180deg,rgba(242,248,255,.92),rgba(255,255,255,.72))!important;
-  border:1px solid rgba(209,226,248,.82)!important;
-  box-shadow:0 6px 16px rgba(31,86,174,.045)!important;
-}
-#tprofile .market-temp-card .sector-row{
-  display:block!important;
-}
-#tprofile .market-temp-card .sector-name{
-  max-width:100%;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  font-size:10px!important;
-  color:var(--muted)!important;
-}
-#tprofile .market-temp-card .sector-value{
-  margin-top:4px;
-  font-size:14px!important;
-  font-weight:760!important;
-}
-#tprofile .market-temp-card .sector-note{
-  display:none!important;
-}
-#tprofile .market-temp-card .sector-open-all{
-  margin-top:8px!important;
-  padding:0 1px!important;
-}
-body.dark #tprofile .market-temp-card{
-  background:linear-gradient(180deg,#171717 0%,#111111 100%)!important;
-  border-color:rgba(255,255,255,.07)!important;
-  box-shadow:none!important;
-}
-body.dark #tprofile .market-temp-card .sector-card{
-  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025))!important;
-  border-color:rgba(255,255,255,.06)!important;
-  box-shadow:none!important;
 }
 
 /* Fund page final polish: make each fund read like one compact product row. */
@@ -2063,48 +1819,13 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
   min-width:72px!important;
 }
 #tfunds .fund-card-foot{
-  display:block!important;
-  margin-top:8px!important;
+  display:none!important;
 }
 #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
   padding-bottom:10px!important;
 }
 #tfunds .fund-period-row{
   margin-top:7px!important;
-}
-#tfunds .fund-mini-actions{
-  display:grid!important;
-  gap:8px!important;
-  margin-top:0!important;
-  width:100%!important;
-}
-#tfunds .fund-mini-actions .subtle-btn,
-#tfunds .fund-mini-actions .danger-btn,
-#tfunds .fund-mini-actions .buy-primary{
-  height:32px!important;
-  min-height:32px!important;
-  max-height:32px!important;
-  border-radius:16px!important;
-  font-size:12px!important;
-  line-height:32px!important;
-  font-weight:700!important;
-  padding:0 12px!important;
-  box-shadow:none!important;
-}
-#tfunds .fund-mini-actions .buy-primary{
-  background:#4D86DB!important;
-  border-color:#4D86DB!important;
-  color:#fff!important;
-}
-#tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
-  background:#EDF5FF!important;
-  border-color:#D5E5F8!important;
-  color:#195B9D!important;
-}
-#tfunds .fund-mini-actions .danger-btn{
-  background:#FFF0F0!important;
-  border-color:#F0D4D4!important;
-  color:#B84C4C!important;
 }
 
 /* Slight readability bump after compacting the cards. */
@@ -2176,344 +1897,21 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
 #tfunds .fund-period-row .num{
   font-size:12.4px!important;
 }
-
-#tfunds .fund-date-box{
-  min-width:82px!important;
-}
-#tfunds .fund-date-actions{
-  display:flex!important;
-  justify-content:flex-end!important;
-  gap:4px!important;
-  margin-top:6px!important;
-}
-#tfunds .fund-date-actions.two{
-  min-width:82px!important;
-}
-#tfunds .fund-date-actions .subtle-btn,
-#tfunds .fund-date-actions .danger-btn,
-#tfunds .fund-date-actions .buy-primary{
-  width:auto!important;
-  min-width:36px!important;
-  height:22px!important;
-  min-height:22px!important;
-  padding:0 7px!important;
-  border-radius:12px!important;
-  font-size:10.5px!important;
-  line-height:22px!important;
-  font-weight:720!important;
-}
-#tfunds .fund-date-actions:not(.two) .buy-primary{
-  min-width:58px!important;
-}
-/* v4-fund-actions-20260728b: final override for isolated V4 validation. */
-#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
-  padding-bottom:12px!important;
-}
-#tfunds .fund-card-foot{
-  display:block!important;
-  margin-top:9px!important;
-}
-#tfunds .fund-mini-actions{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:8px!important;
-  width:100%!important;
-  margin:0!important;
-}
-#tfunds .fund-mini-actions[style*="grid-template-columns:1fr"]{
-  grid-template-columns:1fr!important;
-}
-#tfunds .fund-mini-actions .subtle-btn,
-#tfunds .fund-mini-actions .danger-btn,
-#tfunds .fund-mini-actions .buy-primary{
-  width:100%!important;
-  height:34px!important;
-  min-height:34px!important;
-  max-height:34px!important;
-  border-radius:17px!important;
-  font-size:12px!important;
-  line-height:34px!important;
-  font-weight:720!important;
-  padding:0 12px!important;
-  box-shadow:none!important;
-}
-#tfunds .fund-mini-actions .buy-primary{
-  background:#5A91EA!important;
-  border-color:#5A91EA!important;
-  color:#fff!important;
-}
-#tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
-  background:#EEF5FF!important;
-  border-color:#D5E5F8!important;
-  color:#195B9D!important;
-}
-#tfunds .fund-mini-actions .danger-btn{
-  background:#FFF1F1!important;
-  border-color:#F0D4D4!important;
-  color:#B84C4C!important;
-}
-body.dark #tfunds .fund-mini-actions .buy-primary,
-body.dark #tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
-  background:#1D2128!important;
-  border-color:#303640!important;
-  color:#DDE8FF!important;
-}
-body.dark #tfunds .fund-mini-actions .danger-btn{
-  background:#251B1D!important;
-  border-color:#463034!important;
-  color:#FF9A9F!important;
-}
-/* v4-fund-card-clean-20260728: rebuilt card, isolated from older overrides. */
-#tfunds .fund-clean-card{
-  position:relative!important;
-  padding:11px 12px 10px!important;
-  border-radius:16px!important;
-  margin-left:8px!important;
-  margin-right:8px!important;
-}
-#tfunds .fund-clean-card:after{
-  content:"";
-  position:absolute;
-  left:0;
-  top:13px;
-  bottom:13px;
-  width:4px;
-  border-radius:0 8px 8px 0;
-  background:linear-gradient(180deg,var(--brand),#78AEEF);
-}
-#tfunds .fund-clean-head{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 86px;
-  gap:8px;
-  align-items:start;
-}
-#tfunds .fund-clean-title{
-  min-width:0;
-  padding-left:5px;
-}
-#tfunds .fund-clean-name{
-  display:flex;
-  align-items:baseline;
-  gap:6px;
-  min-width:0;
-}
-#tfunds .fund-clean-code{
-  flex:0 0 auto;
-  font-size:11px;
-  color:var(--muted);
-  font-variant-numeric:tabular-nums;
-}
-#tfunds .fund-clean-fund{
-  min-width:0;
-  font-size:13.5px;
-  font-weight:720;
-  color:var(--text);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-#tfunds .fund-clean-sub{
-  display:flex;
-  flex-wrap:wrap;
-  gap:5px;
-  margin-top:6px;
-  font-size:11px;
-  line-height:1.2;
-}
-#tfunds .fund-clean-pill{
-  display:inline-flex;
-  align-items:center;
-  height:21px;
-  padding:0 8px;
-  border-radius:12px;
-  background:#F1F5FA;
-  color:var(--muted);
-  white-space:nowrap;
-}
-#tfunds .fund-clean-signal{
-  background:#FFF4F4;
-  font-weight:700;
-}
-#tfunds .fund-clean-date{
-  text-align:right;
-  min-width:86px;
-}
-#tfunds .fund-clean-date .date{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  height:23px;
-  padding:0 10px;
-  border-radius:14px;
-  background:#EEF3FA;
-  color:var(--muted);
-  font-size:12px;
-  font-weight:720;
-}
-#tfunds .fund-clean-date .date.is-fresh{
-  background:#FFE8B8;
-  color:#80540F;
-}
-#tfunds .fund-clean-date .hint{
-  display:none!important;
-}
-#tfunds .fund-clean-date .right-signal{
-  margin-top:6px;
-  font-size:11px;
-  font-weight:760;
-  line-height:1.1;
-  white-space:nowrap;
-}
-#tfunds .fund-clean-periods{
-  display:grid!important;
-  grid-template-columns:repeat(3,minmax(0,1fr))!important;
-  gap:5px!important;
-  margin-top:8px!important;
-}
-#tfunds .fund-clean-periods>div{
-  min-width:0;
-  padding:4px 3px!important;
-  border-radius:10px!important;
-  background:#EEF5FD!important;
-  text-align:center;
-}
-#tfunds .fund-clean-periods .label{
-  font-size:9.5px!important;
-  color:var(--muted)!important;
-  line-height:1.1!important;
-}
-#tfunds .fund-clean-periods .num{
-  margin-top:1px!important;
-  font-size:11.5px!important;
-  font-weight:760!important;
-  line-height:1.1!important;
-}
-#tfunds .fund-clean-actions{
+/* v3-fund-card-from-v4-20260728: V4 fund-card UI ported to V3 only. */
+#tfunds #fund-detail-list{
   display:grid!important;
   gap:8px!important;
-  margin-top:8px!important;
+  padding:8px!important;
 }
-#tfunds .fund-clean-actions.two{
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-}
-#tfunds .fund-clean-actions.one{
-  grid-template-columns:1fr!important;
-}
-#tfunds .fund-clean-actions button{
-  width:100%!important;
-  height:32px!important;
-  min-height:32px!important;
-  border-radius:17px!important;
-  font-size:12px!important;
-  font-weight:720!important;
-  box-shadow:none!important;
-}
-#tfunds .fund-clean-actions .buy-primary{
-  background:#EAF2FF!important;
-  border-color:#CADDF6!important;
-  color:#195B9D!important;
-}
-#tfunds .fund-clean-actions .subtle-btn:not(.buy-primary){
-  background:#EEF5FF!important;
-  border-color:#D5E5F8!important;
-  color:#195B9D!important;
-}
-#tfunds .fund-clean-actions .danger-btn{
-  background:#FFF1F1!important;
-  border-color:#F0D4D4!important;
-  color:#B84C4C!important;
-}
-body.dark #tfunds .fund-clean-card{
-  background:#1D2128!important;
-}
-body.dark #tfunds .fund-clean-pill,
-body.dark #tfunds .fund-clean-periods>div{
-  background:#252B35!important;
-  color:#AAB2BF!important;
-}
-body.dark #tfunds .fund-clean-signal{
-  background:#2B2225!important;
-}
-body.dark #tfunds .fund-clean-date .date{
-  background:#252B35!important;
-}
-body.dark #tfunds .fund-clean-date .date.is-fresh{
-  background:#5A431E!important;
-  color:#FFDFA0!important;
-}
-/* v4-fund-card-density-20260728d: balanced list-card proportions. */
-#tfunds .fund-clean-card{
-  min-height:128px!important;
-  padding:12px 13px 11px!important;
-  border-radius:14px!important;
-}
-#tfunds .fund-clean-head{
-  grid-template-columns:minmax(0,1fr) 84px!important;
-}
-#tfunds .fund-clean-sub{
-  margin-top:5px!important;
-}
-#tfunds .fund-clean-pill{
-  height:19px!important;
-  padding:0 7px!important;
-  border-radius:10px!important;
-  font-size:10.5px!important;
-}
-#tfunds .fund-clean-periods{
-  gap:4px!important;
-  margin-top:8px!important;
-  padding:2px!important;
-  border-radius:11px!important;
-  background:rgba(238,245,253,.62)!important;
-}
-#tfunds .fund-clean-periods>div{
-  position:relative!important;
-  min-height:27px!important;
-  padding:3px 2px!important;
-  border-radius:9px!important;
-  background:rgba(255,255,255,.36)!important;
-}
-#tfunds .fund-clean-periods>div:not(:last-child):after{
-  content:none!important;
-}
-#tfunds .fund-clean-periods .label{
-  font-size:8.5px!important;
-  font-weight:520!important;
-}
-#tfunds .fund-clean-periods .num{
-  font-size:10.5px!important;
-  font-weight:720!important;
-  margin-top:0!important;
-}
-#tfunds .fund-clean-actions{
-  margin-top:8px!important;
-}
-#tfunds .fund-clean-actions button{
-  height:29px!important;
-  min-height:29px!important;
-  border-radius:14px!important;
-  font-size:11px!important;
-  font-weight:680!important;
-}
-#tfunds .fund-clean-actions .buy-primary{
-  background:#F6F9FF!important;
-  border-color:#DCE8F7!important;
-  color:#1E64A8!important;
-}
-body.dark #tfunds .fund-clean-actions .buy-primary{
-  background:#252B35!important;
-  border-color:#3A4658!important;
-  color:#DDEBFF!important;
-}
-/* v4-fund-card-redesign-20260728e: compact two-line financial list card. */
 #tfunds .fund-redesign-card{
   position:relative!important;
-  margin:8px 8px!important;
-  padding:10px 12px 9px 17px!important;
-  border-radius:15px!important;
-  background:linear-gradient(180deg,#FFFFFF 0%,#FAFCFF 100%)!important;
+  margin:0!important;
+  min-height:78px!important;
+  padding:10px 12px 10px 17px!important;
+  border-radius:16px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F7FAFE 100%)!important;
   border:1px solid rgba(151,178,211,.24)!important;
-  box-shadow:0 8px 20px rgba(54,94,150,.08)!important;
+  box-shadow:0 7px 18px rgba(54,94,150,.08)!important;
   overflow:hidden!important;
 }
 #tfunds .fund-redesign-card:before{
@@ -2525,6 +1923,21 @@ body.dark #tfunds .fund-clean-actions .buy-primary{
   width:4px;
   border-radius:0 8px 8px 0;
   background:linear-gradient(180deg,#1F72D2,#80B6F4);
+}
+#tfunds .fund-redesign-card.fund-up{
+  background:linear-gradient(160deg,#FFFFFF 0%,#FFF7F5 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-down{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F2FAF6 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-neutral{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F5F9FE 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-up:before{
+  background:linear-gradient(180deg,#E0525A,#F2A2A6)!important;
+}
+#tfunds .fund-redesign-card.fund-down:before{
+  background:linear-gradient(180deg,#2FA17F,#8ED6C0)!important;
 }
 #tfunds .fund-redesign-top{
   display:grid;
@@ -2573,12 +1986,6 @@ body.dark #tfunds .fund-clean-actions .buy-primary{
   background:#F5E5BC!important;
   color:#725018!important;
 }
-#tfunds .fund-redesign-signal{
-  font-size:11px;
-  font-weight:760;
-  line-height:1.1;
-  white-space:nowrap;
-}
 #tfunds .fund-redesign-info{
   display:flex;
   align-items:center;
@@ -2595,26 +2002,33 @@ body.dark #tfunds .fund-clean-actions .buy-primary{
   color:var(--muted);
   white-space:nowrap;
 }
+#tfunds .fund-redesign-signal{
+  font-size:11px;
+  font-weight:760;
+  line-height:1.1;
+  white-space:nowrap;
+}
 #tfunds .fund-redesign-metrics{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:8px;
+  display:flex!important;
+  justify-content:space-between!important;
+  gap:8px!important;
   align-items:center;
-  margin-top:6px;
-  min-height:18px;
+  margin-top:8px!important;
+  min-height:18px!important;
 }
 #tfunds .fund-redesign-metric{
   min-width:0;
+  flex:1 1 0!important;
   display:flex;
   align-items:baseline;
-  justify-content:center;
+  justify-content:center!important;
   gap:4px;
-  font-size:10px;
+  font-size:11px!important;
   color:var(--muted);
   white-space:nowrap;
 }
 #tfunds .fund-redesign-metric b{
-  font-size:11px;
+  font-size:12px!important;
   font-weight:740;
 }
 #tfunds .fund-redesign-actions{
@@ -2637,13 +2051,9 @@ body.dark #tfunds .fund-clean-actions .buy-primary{
   font-weight:700!important;
   box-shadow:none!important;
 }
-#tfunds .fund-redesign-actions .buy-primary{
-  background:#F3F8FF!important;
-  border-color:#D7E6F8!important;
-  color:#1F64A5!important;
-}
+#tfunds .fund-redesign-actions .buy-primary,
 #tfunds .fund-redesign-actions .subtle-btn:not(.buy-primary){
-  background:#EEF6FF!important;
+  background:rgba(236,246,255,.74)!important;
   border-color:#D4E5F8!important;
   color:#1F64A5!important;
 }
@@ -2652,7 +2062,10 @@ body.dark #tfunds .fund-clean-actions .buy-primary{
   border-color:#F2D6D6!important;
   color:#B84C4C!important;
 }
-body.dark #tfunds .fund-redesign-card{
+body.dark #tfunds .fund-redesign-card,
+body.dark #tfunds .fund-redesign-card.fund-up,
+body.dark #tfunds .fund-redesign-card.fund-down,
+body.dark #tfunds .fund-redesign-card.fund-neutral{
   background:#1D2128!important;
   border-color:#2C333D!important;
   box-shadow:0 10px 24px rgba(0,0,0,.22)!important;
@@ -2670,154 +2083,6 @@ body.dark #tfunds .fund-redesign-actions .danger-btn{
   background:#3A2428!important;
   border-color:#59343A!important;
   color:#FFB5B5!important;
-}
-/* v4-ai-card-inset-20260728: keep strategy cards inside the panel. */
-#tai #ai-content{
-  display:grid!important;
-  gap:8px!important;
-  min-height:auto!important;
-  padding:8px!important;
-  border-radius:16px!important;
-  background:linear-gradient(180deg,rgba(47,111,214,.055),rgba(255,255,255,.28))!important;
-  overflow:visible!important;
-}
-#tai .ai-detail{
-  margin:0!important;
-  border-radius:14px!important;
-  background:linear-gradient(180deg,#FFFFFF 0%,#FAFCFF 100%)!important;
-  border:1px solid rgba(151,178,211,.22)!important;
-  box-shadow:0 6px 16px rgba(54,94,150,.07)!important;
-  overflow:hidden!important;
-}
-#tai .ai-detail:before{
-  top:10px!important;
-  bottom:10px!important;
-  left:0!important;
-  width:4px!important;
-  border-radius:0 8px 8px 0!important;
-}
-#tai .ai-detail:first-child{
-  margin-top:0!important;
-}
-#tai .ai-card-head{
-  padding:9px 10px 3px 14px!important;
-}
-#tai .ai-useful-line{
-  margin:4px 10px 10px 14px!important;
-  font-size:11.5px!important;
-  line-height:1.42!important;
-}
-body.dark #tai #ai-content{
-  background:rgba(255,255,255,.035)!important;
-}
-body.dark #tai .ai-detail{
-  background:#1D2128!important;
-  border-color:rgba(255,255,255,.06)!important;
-  box-shadow:none!important;
-}
-/* v4-ai-fund-card-unified-20260728: every AI fund card matches strategy card styling. */
-#tai #ai-content{
-  display:grid!important;
-  gap:8px!important;
-  padding:8px!important;
-}
-#tai .ai-strategy-card{
-  margin:0!important;
-  min-height:78px!important;
-  padding-bottom:7px!important;
-  border-radius:16px!important;
-  background:linear-gradient(160deg,#FFFFFF 0%,#F7FAFE 100%)!important;
-  border:1px solid rgba(151,178,211,.24)!important;
-  box-shadow:0 7px 18px rgba(54,94,150,.08)!important;
-  overflow:hidden!important;
-}
-#tai .ai-strategy-card.ai-up{
-  background:linear-gradient(160deg,#FFFFFF 0%,#FFF7F5 100%)!important;
-}
-#tai .ai-strategy-card.ai-down{
-  background:linear-gradient(160deg,#FFFFFF 0%,#F2FAF6 100%)!important;
-}
-#tai .ai-strategy-card.ai-neutral{
-  background:linear-gradient(160deg,#FFFFFF 0%,#F5F9FE 100%)!important;
-}
-#tai .ai-strategy-card .ai-card-head-no-meter{
-  padding:10px 11px 3px 15px!important;
-}
-#tai .ai-strategy-card .ai-useful-line{
-  margin:5px 11px 0 15px!important;
-  font-size:11.5px!important;
-  line-height:1.42!important;
-}
-body.dark #tai .ai-strategy-card,
-body.dark #tai .ai-strategy-card.ai-neutral{
-  background:linear-gradient(160deg,#171A20 0%,#111419 100%)!important;
-  border-color:rgba(255,255,255,.07)!important;
-  box-shadow:0 8px 22px rgba(0,0,0,.28)!important;
-}
-body.dark #tai .ai-strategy-card.ai-up{
-  background:linear-gradient(160deg,#1B1719 0%,#111419 100%)!important;
-}
-body.dark #tai .ai-strategy-card.ai-down{
-  background:linear-gradient(160deg,#141B18 0%,#111419 100%)!important;
-}
-/* v4-fund-card-follows-strategy-20260728: fund cards move toward the strategy-card visual style. */
-#tfunds #fund-detail-list{
-  gap:8px!important;
-  padding:8px!important;
-}
-#tfunds .fund-redesign-card{
-  margin:0!important;
-  min-height:78px!important;
-  padding:10px 12px 10px 17px!important;
-  border-radius:16px!important;
-  background:linear-gradient(160deg,#FFFFFF 0%,#F7FAFE 100%)!important;
-  border:1px solid rgba(151,178,211,.24)!important;
-  box-shadow:0 7px 18px rgba(54,94,150,.08)!important;
-}
-#tfunds .fund-redesign-card.fund-up{
-  background:linear-gradient(160deg,#FFFFFF 0%,#FFF7F5 100%)!important;
-}
-#tfunds .fund-redesign-card.fund-down{
-  background:linear-gradient(160deg,#FFFFFF 0%,#F2FAF6 100%)!important;
-}
-#tfunds .fund-redesign-card.fund-neutral{
-  background:linear-gradient(160deg,#FFFFFF 0%,#F5F9FE 100%)!important;
-}
-#tfunds .fund-redesign-card.fund-up:before{
-  background:linear-gradient(180deg,#E0525A,#F2A2A6)!important;
-}
-#tfunds .fund-redesign-card.fund-down:before{
-  background:linear-gradient(180deg,#2FA17F,#8ED6C0)!important;
-}
-#tfunds .fund-redesign-card.fund-neutral:before{
-  background:linear-gradient(180deg,#1F72D2,#80B6F4)!important;
-}
-#tfunds .fund-redesign-metrics{
-  display:flex!important;
-  justify-content:space-between!important;
-  gap:8px!important;
-  margin-top:8px!important;
-  min-height:18px!important;
-}
-#tfunds .fund-redesign-metric{
-  flex:1 1 0!important;
-  justify-content:center!important;
-  background:transparent!important;
-  font-size:11px!important;
-}
-#tfunds .fund-redesign-metric b{
-  font-size:12px!important;
-}
-#tfunds .fund-redesign-actions button{
-  background:rgba(236,246,255,.74)!important;
-}
-body.dark #tfunds .fund-redesign-card,
-body.dark #tfunds .fund-redesign-card.fund-up,
-body.dark #tfunds .fund-redesign-card.fund-down,
-body.dark #tfunds .fund-redesign-card.fund-neutral{
-  background:#1D2128!important;
-  border-color:#2C333D!important;
-  box-shadow:0 10px 24px rgba(0,0,0,.22)!important;
 }
 </style>
 </head>
@@ -2895,24 +2160,16 @@ body.dark #tfunds .fund-redesign-card.fund-neutral{
   </div>
 </div>
 
-<!-- ===== MARKET ===== -->
-<div id="tmarket" class="tab-c">
-  <div class="app-top sub-top market-temp-top">
-    <div class="app-top-row">
-      <div><div class="home-title">市场温度</div><div class="app-subtitle" id="sector-update">后台更新 --</div></div>
-      <div class="app-actions"><span class="top-pill">12项</span></div>
-    </div>
-    <div class="market-temp-head">
-      <div class="market-temp-note">市场 / 行业 / 持仓主题</div>
+<!-- ===== PROFILE ===== -->
+<div id="tprofile" class="tab-c">
+  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
+  <div class="card px tight-card sector-panel">
+    <div class="sector-headline">
+      <div><div class="sector-title">主题温度</div><div class="sector-sub" id="sector-update">按持仓主题与市场指数聚合</div></div>
       <div class="sector-score"><div class="num" id="sector-overall">--</div><span>今日整体</span></div>
     </div>
     <div class="sector-grid" id="theme-sector-list"><div class="t2 pb">加载中...</div></div>
   </div>
-</div>
-
-<!-- ===== PROFILE ===== -->
-<div id="tprofile" class="tab-c">
-  <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
   <div class="card px tight-card profile-panel">
     <div class="panel-kicker">Market Brief</div><div class="panel-title"><span>持仓资讯与操作参考</span><span class="muted" id="news-refresh-time">资讯更新 --</span></div>
     <div id="news-list"><div class="t2 pb">加载中...</div></div>
@@ -2997,7 +2254,7 @@ body.dark #tfunds .fund-redesign-card.fund-neutral{
 </div>
 
 <!-- ===== Tab Bar ===== -->
-<div class="tab-bar is-six">
+<div class="tab-bar">
   <div class="tab-i active" data-t="home">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
     <span>首页</span>
@@ -3009,10 +2266,6 @@ body.dark #tfunds .fund-redesign-card.fund-neutral{
   <div class="tab-i" data-t="buy">
     <span class="yen-icon">¥</span>
     <span>买点</span>
-  </div>
-  <div class="tab-i" data-t="market">
-    <svg viewBox="0 0 24 24"><path d="M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 18V9m6 9V5m6 13v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M5 7l4-3 4 3 5-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>市场</span>
   </div>
   <div class="tab-i" data-t="funds">
     <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="17 6 23 6 23 12" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -3028,8 +2281,8 @@ body.dark #tfunds .fund-redesign-card.fund-neutral{
 const API='';const INT=30000;let lastData=null;let tradeState={type:'buy',code:''};let newsCache=[];let lastNewsForce=0;
 document.querySelectorAll('.tab-i').forEach(e=>{e.addEventListener('click',()=>goTab(e.dataset.t))});
 function syncThemeBtn(){const b=document.getElementById('theme-btn');if(b)b.style.background=document.body.classList.contains('dark')?'#243553':'#FFFFFF'}
-function toggleDark(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');localStorage.setItem('v4-theme',d?'dark':'light');syncThemeBtn()}
-if(localStorage.getItem('v4-theme')==='dark'){document.body.classList.add('dark')}syncThemeBtn();
+function toggleDark(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');localStorage.setItem('v3-theme',d?'dark':'light');syncThemeBtn()}
+if(localStorage.getItem('v3-theme')==='dark'){document.body.classList.add('dark')}syncThemeBtn();
 function fmt(n,d=2){return Number(n||0).toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d})}function nav(n){return Number(n||0).toFixed(4)}function fp(n){return (Number(n)>=0?'+':'')+Number(n||0).toFixed(2)+'%'}function cl(n){return n>0?'up':n<0?'down':''}function cc(n){return n>0?'var(--red)':n<0?'var(--green)':'var(--t3)'}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function hi(s){return esc(s).replace(/(重点|利好|利空|高风险|风险|买点|下跌|回落|承压|走弱|下行|上涨|反弹|突破|走强|买入|卖出|补仓|科创50|国债|上证指数|持仓|收益率)/g,'<span class="focus-red">$1</span>')}function shortName(f,n=8){return (f.name||f.code||'').replace(/联接C|增强C|债券C/g,'').substring(0,n)}function stateDot(s){return s==='buy'?'dot-yellow':s==='hold'?'dot-red':'dot-gray'}function cleanTrend(s){return (s||'--').trim()||'--'}function aiTone(n){return Number(n)>0?'up':Number(n)<0?'down':'neutral'}function riskClass(r){return String(r).indexOf('高')>=0?'ai-tag-risk-high':String(r).indexOf('低')>=0?'ai-tag-risk-low':'ai-tag-risk-mid'}function newsText(n){return [n.full_text,n.fullText,n.raw_content,n.raw,n.content,n.body,n.detail,n.article,n.summary,n.digest,n.text,n.title].filter(Boolean).join('\n')}function localFullText(n){return [n.full_text,n.fullText,n.raw_content,n.raw,n.content,n.body,n.detail,n.article].filter(Boolean).join('\n')}function newsUrl(n){return n.url||n.link||n.href||n.source_url||n.original_url||''}function newsTone(n){const s=String(n.impact||n.sentiment||n.effect||'')+newsText(n);if(/利好|上涨|反弹|走强|回暖|修复|增长|上行|突破/.test(s))return'good';if(/利空|下跌|承压|回落|走弱|调整|下降|风险|下行/.test(s))return'bad';return'neutral'}function newsImpactLabel(t){return t==='good'?'利好':t==='bad'?'利空':'中性'}function newsTarget(n){const raw=n.target||n.related||n.category||n.tag||n.tags||'',s=newsText(n)+String(raw);if(Array.isArray(raw)&&raw.length)return raw.slice(0,2).join(' / ');if(/科创|半导体|芯片|科技/.test(s))return'科创50';if(/债|国债|利率|央行/.test(s))return'债券/国债';if(/上证|沪指|指数|A股|大盘/.test(s))return'市场指数';return'持仓相关'}function newsSummary(n){const s=n.ai_summary||n.summary||n.digest||n.text||n.content||n.title||'暂无摘要';return String(s).replace(/\s+/g,' ').slice(0,72)}function newsAdvice(n,t){if(n.advice||n.action||n.operation)return n.advice||n.action||n.operation;if(t==='good')return'操作参考：偏积极，观察是否带动持仓修复，不建议追高。';if(t==='bad')return'操作参考：偏谨慎，关注买点是否接近，避免情绪化加仓。';return'操作参考：影响中性，继续观察走势和持仓收益率变化。'}function estimateChange(f){const v=f.estimated_change??f.model_estimated_change??f.ai_prediction?.model_estimated_change;return Number.isFinite(Number(v))?Number(v):null}function isFreshActual(f,d){return !!(f.nav_date&&d?.date&&String(f.nav_date).slice(0,10)===String(d.date).slice(0,10))}function displayChange(f,d){return isFreshActual(f,d)?Number(f.daily_change||0):(estimateChange(f)??Number(f.daily_change||0))}function displayIsEstimate(f,d){return !isFreshActual(f,d)&&estimateChange(f)!=null}function md(s){return s?String(s).slice(5).replace('-','/'):'--'}function ymd(s){return s?String(s).slice(0,10).replace(/-/g,'/'):'--'}function smallEst(){return '<span class="est-badge">估</span>'}function pctColor(n){return Number(n)>=0?'var(--red)':'var(--green)'}function indexPointValue(x){return Number(x?.current??x?.close??x?.value??x?.price??x?.nav??0)}function drawSpark(el,hist,current){if(!el)return;const vals=(hist||[]).map(indexPointValue).filter(v=>v>0);if(current>0)vals.push(Number(current));const data=vals.slice(-12);if(data.length<2){el.innerHTML='<text x="150" y="50" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="12">暂无走势</text>';return}const min=Math.min(...data),max=Math.max(...data),span=max-min||1,w=300,h=92,p=10;const pts=data.map((v,i)=>{const x=p+i*(w-p*2)/(data.length-1),y=h-p-(v-min)/span*(h-p*2);return [x,y]});const d=pts.map((pt,i)=>(i?'L':'M')+pt[0].toFixed(1)+' '+pt[1].toFixed(1)).join(' ');const area=d+' L '+pts[pts.length-1][0].toFixed(1)+' '+(h-p)+' L '+pts[0][0].toFixed(1)+' '+(h-p)+' Z';const last=pts[pts.length-1];el.innerHTML='<line class="spark-grid" x1="0" y1="46" x2="300" y2="46"></line><path class="spark-area" d="'+area+'"></path><path class="spark-line" d="'+d+'"></path><circle class="spark-dot" cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="3"></circle>'}
 async function fetchD(force=false,mode='manual'){const btn=document.getElementById('refresh-btn'),ht=document.getElementById('header-time'),isAuto=mode==='auto';if(btn){btn.classList.add('loading');btn.classList.toggle('auto-refresh',isAuto);btn.title=isAuto?'自动更新中':'刷新数据'}if(ht&&(force||isAuto))ht.textContent=isAuto?'自动更新中...':'更新中...';try{const qs=force?'?force=1&t='+Date.now():(isAuto?'?t='+Date.now():'');const r=await fetch(API+'/api/portfolio'+qs,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();lastData=d;if(ht)ht.textContent=d.date+' '+d.time+(force?' · 已更新':isAuto?' · 自动更新':'');const hr=document.getElementById('home-refresh');if(hr)hr.textContent=(d.time||'--').slice(0,5);renderHome(d);renderFunds(d);renderAI(d);renderBuy(d);renderProfile(d)}catch(e){console.error(e);if(ht)ht.textContent='更新失败，点此重试'}finally{if(btn){btn.classList.remove('loading','auto-refresh');btn.title='刷新数据'}}}
 function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(idx.daily_change||0);document.getElementById('total-asset').textContent=idx.current?fmt(idx.current):'--';document.getElementById('today-profit').textContent=fp(ichg);document.getElementById('today-profit').style.color=cc(ichg);const state=ichg>0?'偏强':ichg<0?'回落':'震荡';document.getElementById('total-yield').textContent=state;const note=document.getElementById('today-yield-note');if(note)note.textContent=(idx.history&&idx.history.length?'近'+Math.min(idx.history.length+1,12)+'点走势':'实时点位监控');drawSpark(document.getElementById('index-spark'),idx.history,idx.current);const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609'),kchg=k50?displayChange(k50,d):0;document.getElementById('idx-1-price').textContent=k50&&k50.current_nav?nav(k50.current_nav):'跟踪';document.getElementById('idx-1-chg').innerHTML=fp(kchg);document.getElementById('idx-1-chg').className='hero-note num '+cl(kchg);const bond=d.bond_index||{},bchg=Number(bond.daily_change||0);document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';document.getElementById('idx-2-chg').className='hero-note num '+cl(bchg);document.getElementById('fund-chips').innerHTML=fs.map(f=>{const b=f.buy_point||{},cg=displayChange(f,d),actual=Number(f.daily_change||0),y=b.is_holding?b.yield_pct:null,est=displayIsEstimate(f,d);return '<div class="card fund-chip product '+(est?'has-est':'')+'" onclick="goTab(\'funds\')">'+estCorner(f,d)+'<div class="fund-main"><div class="fund-line"><span class="chip-code">'+f.code+'</span><span class="chip-name">'+shortName(f,12)+'</span></div><div class="fund-meta">'+(est?'盘中预估':'最新实际')+' · 实际 '+fp(actual)+' · 净值 '+md(f.nav_date)+'</div></div><div class="fund-side"><div class="chip-change num '+cl(cg)+'">'+fp(cg)+'</div><div class="chip-sub num" style="color:'+(y!==null?pctColor(y):'var(--t3)')+'">'+(y!==null?'持仓 '+fp(y):'未持仓')+'</div></div></div>'}).join('');renderBuyWatch(d);const nl=document.getElementById('news-list');if(d.news&&d.news.length>0){nl.innerHTML=d.news.slice(0,3).map(n=>'<div class="news-item"><div class="news-title">'+(n.title||n.text||'')+'</div><div class="muted" style="margin-top:3px">'+(n.date||n.time||'刚刚')+'</div></div>').join('')}}
@@ -3151,11 +2404,10 @@ function finalNewsImpactText(n,tone){const target=newsTarget(n),cat=finalNewsCat
 function finalBuildNews(items){const sorted=(items||[]).slice().sort((a,b)=>newsTs(b)-newsTs(a)),events=[],holdings=[],opinions=[];sorted.forEach(n=>{if(isOpinionGroup(n)||isOpinionNews(n)){opinions.push(n);return}if(finalNewsIsHolding(n))holdings.push(n);else events.push(n)});const picked=[],seen=new Set();function add(arr,limit){arr.forEach(n=>{const key=String(n.title||n.text||'').slice(0,80);if(picked.length<limit&&!seen.has(key)){picked.push(n);seen.add(key)}})}add(events,8);add(holdings,15);add(sorted.filter(n=>!isOpinionGroup(n)&&!isOpinionNews(n)),19);if(opinions.length){const latest=opinions[0]||{};picked.push({title:'7x24观点汇总：'+opinions.slice(0,5).map(x=>x.title||x.text||'观点').join(' / '),time:latest.time||latest.date||'',date:latest.date||latest.time||'',fetched_at:latest.fetched_at,source:'7x24',sentiment:'neutral',tags:['观点汇总','7x24观点'],items:opinions.slice(0,20),summary:'已合并 '+opinions.length+' 条评论/观点，避免占用核心资讯列表。'})}return picked.slice(0,20)}
 function finalNewsStats(list){return list.reduce((a,n)=>{const t=finalNewsTone(n);a[t]=(a[t]||0)+1;return a},{good:0,bad:0,neutral:0})}
 function finalNewsCard(n,i,extraCls=''){const tone=finalNewsTone(n),title=n.title||n.text||'市场资讯',meta=n.date||n.time||n.source||'刚刚',summary=finalNewsBrief(n),impact=finalNewsImpactText(n,tone),op=isOpinionGroup(n);return '<div class="news-item news-compact news-'+tone+' '+extraCls+(op?' news-opinion-card':'')+'" onclick="openNews('+i+')"><div class="news-row-meta"><div class="news-time">'+esc(meta)+'</div><div class="news-tags">'+newsTagHtml(n)+'</div></div><div class="news-title">'+hi(title)+'</div>'+(summary?'<div class="news-summary">'+hi(summary)+'</div>':'')+'<div class="news-advice">'+hi(impact)+'</div><div class="news-open-hint">'+(op?'查看合并观点':'阅读全文')+'</div></div>'}
-function finalNewsSection(title,desc,arr,cls=''){if(!arr.length)return'';return '<div class="news-section-block '+cls+'"><div class="news-section-head"><b>'+esc(title)+'</b><span>'+esc(desc)+'</span></div><div class="news-stack">'+arr.map(x=>finalNewsCard(x.item,x.index,x.cls||'')).join('')+'</div></div>'}
+function finalNewsSection(title,desc,arr){if(!arr.length)return'';return '<div class="news-section-block"><div class="news-section-head"><b>'+esc(title)+'</b><span>'+esc(desc)+'</span></div><div class="news-stack">'+arr.map(x=>finalNewsCard(x.item,x.index,x.cls||'')).join('')+'</div></div>'}
 function groupNewsItems(items){return finalBuildNews(items)}
 function shortRefreshTime(v){const s=String(v||'').trim(),m=s.match(/(\d{1,2}):(\d{2})/);return m?(m[1].padStart(2,'0')+':'+m[2]):(s||'--')}
-function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'更新中...':shortRefreshTime(fresh||d.time||'');if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)).slice(0,1),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,3),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,4),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','默认显示核心4条',key,'is-collapsed')+finalNewsSection('持仓相关','最多3条',holding,'is-small')+finalNewsSection('观点汇总','评论合并展示',opinions,'is-small')+finalNewsSection('更多资讯','按新闻时间倒序',rest,'is-small')+'<div class="news-more-entry" onclick="event.stopPropagation();openNewsBoard()">查看全部资讯</div>';if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
-function openNewsBoard(){document.getElementById('news-title').textContent='全部资讯';document.getElementById('news-meta').textContent='最新20条 · 评论已合并';document.getElementById('news-body').innerHTML='<div class="news-stack">'+(newsCache||[]).map((n,i)=>finalNewsCard(n,i)).join('')+'</div>';document.getElementById('news-modal').classList.add('show')}
+function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'更新中...':shortRefreshTime(fresh||d.time||'');if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,6),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,10),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','政策 / 指数 / 海外',key)+finalNewsSection('持仓相关','与基金和指数相关',holding)+finalNewsSection('观点汇总','评论合并展示',opinions)+finalNewsSection('更多资讯','按新闻时间倒序',rest);if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
 function marketEventKey(title){const s=String(title||'');if(/长鑫|CXMT|存储|半导体|芯片/.test(s))return'长鑫科创上市';if(/美联储|议息|FOMC|加息|降息/.test(s))return'美联储议息';if(/A50|交割|期货交割/.test(s))return'A50交割';if(/月末|跨月|流动性|逆回购|资金面/.test(s))return'月末流动性';if(/央行|LPR|MLF|降准/.test(s))return'央行政策';if(/财报|业绩|中报/.test(s))return'财报业绩';return s.replace(/[：:，,。.！!？?\s]/g,'').slice(0,12)}
 function marketKeyNodes(d){const base=new Date(String(d?.date||new Date().toISOString().slice(0,10)).slice(0,10)).getTime(),week=7*24*3600*1000,byKey=new Map();function addNode(item){if(!item||!item.title)return;const time=Number.isFinite(item.time)?item.time:nodeDateKey(item.date,d);if(!Number.isFinite(time)||time===Number.MAX_SAFE_INTEGER||time<base||time-base>week)return;const date=item.date||new Date(time).toISOString().slice(5,10).replace('-','/'),title=String(item.title).slice(0,28),key=marketEventKey(title),node={date,title,impact:item.impact||nodeImpactFromText(title),level:item.level||nodeLevelFromText(title),score:Number(item.score||0),time};const old=byKey.get(key);if(!old||node.score>old.score||(node.score===old.score&&node.time<old.time))byKey.set(key,node)}calendarMarketEvents(d).forEach(addNode);(d?.news||[]).forEach(n=>{const text=newsText(n),title=String(n.title||n.text||text||'市场事件').replace(/^7x24观点汇总：/,'').trim(),score=Number(n.importance||importantNewsScore(n));if(score<=0)return;const ed=n.event_date?{label:md(n.event_date),time:new Date(n.event_date).getTime()}:explicitNodeDate(title+' '+text,d);if(!ed)return;addNode({date:ed.label,title,impact:nodeImpactFromText(title+text),level:nodeLevelFromText(title+text),score,time:ed.time})});[{date:'07/27',title:'长鑫科技科创板上市',impact:'科创50与半导体情绪',level:'重点',score:12},{date:'07/29',title:'美联储议息窗口',impact:'利率与成长股估值',level:'重点',score:10},{date:'07/31',title:'A50期货交割日',impact:'指数波动窗口',level:'关注',score:8},{date:'07/30',title:'月末流动性观察',impact:'资金面与债券估值',level:'关注',score:7}].forEach(addNode);const byDate=new Map();[...byKey.values()].forEach(n=>{const old=byDate.get(n.date);if(!old||n.score>old.score||(n.score===old.score&&n.time<old.time))byDate.set(n.date,n)});const sorted=[...byDate.values()].sort((a,b)=>(a.time-b.time)||(b.score-a.score)||a.title.localeCompare(b.title,'zh-CN')).slice(0,4);return sorted.length?sorted:[{date:md(d?.date)||'--',title:'等待未来一周市场节点',impact:'随资讯自动更新',level:'自动'}]}
 function aiDateBoard(nodes){return nodes.slice(0,4).map(n=>'<div class="ai-date-node"><div class="ai-date-num">'+esc(n.date)+'</div><div class="ai-date-title">'+esc(n.title)+'</div><div class="ai-date-impact">'+esc(n.impact)+' · '+esc(n.level||'关注')+'</div></div>').join('')}
@@ -3171,71 +2423,30 @@ function actualNavBadge(f,d){return actualNavReady(f,d)?'<span class="ai-tag-lev
 function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(idx.daily_change||0);document.getElementById('total-asset').textContent=idx.current?fmt(idx.current):'--';document.getElementById('today-profit').textContent=fp(ichg);document.getElementById('today-profit').style.color=cc(ichg);const sz=d.sz_index||{},schg=Number(sz.daily_change||0);document.getElementById('total-yield').textContent=sz.current?fmt(sz.current):'待更新';const note=document.getElementById('today-yield-note');if(note){note.textContent=sz.current?fp(schg):'后端重启后显示';note.style.color=sz.current?cc(schg):'var(--muted)';note.className='hero-note num '+(sz.current?cl(schg):'')}drawSpark(document.getElementById('index-spark'),idx.history,idx.current);const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609'),kchg=k50?Number(k50.daily_change||0):0;document.getElementById('idx-1-price').textContent=k50&&k50.current_nav?nav(k50.current_nav):'跟踪';document.getElementById('idx-1-chg').innerHTML=fp(kchg);document.getElementById('idx-1-chg').className='hero-note num '+cl(kchg);const bond=d.bond_index||{},bchg=Number(bond.daily_change||0);document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';document.getElementById('idx-2-chg').className='hero-note num '+cl(bchg);document.getElementById('fund-chips').innerHTML=fs.map(f=>{const b=f.buy_point||{},actual=Number(f.daily_change||0),estVal=estimateChange(f),cg=estVal??actual,y=b.is_holding?holdPct(f):null,meta='盘中预估 · 实际 '+fp(actual)+' · 净值 '+md(f.nav_date);return '<div class="card fund-chip product '+(estVal!=null?'has-est':'')+'" onclick="goTab(\'funds\')">'+(estVal!=null?estCorner(f,d):'')+'<div class="fund-main"><div class="fund-line"><span class="chip-code">'+f.code+'</span><span class="chip-name">'+shortName(f,12)+'</span></div><div class="fund-meta">'+meta+'</div></div><div class="fund-side"><div class="chip-change num '+cl(cg)+'">'+fp(cg)+'</div><div class="chip-sub num" style="color:'+(y!==null?pctColor(y):'var(--t3)')+'">'+(y!==null?'持仓 '+fp(y):'未持仓')+'</div></div></div>'}).join('');renderBuyWatch(d)}function renderAI(d){const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);if(!box||!fs.length)return;if(board){board.classList.add('ai-date-board');board.innerHTML=aiDateBoard(nodes)}box.innerHTML=fs.map(f=>{const ai=f.ai_prediction||{},est=displayIsEstimate(f,d),actual=Number(f.daily_change||0),cg=displayChange(f,d),tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),sub=est?'预估收益':'实际收益',deep=isDeepSeekAi(f),main=compactAiAdvice(f,d),navTag=actualNavBadge(f,d);return '<div class="ai-detail ai-'+tone+' '+(est?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'+(est?estCorner(f,d):'')+'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div><div class="ai-useful-line"><strong>建议</strong> '+esc(main)+' · '+esc(bs.label)+(est?' · 实际 '+fp(actual):'')+'</div><div class="ai-mini-tags">'+navTag+'</div></div>'}).join('')}
 function renderAI(d){const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);if(!box||!fs.length)return;if(board){board.classList.add('ai-date-board');board.innerHTML=aiDateBoard(nodes)}box.innerHTML=fs.map(f=>{const ai=f.ai_prediction||{},useEst=homeUseEstimate(f,d),estVal=estimateChange(f),actual=Number(f.daily_change||0),cg=useEst?(estVal??actual):actual,tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),deep=isDeepSeekAi(f),main=compactAiAdvice(f,d),sub=useEst?'预估收益':'实际收益',stateText=/^(持仓中|未持仓)$/.test(bs.label)?'':' · '+esc(bs.label);return '<div class="ai-detail ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'+(useEst&&estVal!=null?estCorner(f,d):'')+'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div><div class="ai-useful-line"><strong>建议</strong> '+esc(main)+stateText+'</div></div>'}).join('')}
 function homeUseEstimate(f,d){const est=estimateChange(f);if(est==null)return false;return String(d?.market_status||'')==='trading'}
+function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(idx.daily_change||0);document.getElementById('total-asset').textContent=idx.current?fmt(idx.current):'--';document.getElementById('today-profit').textContent=fp(ichg);document.getElementById('today-profit').style.color=cc(ichg);const sz=d.sz_index||{},schg=Number(sz.daily_change||0);document.getElementById('total-yield').textContent=sz.current?fmt(sz.current):'待更新';const note=document.getElementById('today-yield-note');if(note){note.textContent=sz.current?fp(schg):'后端重启后显示';note.style.color=sz.current?cc(schg):'var(--muted)';note.className='hero-note num '+(sz.current?cl(schg):'')}drawSpark(document.getElementById('index-spark'),idx.history,idx.current);const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609'),kchg=k50?Number(k50.daily_change||0):0;document.getElementById('idx-1-price').textContent=k50&&k50.current_nav?nav(k50.current_nav):'跟踪';document.getElementById('idx-1-chg').innerHTML=fp(kchg);document.getElementById('idx-1-chg').className='hero-note num '+cl(kchg);const bond=d.bond_index||{},bchg=Number(bond.daily_change||0);document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';document.getElementById('idx-2-chg').className='hero-note num '+cl(bchg);document.getElementById('fund-chips').innerHTML=fs.map(f=>{const actual=Number(f.daily_change||0),estVal=estimateChange(f),useEst=homeUseEstimate(f,d),cg=useEst?(estVal??actual):actual,meta=(useEst?'实际净值 '+fp(actual):'预估收益 '+(estVal!=null?fp(estVal):'--'))+' · 净值 '+md(f.nav_date),sub=useEst?'盘中预估':'实际净值';return '<div class="card fund-chip product '+(useEst&&estVal!=null?'has-est':'')+'" onclick="goTab(\'funds\')">'+(useEst&&estVal!=null?estCorner(f,d):'')+'<div class="fund-main"><div class="fund-line"><span class="chip-code">'+f.code+'</span><span class="chip-name">'+shortName(f,12)+'</span></div><div class="fund-meta">'+meta+'</div></div><div class="fund-side"><div class="chip-change num '+cl(cg)+'">'+fp(cg)+'</div><div class="chip-sub num '+cl(cg)+'">'+sub+'</div></div></div>'}).join('');renderBuyWatch(d)}
+function themeNewsBias(d,pattern){let good=0,bad=0,total=0;(d?.news||[]).forEach(n=>{const s=newsText(n);if(!pattern.test(s))return;total++;const t=finalNewsTone(n);if(t==='good')good++;else if(t==='bad')bad++});return {good,bad,total,score:good-bad}}
+function fundCardSignal(f,d){const actual=Number(f.daily_change||0),estVal=estimateChange(f),navDate=String(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),fresh=!!navDate&&!!displayDate&&navDate===displayDate&&Math.abs(actual)>=0.0001;if(fresh)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+fp(actual)+'</span>';if(estVal!=null)return '<span class="fund-signal est">估 '+fp(estVal)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
+// v3-home-hides-stale-nav-date-20260728: match V4 home holding cards during trading.
 function homeFundMeta(f,d){const b=f.buy_point||{},actual=Number(f.daily_change||0),holding=b.is_holding?('持仓 '+fp(holdPct(f))):'未持仓';if(homeUseEstimate(f,d))return ['盘中估算中',holding].filter(Boolean).join(' · ');if(actualNavReady(f,d))return ['净值日 '+md(f.nav_date),holding].filter(Boolean).join(' · ');return ['待净值更新','昨日实际 '+fp(actual),holding].filter(Boolean).join(' · ')}
 function homeFundSub(f,d){if(homeUseEstimate(f,d))return'盘中预估';if(actualNavReady(f,d))return'实际收益';return'昨日实际'}
 function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(idx.daily_change||0);document.getElementById('total-asset').textContent=idx.current?fmt(idx.current):'--';document.getElementById('today-profit').textContent=fp(ichg);document.getElementById('today-profit').style.color=cc(ichg);const sz=d.sz_index||{},schg=Number(sz.daily_change||0);document.getElementById('total-yield').textContent=sz.current?fmt(sz.current):'待更新';const note=document.getElementById('today-yield-note');if(note){note.textContent=sz.current?fp(schg):'后端重启后显示';note.style.color=sz.current?cc(schg):'var(--muted)';note.className='hero-note num '+(sz.current?cl(schg):'')}drawSpark(document.getElementById('index-spark'),idx.history,idx.current);const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609'),kchg=k50?Number(k50.daily_change||0):0;document.getElementById('idx-1-price').textContent=k50&&k50.current_nav?nav(k50.current_nav):'跟踪';document.getElementById('idx-1-chg').innerHTML=fp(kchg);document.getElementById('idx-1-chg').className='hero-note num '+cl(kchg);const bond=d.bond_index||{},bchg=Number(bond.daily_change||0);document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';document.getElementById('idx-2-chg').className='hero-note num '+cl(bchg);document.getElementById('fund-chips').innerHTML=fs.map(f=>{const actual=Number(f.daily_change||0),estVal=estimateChange(f),useEst=homeUseEstimate(f,d),cg=useEst?(estVal??actual):actual,meta=homeFundMeta(f,d),sub=homeFundSub(f,d);return '<div class="card fund-chip product '+(useEst&&estVal!=null?'has-est':'')+'" onclick="goTab(\'funds\')">'+(useEst&&estVal!=null?estCorner(f,d):'')+'<div class="fund-main"><div class="fund-line"><span class="chip-code">'+f.code+'</span><span class="chip-name">'+shortName(f,12)+'</span></div><div class="fund-meta">'+meta+'</div></div><div class="fund-side"><div class="chip-change num '+cl(cg)+'">'+fp(cg)+'</div><div class="chip-sub num '+cl(cg)+'">'+sub+'</div></div></div>'}).join('');renderBuyWatch(d)}
-function themeNewsBias(d,pattern){let good=0,bad=0,total=0;(d?.news||[]).forEach(n=>{const s=newsText(n);if(!pattern.test(s))return;total++;const t=finalNewsTone(n);if(t==='good')good++;else if(t==='bad')bad++});return {good,bad,total,score:good-bad}}
-function fundCardSignal(f,d){const actual=Number(f.daily_change||0),estVal=estimateChange(f),navDate=String(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),fresh=!!navDate&&!!displayDate&&navDate===displayDate&&Math.abs(actual)>=0.0001;if(fresh)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+fp(actual)+'</span>';if(estVal!=null)return '<span class="fund-signal est">估 '+fp(estVal)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
 function openFundDetail(code){const f=findFund(code),d=lastData||{},date=fundDisplayDate(d,f)||f.nav_date||d.date;document.getElementById('ai-detail-title').textContent=f.code+' '+shortName(f,16);document.getElementById('ai-detail-sub').textContent='基金分析 · 净值 '+nav(f.current_nav)+' · '+(ymd(date)||'--');document.getElementById('ai-detail-body').innerHTML=fundDetailHtml(f);document.getElementById('ai-detail-modal').classList.add('show')}
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div><div class="fund-card-foot">'+(bp.is_holding?'<div class="action-row fund-mini-actions"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></div>':'<div class="action-row fund-mini-actions" style="grid-template-columns:1fr"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></div>')+'</div></div>'}).join('')}
 function fundInlineActions(f,bp){return bp.is_holding?'<span class="fund-inline-actions"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></span>':'<span class="fund-inline-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></span>'}
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
 function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return xs.length?xs.reduce((a,b)=>a+Number(b),0)/xs.length:null}
 function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
-function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at,source:x.source||''}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现',source:'指数行情'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪',source:'指数+持仓'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题',source:'持仓映射'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值',source:'指数+持仓'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50',source:'指数+持仓'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯',source:'资讯聚合'}]}
+function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
 function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
-function sectorCardHtml(x){const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}
-function sectorSummaryItems(items){const preferred=['半导体科创','白酒','医疗','新能源','消费','券商','银行','宽基指数','科技成长','债券利率','上证50蓝筹','资金政策'],picked=[];preferred.forEach(n=>{const it=items.find(x=>x.name===n);if(it)picked.push(it)});items.forEach(x=>{if(picked.length<12&&!picked.some(p=>p.name===x.name))picked.push(x)});return picked.slice(0,12)}
-function openSectorBoard(){const d=lastData||{},items=themeSectorItems(d),holding=items.filter(x=>/指数\\+持仓|持仓映射|资讯聚合|指数行情/.test(String(x.note+' '+x.source))),market=items.filter(x=>x.source==='主题指数'||!holding.includes(x));document.getElementById('ai-detail-title').textContent='市场温度';document.getElementById('ai-detail-sub').textContent='持仓主题 + 独立行业主题';document.getElementById('ai-detail-body').innerHTML='<div class="ai-chart-card"><div class="ai-chart-title">市场主题 <span>医疗 / 白酒 / 新能源等</span></div><div class="sector-detail-grid">'+market.map(sectorCardHtml).join('')+'</div></div><div class="ai-chart-card"><div class="ai-chart-title">持仓主题 <span>与你关注基金相关</span></div><div class="sector-detail-grid">'+holding.map(sectorCardHtml).join('')+'</div></div>';document.getElementById('ai-detail-modal').classList.add('show')}
-function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at,summary=sectorSummaryItems(items);if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='后台更新 '+shortRefreshTime(sectorTime||d.time||'');el.innerHTML='<div class="sector-grid is-six">'+summary.map(sectorCardHtml).join('')+'</div><div class="sector-open-all"><span>显示12个主题模块</span><b onclick="event.stopPropagation();openSectorBoard()">查看全部</b></div>';const panel=el.closest('.sector-panel');if(panel)panel.onclick=openSectorBoard}
-// v4-profile-sync-from-v3-20260728: align Profile with stable V3 rendering.
-function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'更新中...':shortRefreshTime(fresh||d.time||'');if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,6),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,10),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','政策 / 指数 / 海外',key)+finalNewsSection('持仓相关','与基金和指数相关',holding)+finalNewsSection('观点汇总','评论合并展示',opinions)+finalNewsSection('更多资讯','按新闻时间倒序',rest);if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
-function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at,summary=sectorSummaryItems(items).slice(0,12);if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='后台更新 '+shortRefreshTime(sectorTime||d.time||'');el.innerHTML=summary.map(sectorCardHtml).join('');const panel=el.closest('.market-temp-top');if(panel)panel.onclick=null}
+function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
 var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);return renderProfileNewsOnly(d)}
 function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDate=String(f?.nav_date||'').slice(0,10),backend=String(d?.display_trade_date||'').slice(0,10);if(today){const day=new Date(today+'T12:00:00').getDay();if(day>=1&&day<=5)return today}return backend||navDate}
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
 function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+esc(md(navDate))+' '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
-function fundRightActions(f,bp){return bp.is_holding?'<div class="fund-date-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></div>':'<div class="fund-date-actions"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></div>'}
-function cleanFundActionsV4(f,bp){return bp.is_holding?'<div class="fund-redesign-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+esc(f.code)+'\')">卖出</button></div>':'<div class="fund-redesign-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">买入</button></div>'}
-function cleanFundSignalV4(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<div class="fund-redesign-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' '+fp(actual)+'</div>';return '<div class="fund-redesign-signal wait">待净值</div>'}
-function renderFunds(d){
-  const list=document.getElementById('fund-detail-list');
-  if(!list||!d.funds)return;
-  const topAction=document.getElementById('fund-top-action');
-  if(topAction)topAction.textContent='新增';
-  const topCount=document.getElementById('fund-top-count');
-  if(topCount)topCount.remove();
-  list.innerHTML=d.funds.map(f=>{
-    const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180);
-    const displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f);
-    const actual=Number(f.daily_change||0),tone=aiTone(actual);
-    const holdHtml=bp.is_holding?'<div class="fund-redesign-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</div>':'<div class="fund-redesign-hold">未持仓</div>';
-    const metric=(label,val)=>'<div class="fund-redesign-metric"><span>'+label+'</span><b style="color:'+cc(val||0)+'">'+(val==null?'--':fp(val))+'</b></div>';
-    return '<div class="fund-redesign-card fund-'+tone+'" onclick="openFundDetail(\''+esc(f.code)+'\')">'
-      +'<div class="fund-redesign-top">'
-      +'<div class="fund-redesign-name"><span class="fund-redesign-code">'+esc(f.code)+'</span><span class="fund-redesign-fund">'+esc(shortName(f,10))+'</span></div>'
-      +'<div class="fund-redesign-datebox"><div class="fund-redesign-date '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div></div>'
-      +'</div>'
-      +'<div class="fund-redesign-info">'+holdHtml+cleanFundSignalV4(f,d)+'</div>'
-      +'<div class="fund-redesign-metrics">'+metric('7天',r7)+metric('1月',r1)+metric('半年',r6)+'</div>'
-      +cleanFundActionsV4(f,bp)+'</div>';
-  }).join('');
-}
-// v4-ai-strategy-from-v3-20260728: keep V4 AI strategy rendering aligned with stable V3.
-function renderAI(d){
-  const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);
-  if(!box||!fs.length)return;
-  if(board){board.classList.add('ai-date-board');board.innerHTML=aiDateBoard(nodes)}
-  box.innerHTML=fs.map(f=>{
-    const ai=f.ai_prediction||{},useEst=homeUseEstimate(f,d),estVal=estimateChange(f),actual=Number(f.daily_change||0);
-    const cg=useEst?(estVal??actual):actual,tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),deep=isDeepSeekAi(f);
-    const main=compactAiAdvice(f,d),sub=useEst?'预估收益':'实际收益',stateText=/^(持仓中|未持仓)$/.test(bs.label)?'':' · '+esc(bs.label);
-    return '<div class="ai-detail ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'
-      +(useEst&&estVal!=null?estCorner(f,d):'')
-      +'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div>'
-      +'<div class="ai-useful-line"><strong>建议</strong> '+esc(main)+stateText+'</div></div>';
-  }).join('');
-}
+function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
+function cleanFundActionsV3(f,bp){return bp.is_holding?'<div class="fund-redesign-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+esc(f.code)+'\')">卖出</button></div>':'<div class="fund-redesign-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">买入</button></div>'}
+function cleanFundSignalV3(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<div class="fund-redesign-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' '+fp(actual)+'</div>';return '<div class="fund-redesign-signal wait">待净值</div>'}
+function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!list||!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f),actual=Number(f.daily_change||0),tone=aiTone(actual),holdHtml=bp.is_holding?'<div class="fund-redesign-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</div>':'<div class="fund-redesign-hold">未持仓</div>',metric=(label,val)=>'<div class="fund-redesign-metric"><span>'+label+'</span><b style="color:'+cc(val||0)+'">'+(val==null?'--':fp(val))+'</b></div>';return '<div class="fund-redesign-card fund-'+tone+'" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-redesign-top"><div class="fund-redesign-name"><span class="fund-redesign-code">'+esc(f.code)+'</span><span class="fund-redesign-fund">'+esc(shortName(f,10))+'</span></div><div class="fund-redesign-datebox"><div class="fund-redesign-date '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div></div></div><div class="fund-redesign-info">'+holdHtml+cleanFundSignalV3(f,d)+'</div><div class="fund-redesign-metrics">'+metric('7天',r7)+metric('1月',r1)+metric('半年',r6)+'</div>'+cleanFundActionsV3(f,bp)+'</div>'}).join('')}
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
 </script>
 </body>
