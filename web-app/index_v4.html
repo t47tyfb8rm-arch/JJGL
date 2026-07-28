@@ -1549,6 +1549,168 @@ body.dark .sector-card{
 body.dark #tprofile .profile-panel #news-refresh-time{
   color:#9CA3AD!important;
 }
+
+/* Fund page final polish: make each fund read like one compact product row. */
+#tfunds .fund-list-panel{
+  padding:12px 12px 13px!important;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(239,247,255,.74))!important;
+  border:1px solid rgba(205,225,248,.82)!important;
+  box-shadow:0 10px 26px rgba(31,86,174,.08)!important;
+}
+#tfunds .fund-list-panel .fund-list-heading{
+  margin:0 0 9px!important;
+  padding:0 2px 8px!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  border-bottom:1px solid rgba(47,111,214,.08)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list{
+  gap:8px!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  margin:0!important;
+  padding:11px 12px 10px 14px!important;
+  border-radius:15px!important;
+  background:linear-gradient(180deg,#FFFFFF 0%,#F8FBFF 100%)!important;
+  border:1px solid rgba(207,224,244,.9)!important;
+  box-shadow:0 5px 14px rgba(31,86,174,.055)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:before{
+  width:4px!important;
+  opacity:1!important;
+}
+#tfunds .fund-card-head{
+  align-items:flex-start!important;
+  gap:10px!important;
+  margin-bottom:7px!important;
+}
+#tfunds .fund-code-stack .row-title{
+  gap:6px!important;
+  line-height:1.2!important;
+}
+#tfunds .fund-code-stack .row-title span:first-child{
+  font-size:10.5px!important;
+  letter-spacing:.02em!important;
+}
+#tfunds .fund-code-stack .row-title span:nth-child(2){
+  font-size:13px!important;
+  font-weight:760!important;
+  color:var(--ink)!important;
+  max-width:158px!important;
+}
+#tfunds .fund-code-stack .fund-hold{
+  margin-top:3px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  width:max-content!important;
+  max-width:210px!important;
+  height:20px!important;
+  padding:0 8px!important;
+  border-radius:11px!important;
+  background:rgba(47,111,214,.07)!important;
+  font-size:10.5px!important;
+  line-height:20px!important;
+}
+#tfunds .fund-date-box{
+  min-width:76px!important;
+}
+#tfunds .fund-date-top{
+  height:21px!important;
+  line-height:21px!important;
+  padding:0 8px!important;
+  border-radius:12px!important;
+  font-size:10.5px!important;
+  background:#F1F5FA!important;
+  color:#687386!important;
+}
+#tfunds .fund-date-top.is-fresh{
+  background:#FFF2CD!important;
+  color:#8A5A11!important;
+}
+#tfunds .fund-date-return{
+  margin-top:4px!important;
+  font-size:11px!important;
+  font-weight:760!important;
+}
+#tfunds .fund-period-row{
+  margin-top:2px!important;
+  gap:0!important;
+  padding:3px!important;
+  border-radius:13px!important;
+  background:rgba(47,111,214,.055)!important;
+  box-shadow:inset 0 0 0 1px rgba(47,111,214,.045)!important;
+}
+#tfunds .fund-period-row>div{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  min-height:28px!important;
+  padding:0 3px!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:10px!important;
+}
+#tfunds .fund-period-row>div:not(:last-child){
+  border-right:1px solid rgba(47,111,214,.08)!important;
+}
+#tfunds .fund-period-row .label{
+  font-size:10px!important;
+  color:var(--muted)!important;
+}
+#tfunds .fund-period-row .num{
+  margin:0!important;
+  font-size:11px!important;
+  font-weight:760!important;
+}
+#tfunds .fund-card-foot{
+  margin-top:7px!important;
+}
+#tfunds .fund-mini-actions{
+  gap:8px!important;
+}
+#tfunds .fund-mini-actions .subtle-btn,
+#tfunds .fund-mini-actions .danger-btn,
+#tfunds .fund-mini-actions .buy-primary{
+  height:28px!important;
+  min-height:28px!important;
+  border-radius:14px!important;
+  font-size:11px!important;
+  font-weight:650!important;
+}
+body.dark #tfunds .fund-list-panel{
+  background:#171717!important;
+  border-color:rgba(255,255,255,.055)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel .fund-list-heading{
+  border-bottom-color:rgba(255,255,255,.055)!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  background:#1A1A1A!important;
+  border-color:rgba(255,255,255,.055)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-code-stack .row-title span:nth-child(2){
+  color:#F3F4F6!important;
+}
+body.dark #tfunds .fund-code-stack .fund-hold,
+body.dark #tfunds .fund-period-row{
+  background:#202020!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)!important;
+}
+body.dark #tfunds .fund-period-row>div:not(:last-child){
+  border-right-color:rgba(255,255,255,.055)!important;
+}
+body.dark #tfunds .fund-date-top{
+  background:#202020!important;
+  color:#A0A5AE!important;
+}
+body.dark #tfunds .fund-date-top.is-fresh{
+  background:#3A2D17!important;
+  color:#F2C86B!important;
+}
 </style>
 </head>
 <body>
