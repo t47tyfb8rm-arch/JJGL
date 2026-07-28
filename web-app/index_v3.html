@@ -1897,6 +1897,109 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
 #tfunds .fund-period-row .num{
   font-size:12.4px!important;
 }
+/* V3: fund trade actions below period returns, compact long buttons. */
+#tfunds .fund-card-subline{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:5px 7px!important;
+}
+#tfunds .fund-inline-actions{
+  flex:0 0 100%!important;
+  width:100%!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  gap:10px!important;
+  margin-top:6px!important;
+}
+#tfunds .fund-inline-actions.one{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-inline-actions .subtle-btn,
+#tfunds .fund-inline-actions .danger-btn,
+#tfunds .fund-inline-actions .buy-primary{
+  width:100%!important;
+  height:32px!important;
+  min-height:32px!important;
+  max-height:32px!important;
+  border-radius:13px!important;
+  font-size:12px!important;
+  font-weight:680!important;
+  line-height:32px!important;
+  padding:0 12px!important;
+  box-shadow:0 6px 14px rgba(31,86,174,.08)!important;
+}
+#tfunds .fund-inline-actions .buy-primary{
+  background:linear-gradient(135deg,var(--brand),#5A91EA)!important;
+  border-color:transparent!important;
+  color:#fff!important;
+}
+#tfunds .fund-inline-actions .subtle-btn:not(.buy-primary){
+  background:#EAF2FF!important;
+  border-color:#CFE0F5!important;
+  color:var(--brand-dark)!important;
+}
+#tfunds .fund-inline-actions .danger-btn{
+  background:#FCEAEA!important;
+  border-color:#F1C9C9!important;
+  color:#B84848!important;
+}
+#tfunds .fund-pro-card .fund-card-foot{
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  height:auto!important;
+  min-height:32px!important;
+  max-height:none!important;
+  margin-top:6px!important;
+  overflow:visible!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions{
+  display:grid!important;
+  visibility:visible!important;
+  opacity:1!important;
+  width:100%!important;
+  margin:0!important;
+  gap:10px!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions:not([style*="1fr"]){
+  grid-template-columns:1fr 1fr!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions[style*="1fr"]{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-pro-card .fund-card-foot button{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  height:32px!important;
+  min-height:32px!important;
+  max-height:32px!important;
+  line-height:32px!important;
+  padding:0 12px!important;
+  border-radius:13px!important;
+  font-size:12px!important;
+  font-weight:680!important;
+}
+body.dark #tfunds .fund-inline-actions .buy-primary,
+body.dark #tfunds .fund-pro-card .fund-card-foot .buy-primary{
+  background:#2A3039!important;
+  border-color:#3A424E!important;
+  color:#F5F6F8!important;
+}
+body.dark #tfunds .fund-inline-actions .subtle-btn:not(.buy-primary),
+body.dark #tfunds .fund-pro-card .fund-card-foot .subtle-btn:not(.buy-primary){
+  background:#1D2128!important;
+  border-color:#303640!important;
+  color:#DDE8FF!important;
+}
+body.dark #tfunds .fund-inline-actions .danger-btn,
+body.dark #tfunds .fund-pro-card .fund-card-foot .danger-btn{
+  background:#251B1D!important;
+  border-color:#463034!important;
+  color:#FF9A9F!important;
+}
 </style>
 </head>
 <body>
