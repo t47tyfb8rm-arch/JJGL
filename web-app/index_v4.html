@@ -2017,6 +2017,45 @@ body.dark #tfunds .fund-inline-actions .danger-btn{
   border-color:#463034!important;
   color:#FF9A9F!important;
 }
+/* V4 hard fix: after moving trade actions below returns, make the footer visible. */
+#tfunds .fund-pro-card .fund-card-foot{
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  height:auto!important;
+  min-height:36px!important;
+  max-height:none!important;
+  margin-top:8px!important;
+  overflow:visible!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions{
+  display:grid!important;
+  visibility:visible!important;
+  opacity:1!important;
+  width:100%!important;
+  margin:0!important;
+  gap:10px!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions:not([style*="1fr"]){
+  grid-template-columns:1fr 1fr!important;
+}
+#tfunds .fund-pro-card .fund-card-foot .fund-mini-actions[style*="1fr"]{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-pro-card .fund-card-foot button{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  height:36px!important;
+  min-height:36px!important;
+  max-height:36px!important;
+  line-height:36px!important;
+  padding:0 12px!important;
+  border-radius:15px!important;
+  font-size:13px!important;
+  font-weight:700!important;
+}
 </style>
 </head>
 <body>
