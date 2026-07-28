@@ -1961,6 +1961,64 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
 #tfunds .fund-date-actions:not(.two) .buy-primary{
   min-width:58px!important;
 }
+/* v4-fund-actions-20260728b: final override for isolated V4 validation. */
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  padding-bottom:12px!important;
+}
+#tfunds .fund-card-foot{
+  display:block!important;
+  margin-top:9px!important;
+}
+#tfunds .fund-mini-actions{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;
+  width:100%!important;
+  margin:0!important;
+}
+#tfunds .fund-mini-actions[style*="grid-template-columns:1fr"]{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-mini-actions .subtle-btn,
+#tfunds .fund-mini-actions .danger-btn,
+#tfunds .fund-mini-actions .buy-primary{
+  width:100%!important;
+  height:34px!important;
+  min-height:34px!important;
+  max-height:34px!important;
+  border-radius:17px!important;
+  font-size:12px!important;
+  line-height:34px!important;
+  font-weight:720!important;
+  padding:0 12px!important;
+  box-shadow:none!important;
+}
+#tfunds .fund-mini-actions .buy-primary{
+  background:#5A91EA!important;
+  border-color:#5A91EA!important;
+  color:#fff!important;
+}
+#tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
+  background:#EEF5FF!important;
+  border-color:#D5E5F8!important;
+  color:#195B9D!important;
+}
+#tfunds .fund-mini-actions .danger-btn{
+  background:#FFF1F1!important;
+  border-color:#F0D4D4!important;
+  color:#B84C4C!important;
+}
+body.dark #tfunds .fund-mini-actions .buy-primary,
+body.dark #tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
+  background:#1D2128!important;
+  border-color:#303640!important;
+  color:#DDE8FF!important;
+}
+body.dark #tfunds .fund-mini-actions .danger-btn{
+  background:#251B1D!important;
+  border-color:#463034!important;
+  color:#FF9A9F!important;
+}
 </style>
 </head>
 <body>
