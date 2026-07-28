@@ -2471,6 +2471,51 @@ body.dark #tai .ai-detail{
   border-color:rgba(255,255,255,.06)!important;
   box-shadow:none!important;
 }
+/* v4-ai-fund-card-unified-20260728: every AI fund card matches strategy card styling. */
+#tai #ai-content{
+  display:grid!important;
+  gap:8px!important;
+  padding:8px!important;
+}
+#tai .ai-strategy-card{
+  margin:0!important;
+  min-height:78px!important;
+  padding-bottom:7px!important;
+  border-radius:16px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F7FAFE 100%)!important;
+  border:1px solid rgba(151,178,211,.24)!important;
+  box-shadow:0 7px 18px rgba(54,94,150,.08)!important;
+  overflow:hidden!important;
+}
+#tai .ai-strategy-card.ai-up{
+  background:linear-gradient(160deg,#FFFFFF 0%,#FFF7F5 100%)!important;
+}
+#tai .ai-strategy-card.ai-down{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F2FAF6 100%)!important;
+}
+#tai .ai-strategy-card.ai-neutral{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F5F9FE 100%)!important;
+}
+#tai .ai-strategy-card .ai-card-head-no-meter{
+  padding:10px 11px 3px 15px!important;
+}
+#tai .ai-strategy-card .ai-useful-line{
+  margin:5px 11px 0 15px!important;
+  font-size:11.5px!important;
+  line-height:1.42!important;
+}
+body.dark #tai .ai-strategy-card,
+body.dark #tai .ai-strategy-card.ai-neutral{
+  background:linear-gradient(160deg,#171A20 0%,#111419 100%)!important;
+  border-color:rgba(255,255,255,.07)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.28)!important;
+}
+body.dark #tai .ai-strategy-card.ai-up{
+  background:linear-gradient(160deg,#1B1719 0%,#111419 100%)!important;
+}
+body.dark #tai .ai-strategy-card.ai-down{
+  background:linear-gradient(160deg,#141B18 0%,#111419 100%)!important;
+}
 </style>
 </head>
 <body>
@@ -2849,6 +2894,20 @@ function renderFunds(d){
       +'<div class="fund-redesign-info">'+holdHtml+cleanFundSignalV4(f,d)+'</div>'
       +'<div class="fund-redesign-metrics">'+metric('7天',r7)+metric('1月',r1)+metric('半年',r6)+'</div>'
       +cleanFundActionsV4(f,bp)+'</div>';
+  }).join('');
+}
+function renderAI(d){
+  const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);
+  if(!box||!fs.length)return;
+  if(board){board.classList.add('ai-date-board');board.innerHTML=aiDateBoard(nodes)}
+  box.innerHTML=fs.map(f=>{
+    const ai=f.ai_prediction||{},useEst=homeUseEstimate(f,d),estVal=estimateChange(f),actual=Number(f.daily_change||0);
+    const cg=useEst?(estVal??actual):actual,tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),deep=isDeepSeekAi(f);
+    const main=compactAiAdvice(f,d),sub=useEst?'预估收益':'实际收益',stateText=/^(持仓中|未持仓)$/.test(bs.label)?'':' · '+esc(bs.label);
+    return '<div class="ai-detail ai-strategy-card ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'
+      +(useEst&&estVal!=null?estCorner(f,d):'')
+      +'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div>'
+      +'<div class="ai-useful-line"><strong>建议</strong> '+esc(main)+stateText+'</div></div>';
   }).join('');
 }
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
