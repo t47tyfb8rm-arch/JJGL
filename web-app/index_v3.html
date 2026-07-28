@@ -1421,6 +1421,112 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
   border-color:#463034!important;
   color:#FF9A9F!important;
 }
+/* Profile sector overview */
+#tprofile .sector-panel{
+  margin:8px 14px 10px!important;
+  padding:12px!important;
+  border-radius:18px!important;
+  background:linear-gradient(180deg,#FFFFFF 0%,#F4F8FD 100%)!important;
+  border:1px solid rgba(219,232,248,.95)!important;
+  box-shadow:0 8px 22px rgba(31,86,174,.075)!important;
+}
+.sector-headline{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:9px;
+}
+.sector-title{
+  font-size:16px;
+  font-weight:760;
+  color:var(--ink);
+}
+.sector-sub{
+  margin-top:2px;
+  font-size:10px;
+  color:var(--muted);
+}
+.sector-score{
+  min-width:70px;
+  text-align:right;
+}
+.sector-score .num{
+  font-size:18px;
+  font-weight:780;
+  line-height:1.05;
+}
+.sector-score span{
+  display:block;
+  margin-top:3px;
+  font-size:10px;
+  color:var(--muted);
+}
+.sector-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.sector-card{
+  position:relative;
+  min-height:58px;
+  padding:9px 9px 8px 13px;
+  border-radius:15px;
+  background:linear-gradient(90deg,#F7FAFE 0%,#FFFFFF 88%);
+  border:1px solid rgba(47,111,214,.06);
+  overflow:hidden;
+}
+.sector-card:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:10px;
+  bottom:10px;
+  width:4px;
+  border-radius:0 7px 7px 0;
+  background:linear-gradient(180deg,#245FAF,#6EA4DF);
+}
+.sector-card.good:before{background:linear-gradient(180deg,#C87870,#E7A061)}
+.sector-card.bad:before{background:linear-gradient(180deg,#2D8C6F,#78B89E)}
+.sector-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:8px;
+}
+.sector-name{
+  min-width:0;
+  font-size:12px;
+  font-weight:740;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sector-value{
+  font-size:15px;
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+}
+.sector-note{
+  margin-top:7px;
+  font-size:10px;
+  line-height:1.2;
+  color:var(--muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+body.dark #tprofile .sector-panel{
+  background:linear-gradient(180deg,#171717 0%,#111111 100%)!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:none!important;
+}
+body.dark .sector-card{
+  background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
+  border-color:rgba(255,255,255,.055)!important;
+}
 </style>
 </head>
 <body>
@@ -1500,6 +1606,13 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 <!-- ===== PROFILE ===== -->
 <div id="tprofile" class="tab-c">
   <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
+  <div class="card px tight-card sector-panel">
+    <div class="sector-headline">
+      <div><div class="sector-title">主题温度</div><div class="sector-sub" id="sector-update">按持仓主题与市场指数聚合</div></div>
+      <div class="sector-score"><div class="num" id="sector-overall">--</div><span>今日整体</span></div>
+    </div>
+    <div class="sector-grid" id="theme-sector-list"><div class="t2 pb">加载中...</div></div>
+  </div>
   <div class="card px tight-card profile-panel">
     <div class="panel-kicker">Market Brief</div><div class="panel-title">持仓资讯与操作参考</div>
     <div class="muted" id="news-refresh-time" style="margin:-4px 0 8px">资讯更新 --</div>
@@ -1754,6 +1867,13 @@ function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(id
 function renderAI(d){const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);if(!box||!fs.length)return;if(board){board.classList.add('ai-date-board');board.innerHTML=aiDateBoard(nodes)}box.innerHTML=fs.map(f=>{const ai=f.ai_prediction||{},useEst=homeUseEstimate(f,d),estVal=estimateChange(f),actual=Number(f.daily_change||0),cg=useEst?(estVal??actual):actual,tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),deep=isDeepSeekAi(f),main=compactAiAdvice(f,d),sub=useEst?'预估收益':'实际收益',stateText=/^(持仓中|未持仓)$/.test(bs.label)?'':' · '+esc(bs.label);return '<div class="ai-detail ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'+(useEst&&estVal!=null?estCorner(f,d):'')+'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div><div class="ai-useful-line"><strong>建议</strong> '+esc(main)+stateText+'</div></div>'}).join('')}
 function homeUseEstimate(f,d){const est=estimateChange(f);if(est==null)return false;return String(d?.market_status||'')==='trading'}
 function renderHome(d){const fs=d.funds||[];const idx=d.index||{},ichg=Number(idx.daily_change||0);document.getElementById('total-asset').textContent=idx.current?fmt(idx.current):'--';document.getElementById('today-profit').textContent=fp(ichg);document.getElementById('today-profit').style.color=cc(ichg);const sz=d.sz_index||{},schg=Number(sz.daily_change||0);document.getElementById('total-yield').textContent=sz.current?fmt(sz.current):'待更新';const note=document.getElementById('today-yield-note');if(note){note.textContent=sz.current?fp(schg):'后端重启后显示';note.style.color=sz.current?cc(schg):'var(--muted)';note.className='hero-note num '+(sz.current?cl(schg):'')}drawSpark(document.getElementById('index-spark'),idx.history,idx.current);const k50=fs.find(f=>f.model_benchmark_name==='科创50')||fs.find(f=>f.code==='011609'),kchg=k50?Number(k50.daily_change||0):0;document.getElementById('idx-1-price').textContent=k50&&k50.current_nav?nav(k50.current_nav):'跟踪';document.getElementById('idx-1-chg').innerHTML=fp(kchg);document.getElementById('idx-1-chg').className='hero-note num '+cl(kchg);const bond=d.bond_index||{},bchg=Number(bond.daily_change||0);document.getElementById('idx-2-price').textContent=bond.current?fmt(bond.current):'--';document.getElementById('idx-2-chg').textContent=bond.current?fp(bchg):'--';document.getElementById('idx-2-chg').className='hero-note num '+cl(bchg);document.getElementById('fund-chips').innerHTML=fs.map(f=>{const actual=Number(f.daily_change||0),estVal=estimateChange(f),useEst=homeUseEstimate(f,d),cg=useEst?(estVal??actual):actual,meta=(useEst?'实际净值 '+fp(actual):'预估收益 '+(estVal!=null?fp(estVal):'--'))+' · 净值 '+md(f.nav_date),sub=useEst?'盘中预估':'实际净值';return '<div class="card fund-chip product '+(useEst&&estVal!=null?'has-est':'')+'" onclick="goTab(\'funds\')">'+(useEst&&estVal!=null?estCorner(f,d):'')+'<div class="fund-main"><div class="fund-line"><span class="chip-code">'+f.code+'</span><span class="chip-name">'+shortName(f,12)+'</span></div><div class="fund-meta">'+meta+'</div></div><div class="fund-side"><div class="chip-change num '+cl(cg)+'">'+fp(cg)+'</div><div class="chip-sub num '+cl(cg)+'">'+sub+'</div></div></div>'}).join('');renderBuyWatch(d)}
+function themeNewsBias(d,pattern){let good=0,bad=0,total=0;(d?.news||[]).forEach(n=>{const s=newsText(n);if(!pattern.test(s))return;total++;const t=finalNewsTone(n);if(t==='good')good++;else if(t==='bad')bad++});return {good,bad,total,score:good-bad}}
+function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return xs.length?xs.reduce((a,b)=>a+Number(b),0)/xs.length:null}
+function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
+function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
+function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
+function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
+var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);return renderProfileNewsOnly(d)}
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
 </script>
 </body>
