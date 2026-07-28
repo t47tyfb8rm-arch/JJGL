@@ -1409,6 +1409,16 @@ class ThemeSectorInfo(BaseModel):
     updated_at: str = ""
 
 
+THEME_MARKET_INDEXES = [
+    ("医疗", "sz399989", "中证医疗"),
+    ("白酒", "sz399997", "中证白酒"),
+    ("新能源", "sz399808", "中证新能源"),
+    ("消费", "sh000932", "中证消费"),
+    ("券商", "sz399975", "证券公司"),
+    ("银行", "sz399986", "中证银行"),
+]
+
+
 class PortfolioResponse(BaseModel):
     """持仓响应模型"""
     date: str
@@ -3597,6 +3607,30 @@ def _policy_theme_label(news: List[NewsItem]) -> tuple[str, str]:
     return "中性", f"政策资金面资讯 {total} 条"
 
 
+async def fetch_theme_market_sectors() -> List[ThemeSectorInfo]:
+    """拉取独立市场主题指数，用于我的页市场温度，不依赖当前持仓。"""
+    now_label = datetime.now().strftime("%H:%M")
+    tasks = [fetch_generic_index(code, display_name) for _, code, display_name in THEME_MARKET_INDEXES]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    sectors: List[ThemeSectorInfo] = []
+    for (name, code, display_name), result in zip(THEME_MARKET_INDEXES, results):
+        value: Optional[float] = None
+        note = display_name
+        if isinstance(result, IndexInfo) and result.current > 0:
+            value = round(float(result.daily_change), 2)
+            note = f"{display_name} {result.code}"
+        sectors.append(ThemeSectorInfo(
+            name=name,
+            value=value,
+            label="观察" if value is None else "",
+            note=note,
+            tone=_theme_tone(value),
+            source="主题指数",
+            updated_at=now_label,
+        ))
+    return sectors
+
+
 def build_theme_sectors(
     funds: List[FundInfo],
     index_info: IndexInfo,
@@ -3604,6 +3638,7 @@ def build_theme_sectors(
     hs300_index: Optional[IndexInfo],
     sz_index: Optional[IndexInfo],
     news: List[NewsItem],
+    market_theme_sectors: Optional[List[ThemeSectorInfo]] = None,
 ) -> List[ThemeSectorInfo]:
     """后台生成主题板块温度，随组合数据定时刷新。"""
     now_label = datetime.now().strftime("%H:%M")
@@ -3636,6 +3671,8 @@ def build_theme_sectors(
             source=source,
             updated_at=now_label,
         ))
+    if market_theme_sectors:
+        sectors.extend(market_theme_sectors)
     return sectors
 
 
@@ -4025,6 +4062,7 @@ async def get_portfolio(force: int = 0):
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
                 schedule_news_refresh()
             cached_response.news = current_news_or_placeholder()
+            cached_market_themes = [x for x in (cached_response.theme_sectors or []) if getattr(x, "source", "") == "主题指数"]
             cached_response.theme_sectors = build_theme_sectors(
                 cached_response.funds,
                 cached_response.index,
@@ -4032,6 +4070,7 @@ async def get_portfolio(force: int = 0):
                 cached_response.hs300_index,
                 cached_response.sz_index,
                 cached_response.news,
+                cached_market_themes,
             )
             cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
@@ -4098,7 +4137,9 @@ async def get_portfolio(force: int = 0):
     # 并行获取所有基金数据（含实时净值 + 历史净值 + AI预判）
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
     fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
+    theme_market_task = fetch_theme_market_sectors()
     fund_results = await asyncio.gather(*fund_tasks, return_exceptions=True)
+    theme_market_sectors = await theme_market_task
 
     funds: List[FundInfo] = []
     for result in fund_results:
@@ -4118,6 +4159,7 @@ async def get_portfolio(force: int = 0):
         hs300_info,
         sz_index_info,
         news,
+        theme_market_sectors,
     )
 
     # 新闻后台刷新，不阻塞首页首屏
