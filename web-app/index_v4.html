@@ -1897,6 +1897,64 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
 #tfunds .fund-period-row .num{
   font-size:12.4px!important;
 }
+/* V4 trial: stretch existing fund trade buttons only, without changing render logic. */
+#tfunds .fund-mini-actions,
+#tfunds .action-row.fund-mini-actions{
+  display:grid!important;
+  gap:10px!important;
+  margin-top:8px!important;
+  width:100%!important;
+}
+#tfunds .fund-mini-actions:not([style*="1fr"]),
+#tfunds .action-row.fund-mini-actions:not([style*="1fr"]){
+  grid-template-columns:1fr 1fr!important;
+}
+#tfunds .fund-mini-actions[style*="1fr"],
+#tfunds .action-row.fund-mini-actions[style*="1fr"]{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-mini-actions .subtle-btn,
+#tfunds .fund-mini-actions .danger-btn,
+#tfunds .fund-mini-actions .buy-primary{
+  width:100%!important;
+  height:36px!important;
+  min-height:36px!important;
+  border-radius:15px!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  box-shadow:0 6px 14px rgba(31,86,174,.08)!important;
+}
+#tfunds .fund-mini-actions .buy-primary{
+  background:linear-gradient(135deg,var(--brand),#5A91EA)!important;
+  border-color:transparent!important;
+  color:#fff!important;
+}
+#tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
+  background:#EAF2FF!important;
+  border-color:#CFE0F5!important;
+  color:var(--brand-dark)!important;
+}
+#tfunds .fund-mini-actions .danger-btn{
+  background:#FCEAEA!important;
+  border-color:#F1C9C9!important;
+  color:#B84848!important;
+}
+body.dark #tfunds .fund-mini-actions .buy-primary{
+  background:#2A3039!important;
+  border-color:#3A424E!important;
+  color:#F5F6F8!important;
+}
+body.dark #tfunds .fund-mini-actions .subtle-btn:not(.buy-primary){
+  background:#1D2128!important;
+  border-color:#303640!important;
+  color:#DDE8FF!important;
+}
+body.dark #tfunds .fund-mini-actions .danger-btn{
+  background:#251B1D!important;
+  border-color:#463034!important;
+  color:#FF9A9F!important;
+}
 </style>
 </head>
 <body>
