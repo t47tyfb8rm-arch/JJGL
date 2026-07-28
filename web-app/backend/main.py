@@ -1508,6 +1508,7 @@ WATCHED_FUNDS = [
     "020741",  # 华泰保兴安悦债券C
     "004746",  # 易方达上证50增强C
 ]
+CORE_FUNDS = set(WATCHED_FUNDS)
 
 # HTTP 客户端配置
 HTTP_HEADERS = {
@@ -4393,6 +4394,37 @@ async def add_watched_fund(payload: dict):
         "drop_threshold": round(drop_threshold, 2),
         "historical_yield": round(historical_yield, 2)
     }
+
+
+@app.delete("/api/funds/watch/{fund_code}")
+async def delete_watched_fund(fund_code: str):
+    """删除用户新增的关注基金；三只内置基金不允许删除。"""
+    fund_code = str(fund_code or "").strip()
+    if not fund_code or len(fund_code) != 6 or not fund_code.isdigit():
+        raise HTTPException(status_code=400, detail="基金代码必须是6位数字")
+    if fund_code in CORE_FUNDS:
+        raise HTTPException(status_code=400, detail="内置基金不支持删除")
+    if fund_code not in WATCHED_FUNDS and fund_code not in FUND_SETTINGS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+
+    if fund_code in WATCHED_FUNDS:
+        WATCHED_FUNDS.remove(fund_code)
+    FUND_SETTINGS.pop(fund_code, None)
+    HISTORICAL_YIELDS.pop(fund_code, None)
+    BUY_POINT_CONFIG.pop(fund_code, None)
+    BUY_POINT_REFS.pop(fund_code, None)
+    COST_NAVS.pop(fund_code, None)
+    NAV_HISTORY.pop(fund_code, None)
+    FUND_DETAIL_CACHE.pop(fund_code, None)
+
+    save_fund_settings(FUND_SETTINGS)
+    save_buy_point_refs(BUY_POINT_REFS)
+    save_cost_navs_to_file(COST_NAVS)
+    save_nav_history(NAV_HISTORY)
+
+    PORTFOLIO_CACHE["data"] = None
+    PORTFOLIO_CACHE["saved_at"] = 0.0
+    return {"ok": True, "code": fund_code, "deleted": True}
 
 
 @app.post("/api/buy/{fund_code}")
