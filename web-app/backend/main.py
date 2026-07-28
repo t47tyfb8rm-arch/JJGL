@@ -321,6 +321,65 @@ async def fetch_realtime_index(code: str) -> dict:
         print(f"[实时指数] {code} 获取失败: {e}")
         return {}
 
+def _index_secid(code: str) -> str:
+    clean = str(code or "").strip().lower()
+    if clean.startswith("sh"):
+        return "1." + clean[2:]
+    if clean.startswith("sz"):
+        return "0." + clean[2:]
+    if clean.startswith("6") or clean.startswith("0"):
+        return "1." + clean
+    return "0." + clean
+
+def _em_scaled(value, scale: float = 100.0) -> float:
+    if value in (None, "", "-"):
+        return 0.0
+    try:
+        return float(value) / scale
+    except Exception:
+        return 0.0
+
+async def fetch_eastmoney_realtime_index(code: str, name: str = "") -> dict:
+    """Eastmoney realtime index quote, used before Tencent/K-line for intraday index cards."""
+    cache_key = f"em:{code}"
+    now = time.time()
+    if cache_key in REALTIME_INDEX_CACHE:
+        ts, data = REALTIME_INDEX_CACHE[cache_key]
+        if now - ts < REALTIME_INDEX_TTL and data:
+            return data
+    try:
+        url = "https://push2.eastmoney.com/api/qt/stock/get"
+        params = {
+            "secid": _index_secid(code),
+            "fields": "f43,f57,f58,f60,f169,f170",
+            "_": int(now * 1000),
+        }
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            r = await client.get(url, params=params, headers={**HTTP_HEADERS, "Referer": "https://quote.eastmoney.com/"})
+            r.raise_for_status()
+            data = r.json().get("data") or {}
+        current = _em_scaled(data.get("f43"))
+        previous = _em_scaled(data.get("f60"))
+        change_amt = _em_scaled(data.get("f169"))
+        change_pct = _em_scaled(data.get("f170"))
+        if current <= 0:
+            return {}
+        result = {
+            "code": code,
+            "name": name or data.get("f58") or code,
+            "current": current,
+            "previous": previous,
+            "change_amt": change_amt,
+            "change_pct": change_pct,
+            "time_str": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "source": "eastmoney",
+        }
+        REALTIME_INDEX_CACHE[cache_key] = (now, result)
+        return result
+    except Exception as e:
+        print(f"[东方财富实时指数] {code} 获取失败: {e}")
+        return {}
+
 def record_index_residual(fund_code: str, benchmark_change: float, actual_change: float, trade_date: str):
     """记录一条指数残差样本
     residual = actual - benchmark，正值表示基金跑赢基准
@@ -3895,7 +3954,9 @@ async def fetch_generic_index(code: str, name: str) -> IndexInfo:
     """
     通用指数抓取（用腾讯K线接口）
     """
-    rt = await fetch_realtime_index(code)
+    rt = await fetch_eastmoney_realtime_index(code, name)
+    if not (rt and rt.get("current", 0) > 0):
+        rt = await fetch_realtime_index(code)
     if rt and rt.get("current", 0) > 0:
         return IndexInfo(
             code=code.replace("sh", "").replace("sz", ""),
