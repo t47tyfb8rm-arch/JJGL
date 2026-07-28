@@ -1897,6 +1897,193 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
 #tfunds .fund-period-row .num{
   font-size:12.4px!important;
 }
+/* v3-fund-card-from-v4-20260728: V4 fund-card UI ported to V3 only. */
+#tfunds #fund-detail-list{
+  display:grid!important;
+  gap:8px!important;
+  padding:8px!important;
+}
+#tfunds .fund-redesign-card{
+  position:relative!important;
+  margin:0!important;
+  min-height:78px!important;
+  padding:10px 12px 10px 17px!important;
+  border-radius:16px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F7FAFE 100%)!important;
+  border:1px solid rgba(151,178,211,.24)!important;
+  box-shadow:0 7px 18px rgba(54,94,150,.08)!important;
+  overflow:hidden!important;
+}
+#tfunds .fund-redesign-card:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:12px;
+  bottom:12px;
+  width:4px;
+  border-radius:0 8px 8px 0;
+  background:linear-gradient(180deg,#1F72D2,#80B6F4);
+}
+#tfunds .fund-redesign-card.fund-up{
+  background:linear-gradient(160deg,#FFFFFF 0%,#FFF7F5 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-down{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F2FAF6 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-neutral{
+  background:linear-gradient(160deg,#FFFFFF 0%,#F5F9FE 100%)!important;
+}
+#tfunds .fund-redesign-card.fund-up:before{
+  background:linear-gradient(180deg,#E0525A,#F2A2A6)!important;
+}
+#tfunds .fund-redesign-card.fund-down:before{
+  background:linear-gradient(180deg,#2FA17F,#8ED6C0)!important;
+}
+#tfunds .fund-redesign-top{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:8px;
+}
+#tfunds .fund-redesign-name{
+  min-width:0;
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+}
+#tfunds .fund-redesign-code{
+  flex:0 0 auto;
+  font-size:11px;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+#tfunds .fund-redesign-fund{
+  min-width:0;
+  font-size:14px;
+  font-weight:720;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#tfunds .fund-redesign-datebox{
+  text-align:right;
+  min-width:78px;
+}
+#tfunds .fund-redesign-date{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height:20px;
+  padding:0 8px;
+  border-radius:11px;
+  background:#EFF4FA;
+  color:var(--muted);
+  font-size:10.5px;
+  font-weight:700;
+}
+#tfunds .fund-redesign-date.is-fresh{
+  background:#F5E5BC!important;
+  color:#725018!important;
+}
+#tfunds .fund-redesign-info{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:7px;
+  min-height:18px;
+}
+#tfunds .fund-redesign-hold{
+  min-width:0;
+  font-size:11px;
+  font-weight:680;
+  line-height:1.15;
+  color:var(--muted);
+  white-space:nowrap;
+}
+#tfunds .fund-redesign-signal{
+  font-size:11px;
+  font-weight:760;
+  line-height:1.1;
+  white-space:nowrap;
+}
+#tfunds .fund-redesign-metrics{
+  display:flex!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+  align-items:center;
+  margin-top:8px!important;
+  min-height:18px!important;
+}
+#tfunds .fund-redesign-metric{
+  min-width:0;
+  flex:1 1 0!important;
+  display:flex;
+  align-items:baseline;
+  justify-content:center!important;
+  gap:4px;
+  font-size:11px!important;
+  color:var(--muted);
+  white-space:nowrap;
+}
+#tfunds .fund-redesign-metric b{
+  font-size:12px!important;
+  font-weight:740;
+}
+#tfunds .fund-redesign-actions{
+  display:grid!important;
+  gap:7px!important;
+  margin-top:7px!important;
+}
+#tfunds .fund-redesign-actions.two{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+}
+#tfunds .fund-redesign-actions.one{
+  grid-template-columns:1fr!important;
+}
+#tfunds .fund-redesign-actions button{
+  width:100%!important;
+  height:29px!important;
+  min-height:29px!important;
+  border-radius:15px!important;
+  font-size:11.5px!important;
+  font-weight:700!important;
+  box-shadow:none!important;
+}
+#tfunds .fund-redesign-actions .buy-primary,
+#tfunds .fund-redesign-actions .subtle-btn:not(.buy-primary){
+  background:rgba(236,246,255,.74)!important;
+  border-color:#D4E5F8!important;
+  color:#1F64A5!important;
+}
+#tfunds .fund-redesign-actions .danger-btn{
+  background:#FFF3F3!important;
+  border-color:#F2D6D6!important;
+  color:#B84C4C!important;
+}
+body.dark #tfunds .fund-redesign-card,
+body.dark #tfunds .fund-redesign-card.fund-up,
+body.dark #tfunds .fund-redesign-card.fund-down,
+body.dark #tfunds .fund-redesign-card.fund-neutral{
+  background:#1D2128!important;
+  border-color:#2C333D!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.22)!important;
+}
+body.dark #tfunds .fund-redesign-date{
+  background:#252B35!important;
+}
+body.dark #tfunds .fund-redesign-actions .buy-primary,
+body.dark #tfunds .fund-redesign-actions .subtle-btn:not(.buy-primary){
+  background:#252B35!important;
+  border-color:#3A4658!important;
+  color:#DDEBFF!important;
+}
+body.dark #tfunds .fund-redesign-actions .danger-btn{
+  background:#3A2428!important;
+  border-color:#59343A!important;
+  color:#FFB5B5!important;
+}
 </style>
 </head>
 <body>
@@ -2253,6 +2440,9 @@ function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDat
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
 function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+esc(md(navDate))+' '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
+function cleanFundActionsV3(f,bp){return bp.is_holding?'<div class="fund-redesign-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+esc(f.code)+'\')">卖出</button></div>':'<div class="fund-redesign-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">买入</button></div>'}
+function cleanFundSignalV3(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<div class="fund-redesign-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' '+fp(actual)+'</div>';return '<div class="fund-redesign-signal wait">待净值</div>'}
+function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!list||!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f),actual=Number(f.daily_change||0),tone=aiTone(actual),holdHtml=bp.is_holding?'<div class="fund-redesign-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</div>':'<div class="fund-redesign-hold">未持仓</div>',metric=(label,val)=>'<div class="fund-redesign-metric"><span>'+label+'</span><b style="color:'+cc(val||0)+'">'+(val==null?'--':fp(val))+'</b></div>';return '<div class="fund-redesign-card fund-'+tone+'" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-redesign-top"><div class="fund-redesign-name"><span class="fund-redesign-code">'+esc(f.code)+'</span><span class="fund-redesign-fund">'+esc(shortName(f,10))+'</span></div><div class="fund-redesign-datebox"><div class="fund-redesign-date '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div></div></div><div class="fund-redesign-info">'+holdHtml+cleanFundSignalV3(f,d)+'</div><div class="fund-redesign-metrics">'+metric('7天',r7)+metric('1月',r1)+metric('半年',r6)+'</div>'+cleanFundActionsV3(f,bp)+'</div>'}).join('')}
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
 </script>
 </body>
