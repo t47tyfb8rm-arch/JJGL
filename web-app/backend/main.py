@@ -2650,6 +2650,22 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         else:
             previous_nav = current_nav
 
+        # Recalculate actual day change from the latest NAV history.
+        # Some Eastmoney fund pages refresh DWJZ/FSRQ before fix_zzl, leaving
+        # daily_change stuck on the previous trading day.
+        try:
+            latest_history = await fetch_fund_history(fund_code, days=3, force=force)
+            if latest_history and len(latest_history) >= 2:
+                latest_history = sorted(latest_history, key=lambda x: x.date)
+                match_idx = next((i for i, item in enumerate(latest_history) if item.date == nav_date), -1)
+                if match_idx > 0:
+                    prev_item = latest_history[match_idx - 1]
+                    if prev_item.nav > 0:
+                        previous_nav = round(prev_item.nav, 4)
+                        daily_change = round((current_nav - prev_item.nav) / prev_item.nav * 100, 2)
+        except Exception as e:
+            print(f"recalculate fund daily_change failed for {fund_code}: {e}")
+
         type_match = re.search(r'类型：</span><[^>]*>([^<]+)<', html)
         fund_type = type_match.group(1).strip() if type_match else "未知"
         
