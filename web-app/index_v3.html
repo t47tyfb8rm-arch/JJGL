@@ -1527,6 +1527,28 @@ body.dark .sector-card{
   background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
   border-color:rgba(255,255,255,.055)!important;
 }
+/* Put news refresh time into the title row to save vertical space. */
+#tprofile .profile-panel .panel-title{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:10px!important;
+  margin-bottom:8px!important;
+}
+#tprofile .profile-panel #news-refresh-time{
+  margin:0!important;
+  flex:0 0 auto!important;
+  max-width:132px!important;
+  text-align:right!important;
+  font-size:10px!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+body.dark #tprofile .profile-panel #news-refresh-time{
+  color:#9CA3AD!important;
+}
 </style>
 </head>
 <body>
@@ -1614,8 +1636,7 @@ body.dark .sector-card{
     <div class="sector-grid" id="theme-sector-list"><div class="t2 pb">加载中...</div></div>
   </div>
   <div class="card px tight-card profile-panel">
-    <div class="panel-kicker">Market Brief</div><div class="panel-title">持仓资讯与操作参考</div>
-    <div class="muted" id="news-refresh-time" style="margin:-4px 0 8px">资讯更新 --</div>
+    <div class="panel-kicker">Market Brief</div><div class="panel-title"><span>持仓资讯与操作参考</span><span class="muted" id="news-refresh-time">资讯更新 --</span></div>
     <div id="news-list"><div class="t2 pb">加载中...</div></div>
   </div>
 </div>
