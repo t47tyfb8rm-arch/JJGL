@@ -1431,6 +1431,7 @@ class PortfolioResponse(BaseModel):
     funds: List[FundInfo]
     news: List[NewsItem]
     bond_index: Optional[IndexInfo] = None  # 债券指数（用于债券基金参考）
+    k50_index: Optional[IndexInfo] = None  # 科创50指数（首页市场卡片）
     hs300_index: Optional[IndexInfo] = None  # 沪深300指数
     sz_index: Optional[IndexInfo] = None  # 深证成指
     theme_sectors: List[ThemeSectorInfo] = []  # 主题板块温度
@@ -4078,9 +4079,11 @@ async def get_portfolio(force: int = 0):
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             return PORTFOLIO_CACHE["data"]
 
-    # 并行获取市场指数：上证指数 + 上证历史 + 国债指数 + 国债历史 + 沪深300 + 深证成指
+    # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 国债指数 + 国债历史 + 沪深300 + 深证成指
     index_task = fetch_sh_index()
     index_history_task = fetch_index_history(14)
+    k50_task = fetch_generic_index("sh000688", "科创50")
+    k50_history_task = fetch_index_history_for_code("sh000688", 7)
     bond_index_task = fetch_generic_index("sh000012", "国债指数")
     bond_history_task = fetch_index_history_for_code("sh000113", 7)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
@@ -4089,10 +4092,10 @@ async def get_portfolio(force: int = 0):
     sz_history_task = fetch_index_history_for_code("sz399001", 7)
 
     (
-        index_base, index_history, bond_index_base, bond_history,
+        index_base, index_history, k50_base, k50_history, bond_index_base, bond_history,
         hs300_base, hs300_history, sz_index_base, sz_history
     ) = await asyncio.gather(
-        index_task, index_history_task, bond_index_task, bond_history_task,
+        index_task, index_history_task, k50_task, k50_history_task, bond_index_task, bond_history_task,
         hs300_task, hs300_history_task, sz_index_task, sz_history_task
     )
 
@@ -4113,6 +4116,15 @@ async def get_portfolio(force: int = 0):
         previous=bond_index_base.previous,
         daily_change=bond_index_base.daily_change,
         history=bond_history
+    )
+
+    k50_index_info = IndexInfo(
+        code=k50_base.code,
+        name=k50_base.name,
+        current=k50_base.current,
+        previous=k50_base.previous,
+        daily_change=k50_base.daily_change,
+        history=k50_history
     )
 
     # 构建沪深300指数数据
@@ -4177,6 +4189,7 @@ async def get_portfolio(force: int = 0):
         funds=funds,
         news=news,
         bond_index=bond_index_info,
+        k50_index=k50_index_info,
         hs300_index=hs300_info,
         sz_index=sz_index_info,
         theme_sectors=theme_sectors,
