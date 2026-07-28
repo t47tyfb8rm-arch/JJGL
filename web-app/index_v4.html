@@ -2956,6 +2956,7 @@ function renderFunds(d){
       +cleanFundActionsV4(f,bp)+'</div>';
   }).join('');
 }
+// v4-ai-strategy-from-v3-20260728: keep V4 AI strategy rendering aligned with stable V3.
 function renderAI(d){
   const fs=d.funds||[],box=document.getElementById('ai-content'),board=document.getElementById('ai-signal-board'),nodes=marketKeyNodes(d);
   if(!box||!fs.length)return;
@@ -2964,7 +2965,7 @@ function renderAI(d){
     const ai=f.ai_prediction||{},useEst=homeUseEstimate(f,d),estVal=estimateChange(f),actual=Number(f.daily_change||0);
     const cg=useEst?(estVal??actual):actual,tone=aiTone(cg),trend=cleanTrend(ai.trend),bs=buyState(f),deep=isDeepSeekAi(f);
     const main=compactAiAdvice(f,d),sub=useEst?'预估收益':'实际收益',stateText=/^(持仓中|未持仓)$/.test(bs.label)?'':' · '+esc(bs.label);
-    return '<div class="ai-detail ai-strategy-card ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'
+    return '<div class="ai-detail ai-'+tone+' '+(useEst&&estVal!=null?'has-est':'')+'" onclick="openAiDetail(\''+esc(f.code)+'\')">'
       +(useEst&&estVal!=null?estCorner(f,d):'')
       +'<div class="ai-card-head ai-card-head-no-meter"><div class="ai-summary-main"><div class="ai-title-line"><span class="chip-code">'+esc(f.code)+'</span><span class="chip-name">'+esc(shortName(f,12))+'</span><span class="ai-badge '+tone+'">'+esc(trend)+'</span>'+(deep?'<span class="ai-tag-deepseek">DeepSeek</span>':'')+'</div></div><div class="ai-side num '+cl(cg)+'">'+fp(cg)+'<span class="muted">'+esc(sub)+'</span></div></div>'
       +'<div class="ai-useful-line"><strong>建议</strong> '+esc(main)+stateText+'</div></div>';
