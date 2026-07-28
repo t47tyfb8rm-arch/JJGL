@@ -1062,6 +1062,142 @@ body.dark #tfunds .date-pill.is-fresh{
   line-height:1.05!important;
   margin:0!important;
 }
+/* Fund portfolio polish: stronger hierarchy, lighter metric strip. */
+#tfunds .fund-list-panel{
+  padding:13px 11px 12px!important;
+  background:linear-gradient(160deg,#FFFFFF 0%,#F3F8FE 100%)!important;
+  border:1px solid rgba(207,224,245,.95)!important;
+  box-shadow:0 10px 24px rgba(31,86,174,.07)!important;
+}
+#tfunds .fund-list-panel .fund-list-heading{
+  padding:0 3px 10px!important;
+  margin:0 0 8px!important;
+}
+#tfunds .fund-list-panel #fund-detail-list{
+  gap:8px!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  padding:11px 12px 10px 17px!important;
+  border-radius:16px!important;
+  background:rgba(255,255,255,.86)!important;
+  border:1px solid rgba(47,111,214,.08)!important;
+  box-shadow:0 5px 13px rgba(31,86,174,.05)!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card:before{
+  width:4px!important;
+  top:12px!important;
+  bottom:12px!important;
+  border-radius:0 8px 8px 0!important;
+  opacity:.95!important;
+}
+#tfunds .fund-card-head{
+  margin-bottom:6px!important;
+  gap:10px!important;
+}
+#tfunds .fund-code-stack .row-title{
+  gap:6px!important;
+  align-items:baseline!important;
+}
+#tfunds .fund-code-stack .row-title span:first-child{
+  font-size:10px!important;
+  letter-spacing:.04em!important;
+  color:#7B8796!important;
+}
+#tfunds .fund-code-stack .row-title span:nth-child(2){
+  font-size:13px!important;
+  font-weight:760!important;
+  color:var(--ink)!important;
+}
+#tfunds .fund-code-stack .fund-hold{
+  margin-top:2px!important;
+  font-size:10px!important;
+  font-weight:650!important;
+}
+#tfunds .fund-date-box{
+  min-width:84px!important;
+}
+#tfunds .fund-date-top{
+  height:23px!important;
+  padding:0 9px!important;
+  border-radius:12px!important;
+  font-size:11px!important;
+  font-weight:700!important;
+}
+#tfunds .fund-date-return{
+  margin-top:4px!important;
+  font-size:11px!important;
+  font-weight:780!important;
+}
+#tfunds .fund-period-row{
+  height:25px!important;
+  min-height:25px!important;
+  max-height:25px!important;
+  margin-top:4px!important;
+  padding:0!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:0!important;
+  border-radius:12px!important;
+  background:rgba(47,111,214,.05)!important;
+  overflow:hidden!important;
+}
+#tfunds .fund-period-row>div{
+  flex:1 1 0!important;
+  height:25px!important;
+  min-height:25px!important;
+  max-height:25px!important;
+  padding:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:3px!important;
+}
+#tfunds .fund-period-row>div:not(:last-child){
+  border-right:1px solid rgba(47,111,214,.08)!important;
+}
+#tfunds .fund-period-row .label{
+  font-size:10px!important;
+  color:#8793A2!important;
+  font-weight:560!important;
+}
+#tfunds .fund-period-row .num{
+  font-size:11px!important;
+  font-weight:780!important;
+}
+#tfunds .fund-card-foot{
+  margin-top:7px!important;
+}
+#tfunds .fund-mini-actions{
+  gap:6px!important;
+}
+#tfunds .fund-mini-actions .subtle-btn,
+#tfunds .fund-mini-actions .danger-btn,
+#tfunds .fund-mini-actions .buy-primary{
+  height:24px!important;
+  min-height:24px!important;
+  border-radius:12px!important;
+  font-size:10px!important;
+  font-weight:720!important;
+}
+body.dark #tfunds .fund-list-panel{
+  background:#171717!important;
+  border-color:rgba(255,255,255,.055)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  background:#1B1B1B!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:none!important;
+}
+body.dark #tfunds .fund-period-row{
+  background:#202020!important;
+}
+body.dark #tfunds .fund-period-row>div:not(:last-child){
+  border-right-color:rgba(255,255,255,.06)!important;
+}
 </style>
 </head>
 <body>
