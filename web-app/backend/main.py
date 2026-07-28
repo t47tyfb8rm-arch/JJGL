@@ -3699,22 +3699,23 @@ def build_theme_sectors(
     sz_index: Optional[IndexInfo],
     news: List[NewsItem],
     market_theme_sectors: Optional[List[ThemeSectorInfo]] = None,
+    k50_index: Optional[IndexInfo] = None,
 ) -> List[ThemeSectorInfo]:
     """后台生成主题板块温度，随组合数据定时刷新。"""
     now_label = datetime.now().strftime("%H:%M")
-    k50 = _find_theme_fund(funds, r"011609", r"科创", r"半导体", r"芯片")
     bond_fund = _find_theme_fund(funds, r"020741", r"债", r"国债")
     blue = _find_theme_fund(funds, r"004746", r"上证50", r"蓝筹")
     sh_change = index_info.daily_change if index_info and index_info.current > 0 else None
     sz_change = sz_index.daily_change if sz_index and sz_index.current > 0 else None
     hs300_change = hs300_index.daily_change if hs300_index and hs300_index.current > 0 else None
+    k50_change = k50_index.daily_change if k50_index and k50_index.current > 0 else None
     bond_change = bond_index.daily_change if bond_index and bond_index.current > 0 else None
     policy_label, policy_note = _policy_theme_label(news)
 
     raw = [
         ("宽基指数", _avg_numbers([sh_change, sz_change, hs300_change]), "", "上证 / 深证 / 沪深300", "指数行情"),
-        ("科技成长", _avg_numbers([sz_change, _theme_fund_change(k50)]), "", "深证 + 科创成长情绪", "指数+持仓"),
-        ("半导体科创", _theme_fund_change(k50), "", "科创50 / 芯片主题", "持仓映射"),
+        ("科技成长", _avg_numbers([sz_change, k50_change]), "", "深证 + 科创成长情绪", "指数行情"),
+        ("半导体科创", k50_change, "", "科创50 / 芯片主题", "指数行情"),
         ("债券利率", _avg_numbers([bond_change, _theme_fund_change(bond_fund)]), "", "国债指数 + 债基净值", "指数+持仓"),
         ("上证50蓝筹", _avg_numbers([_theme_fund_change(blue), hs300_change, sh_change]), "", "上证50 / 大盘蓝筹", "指数+持仓"),
         ("资金政策", None, policy_label, policy_note, "资讯聚合"),
@@ -4134,6 +4135,7 @@ async def get_portfolio(force: int = 0):
                 cached_response.sz_index,
                 cached_response.news,
                 cached_market_themes,
+                cached_response.k50_index,
             )
             cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
@@ -4234,6 +4236,7 @@ async def get_portfolio(force: int = 0):
         sz_index_info,
         news,
         theme_market_sectors,
+        k50_index_info,
     )
 
     # 新闻后台刷新，不阻塞首页首屏
@@ -4300,6 +4303,7 @@ async def get_market_news(force: int = 0):
             PORTFOLIO_CACHE["data"].hs300_index,
             PORTFOLIO_CACHE["data"].sz_index,
             news,
+            k50_index=PORTFOLIO_CACHE["data"].k50_index,
         )
     return {
         "date": datetime.now().strftime("%Y-%m-%d"),
