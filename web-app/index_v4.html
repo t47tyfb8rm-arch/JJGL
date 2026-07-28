@@ -2087,6 +2087,51 @@ body.dark #tfunds .fund-redesign-actions .danger-btn{
   border-color:#59343A!important;
   color:#FFB5B5!important;
 }
+/* buy-distance-tone-20260728: 买点监控按状态使用策略建议同源色系。 */
+#tbuy .buy-distance-row.is-ready{
+  background:linear-gradient(90deg,rgba(200,120,112,.16),rgba(255,255,255,.70) 82%)!important;
+  border-bottom-color:rgba(200,120,112,.16)!important;
+}
+#tbuy .buy-distance-row.is-ready:before{
+  background:linear-gradient(180deg,#C87870,#EAA09A)!important;
+}
+#tbuy .buy-distance-row.is-near{
+  background:linear-gradient(90deg,rgba(47,111,214,.13),rgba(255,255,255,.68) 84%)!important;
+  border-bottom-color:rgba(47,111,214,.14)!important;
+}
+#tbuy .buy-distance-row.is-near:before{
+  background:linear-gradient(180deg,#2F6FD6,#83B6FF)!important;
+}
+#tbuy .buy-distance-row.is-hold{
+  background:linear-gradient(90deg,rgba(111,150,134,.15),rgba(255,255,255,.68) 84%)!important;
+  border-bottom-color:rgba(111,150,134,.15)!important;
+}
+#tbuy .buy-distance-row.is-hold:before{
+  background:linear-gradient(180deg,#6F9686,#A9C8BC)!important;
+}
+#tbuy .buy-distance-row.is-far{
+  background:linear-gradient(90deg,rgba(137,162,188,.14),rgba(255,255,255,.66) 84%)!important;
+  border-bottom-color:rgba(137,162,188,.14)!important;
+}
+#tbuy .buy-distance-row.is-far:before{
+  background:linear-gradient(180deg,#89A2BC,#C4D2E1)!important;
+}
+body.dark #tbuy .buy-distance-row.is-ready{
+  background:linear-gradient(90deg,rgba(200,120,112,.18),rgba(26,26,26,.82) 82%)!important;
+  border-bottom-color:rgba(200,120,112,.18)!important;
+}
+body.dark #tbuy .buy-distance-row.is-near{
+  background:linear-gradient(90deg,rgba(47,111,214,.18),rgba(26,26,26,.82) 84%)!important;
+  border-bottom-color:rgba(47,111,214,.18)!important;
+}
+body.dark #tbuy .buy-distance-row.is-hold{
+  background:linear-gradient(90deg,rgba(111,150,134,.18),rgba(26,26,26,.82) 84%)!important;
+  border-bottom-color:rgba(111,150,134,.18)!important;
+}
+body.dark #tbuy .buy-distance-row.is-far{
+  background:linear-gradient(90deg,rgba(137,162,188,.14),rgba(26,26,26,.82) 84%)!important;
+  border-bottom-color:rgba(137,162,188,.14)!important;
+}
 </style>
 </head>
 <body>
@@ -2158,7 +2203,7 @@ body.dark #tfunds .fund-redesign-actions .danger-btn{
     <div id="buy-signals"><div class="t2 pb">加载中...</div></div>
   </div>
   <div class="card px tight-card buy-panel soft">
-    <div class="panel-kicker">My Yield</div><div class="panel-title">我的历史累计收益</div>
+    <div class="panel-kicker">My Yield</div><div class="panel-title">历史累计收益</div>
     <div id="profit-benchmark"><div class="t2 pb">加载中...</div></div>
   </div>
 </div>
