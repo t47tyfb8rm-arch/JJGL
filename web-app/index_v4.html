@@ -2197,44 +2197,63 @@ body.dark #tfunds .fund-clean-date .date.is-fresh{
   background:#5A431E!important;
   color:#FFDFA0!important;
 }
-/* v4-fund-card-density-20260728: latest fund card tuning. */
+/* v4-fund-card-density-20260728c: designer-reviewed compact fund card. */
 #tfunds .fund-clean-card{
-  min-height:136px!important;
-  padding:13px 13px 12px!important;
+  min-height:116px!important;
+  padding:10px 12px 9px!important;
+  border-radius:15px!important;
 }
 #tfunds .fund-clean-head{
-  grid-template-columns:minmax(0,1fr) 90px!important;
+  grid-template-columns:minmax(0,1fr) 86px!important;
 }
 #tfunds .fund-clean-sub{
-  margin-top:7px!important;
+  margin-top:4px!important;
 }
 #tfunds .fund-clean-periods{
-  gap:5px!important;
+  gap:0!important;
   margin-top:7px!important;
+  padding:2px!important;
+  border-radius:12px!important;
+  background:#EEF5FD!important;
 }
 #tfunds .fund-clean-periods>div{
-  min-height:30px!important;
-  padding:3px 3px!important;
-  border-radius:9px!important;
+  position:relative!important;
+  min-height:25px!important;
+  padding:2px 2px!important;
+  border-radius:10px!important;
+  background:transparent!important;
+}
+#tfunds .fund-clean-periods>div:not(:last-child):after{
+  content:"";
+  position:absolute;
+  right:0;
+  top:5px;
+  bottom:5px;
+  width:1px;
+  background:rgba(110,136,170,.16);
 }
 #tfunds .fund-clean-periods .label{
-  font-size:9px!important;
+  font-size:8.5px!important;
+  font-weight:520!important;
 }
 #tfunds .fund-clean-periods .num{
-  font-size:11px!important;
+  font-size:10.5px!important;
+  font-weight:720!important;
   margin-top:0!important;
 }
 #tfunds .fund-clean-actions{
-  margin-top:9px!important;
+  margin-top:6px!important;
 }
 #tfunds .fund-clean-actions button{
-  height:31px!important;
-  min-height:31px!important;
-  border-radius:16px!important;
+  height:26px!important;
+  min-height:26px!important;
+  border-radius:14px!important;
+  font-size:11px!important;
+  font-weight:680!important;
 }
 #tfunds .fund-clean-actions .buy-primary{
-  background:#F3F7FF!important;
-  border-color:#D7E5F8!important;
+  background:#F6F9FF!important;
+  border-color:#DCE8F7!important;
   color:#1E64A8!important;
 }
 body.dark #tfunds .fund-clean-actions .buy-primary{
