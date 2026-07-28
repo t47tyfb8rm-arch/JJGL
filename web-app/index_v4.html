@@ -2022,8 +2022,10 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 /* v4-fund-card-clean-20260728: rebuilt card, isolated from older overrides. */
 #tfunds .fund-clean-card{
   position:relative!important;
-  padding:10px 13px 10px!important;
+  padding:11px 12px 10px!important;
   border-radius:16px!important;
+  margin-left:8px!important;
+  margin-right:8px!important;
 }
 #tfunds .fund-clean-card:after{
   content:"";
@@ -2037,7 +2039,7 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 }
 #tfunds .fund-clean-head{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr) 86px;
   gap:8px;
   align-items:start;
 }
@@ -2121,24 +2123,24 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 #tfunds .fund-clean-periods{
   display:grid!important;
   grid-template-columns:repeat(3,minmax(0,1fr))!important;
-  gap:6px!important;
+  gap:5px!important;
   margin-top:8px!important;
 }
 #tfunds .fund-clean-periods>div{
   min-width:0;
-  padding:5px 4px!important;
-  border-radius:11px!important;
+  padding:4px 3px!important;
+  border-radius:10px!important;
   background:#EEF5FD!important;
   text-align:center;
 }
 #tfunds .fund-clean-periods .label{
-  font-size:10px!important;
+  font-size:9.5px!important;
   color:var(--muted)!important;
   line-height:1.1!important;
 }
 #tfunds .fund-clean-periods .num{
-  margin-top:2px!important;
-  font-size:12px!important;
+  margin-top:1px!important;
+  font-size:11.5px!important;
   font-weight:760!important;
   line-height:1.1!important;
 }
@@ -2163,9 +2165,9 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
   box-shadow:none!important;
 }
 #tfunds .fund-clean-actions .buy-primary{
-  background:#5A91EA!important;
-  border-color:#5A91EA!important;
-  color:#fff!important;
+  background:#EAF2FF!important;
+  border-color:#CADDF6!important;
+  color:#195B9D!important;
 }
 #tfunds .fund-clean-actions .subtle-btn:not(.buy-primary){
   background:#EEF5FF!important;
@@ -2194,6 +2196,51 @@ body.dark #tfunds .fund-clean-date .date{
 body.dark #tfunds .fund-clean-date .date.is-fresh{
   background:#5A431E!important;
   color:#FFDFA0!important;
+}
+/* v4-fund-card-density-20260728: latest fund card tuning. */
+#tfunds .fund-clean-card{
+  min-height:136px!important;
+  padding:13px 13px 12px!important;
+}
+#tfunds .fund-clean-head{
+  grid-template-columns:minmax(0,1fr) 90px!important;
+}
+#tfunds .fund-clean-sub{
+  margin-top:7px!important;
+}
+#tfunds .fund-clean-periods{
+  gap:5px!important;
+  margin-top:7px!important;
+}
+#tfunds .fund-clean-periods>div{
+  min-height:30px!important;
+  padding:3px 3px!important;
+  border-radius:9px!important;
+}
+#tfunds .fund-clean-periods .label{
+  font-size:9px!important;
+}
+#tfunds .fund-clean-periods .num{
+  font-size:11px!important;
+  margin-top:0!important;
+}
+#tfunds .fund-clean-actions{
+  margin-top:9px!important;
+}
+#tfunds .fund-clean-actions button{
+  height:31px!important;
+  min-height:31px!important;
+  border-radius:16px!important;
+}
+#tfunds .fund-clean-actions .buy-primary{
+  background:#F3F7FF!important;
+  border-color:#D7E5F8!important;
+  color:#1E64A8!important;
+}
+body.dark #tfunds .fund-clean-actions .buy-primary{
+  background:#252B35!important;
+  border-color:#3A4658!important;
+  color:#DDEBFF!important;
 }
 </style>
 </head>
