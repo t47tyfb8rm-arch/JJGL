@@ -2081,6 +2081,36 @@ body.dark #tfunds .fund-pro-card .fund-card-foot .fund-mini-actions .danger-btn{
   border-color:#4A3236!important;
   color:#FFB4B8!important;
 }
+/* Final fund date polish: make current date clearer and actual yield label calmer. */
+#tfunds .fund-pro-card .fund-date-top{
+  height:24px!important;
+  min-width:96px!important;
+  padding:0 10px!important;
+  border-radius:13px!important;
+  font-size:13px!important;
+  font-weight:760!important;
+  line-height:24px!important;
+}
+#tfunds .fund-pro-card .fund-card-subline .fund-signal{
+  display:inline-flex!important;
+  align-items:center!important;
+  height:22px!important;
+  padding:0 9px!important;
+  border-radius:12px!important;
+  background:#FFF6F6!important;
+  font-size:12px!important;
+  font-weight:680!important;
+}
+#tfunds .fund-pro-card .fund-card-subline .fund-signal.wait{
+  background:#EEF4FA!important;
+  color:var(--muted)!important;
+}
+body.dark #tfunds .fund-pro-card .fund-card-subline .fund-signal{
+  background:#2A2022!important;
+}
+body.dark #tfunds .fund-pro-card .fund-card-subline .fund-signal.wait{
+  background:#1D2128!important;
+}
 </style>
 </head>
 <body>
@@ -2435,7 +2465,7 @@ function renderThemeSectors(d){const el=document.getElementById('theme-sector-li
 var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);return renderProfileNewsOnly(d)}
 function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDate=String(f?.nav_date||'').slice(0,10),backend=String(d?.display_trade_date||'').slice(0,10);if(today){const day=new Date(today+'T12:00:00').getDay();if(day>=1&&day<=5)return today}return backend||navDate}
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
-function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+esc(md(navDate))+' '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
+function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' 实际收益 '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
 function fundBottomActions(f,bp){return bp.is_holding?'<div class="action-row fund-mini-actions"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></div>':'<div class="action-row fund-mini-actions" style="grid-template-columns:1fr"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></div>'}
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundBottomActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div><div class="fund-card-foot">'+actions+'</div></div>'}).join('')}
 fetchD();setInterval(()=>{const needNewsForce=Date.now()-lastNewsForce>=600000;if(needNewsForce)lastNewsForce=Date.now();fetchD(needNewsForce,'auto')},INT);function updateClock(){document.getElementById('clock-display').textContent=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}updateClock();setInterval(updateClock,10000);
