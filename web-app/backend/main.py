@@ -1398,6 +1398,17 @@ class IndexInfo(BaseModel):
     history: List[IndexHistoryItem] = []  # 近7天历史
 
 
+class ThemeSectorInfo(BaseModel):
+    """主题板块温度（按持仓主题/指数/政策资讯聚合）"""
+    name: str
+    value: Optional[float] = None
+    label: str = ""
+    note: str = ""
+    tone: str = "neutral"  # good | bad | neutral
+    source: str = ""
+    updated_at: str = ""
+
+
 class PortfolioResponse(BaseModel):
     """持仓响应模型"""
     date: str
@@ -1412,6 +1423,7 @@ class PortfolioResponse(BaseModel):
     bond_index: Optional[IndexInfo] = None  # 债券指数（用于债券基金参考）
     hs300_index: Optional[IndexInfo] = None  # 沪深300指数
     sz_index: Optional[IndexInfo] = None  # 深证成指
+    theme_sectors: List[ThemeSectorInfo] = []  # 主题板块温度
     historical_yields: Dict[str, dict] = {}  # 历史收益基准（含日期）
 
 
@@ -3513,6 +3525,120 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
     return result
 
 
+def _avg_numbers(values) -> Optional[float]:
+    nums = []
+    for value in values:
+        try:
+            if value is not None:
+                nums.append(float(value))
+        except Exception:
+            continue
+    if not nums:
+        return None
+    return round(sum(nums) / len(nums), 3)
+
+
+def _theme_tone(value: Optional[float] = None, label: str = "") -> str:
+    if value is not None:
+        if value > 0:
+            return "good"
+        if value < 0:
+            return "bad"
+    if label in ("偏暖", "偏强"):
+        return "good"
+    if label in ("偏紧", "偏弱"):
+        return "bad"
+    return "neutral"
+
+
+def _find_theme_fund(funds: List[FundInfo], *patterns: str) -> Optional[FundInfo]:
+    for fund in funds or []:
+        text = f"{fund.code} {fund.name} {fund.model_benchmark_name}"
+        if any(re.search(pattern, text) for pattern in patterns):
+            return fund
+    return None
+
+
+def _theme_fund_change(fund: Optional[FundInfo]) -> Optional[float]:
+    if not fund:
+        return None
+    try:
+        if market_status() == "trading":
+            for value in (
+                fund.model_estimated_change,
+                fund.corrected_estimated_change,
+                fund.estimated_change,
+            ):
+                if value is not None and abs(float(value)) > 0.0001:
+                    return round(float(value), 3)
+        return round(float(fund.daily_change), 3)
+    except Exception:
+        return None
+
+
+def _policy_theme_label(news: List[NewsItem]) -> tuple[str, str]:
+    good = bad = total = 0
+    keywords = re.compile(r"央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率")
+    for item in news or []:
+        text = f"{item.title} {' '.join(item.tags or [])} {item.sentiment}"
+        if not keywords.search(text):
+            continue
+        total += 1
+        if item.sentiment == "bullish" or re.search(r"降准|降息|流动性.*宽松|资金面.*宽", text):
+            good += 1
+        elif item.sentiment == "bearish" or re.search(r"加息|收紧|资金面.*紧|利率.*上行", text):
+            bad += 1
+    if total == 0:
+        return "观察", "等待政策/资金面资讯"
+    if good > bad:
+        return "偏暖", f"政策资金面资讯 {total} 条"
+    if bad > good:
+        return "偏紧", f"政策资金面资讯 {total} 条"
+    return "中性", f"政策资金面资讯 {total} 条"
+
+
+def build_theme_sectors(
+    funds: List[FundInfo],
+    index_info: IndexInfo,
+    bond_index: Optional[IndexInfo],
+    hs300_index: Optional[IndexInfo],
+    sz_index: Optional[IndexInfo],
+    news: List[NewsItem],
+) -> List[ThemeSectorInfo]:
+    """后台生成主题板块温度，随组合数据定时刷新。"""
+    now_label = datetime.now().strftime("%H:%M")
+    k50 = _find_theme_fund(funds, r"011609", r"科创", r"半导体", r"芯片")
+    bond_fund = _find_theme_fund(funds, r"020741", r"债", r"国债")
+    blue = _find_theme_fund(funds, r"004746", r"上证50", r"蓝筹")
+    sh_change = index_info.daily_change if index_info and index_info.current > 0 else None
+    sz_change = sz_index.daily_change if sz_index and sz_index.current > 0 else None
+    hs300_change = hs300_index.daily_change if hs300_index and hs300_index.current > 0 else None
+    bond_change = bond_index.daily_change if bond_index and bond_index.current > 0 else None
+    policy_label, policy_note = _policy_theme_label(news)
+
+    raw = [
+        ("宽基指数", _avg_numbers([sh_change, sz_change, hs300_change]), "", "上证 / 深证 / 沪深300", "指数行情"),
+        ("科技成长", _avg_numbers([sz_change, _theme_fund_change(k50)]), "", "深证 + 科创成长情绪", "指数+持仓"),
+        ("半导体科创", _theme_fund_change(k50), "", "科创50 / 芯片主题", "持仓映射"),
+        ("债券利率", _avg_numbers([bond_change, _theme_fund_change(bond_fund)]), "", "国债指数 + 债基净值", "指数+持仓"),
+        ("上证50蓝筹", _avg_numbers([_theme_fund_change(blue), hs300_change, sh_change]), "", "上证50 / 大盘蓝筹", "指数+持仓"),
+        ("资金政策", None, policy_label, policy_note, "资讯聚合"),
+    ]
+
+    sectors: List[ThemeSectorInfo] = []
+    for name, value, label, note, source in raw:
+        sectors.append(ThemeSectorInfo(
+            name=name,
+            value=value,
+            label=label,
+            note=note,
+            tone=_theme_tone(value, label),
+            source=source,
+            updated_at=now_label,
+        ))
+    return sectors
+
+
 async def enhance_funds_with_deepseek(
     funds: List[FundInfo],
     index_info: IndexInfo,
@@ -3899,6 +4025,14 @@ async def get_portfolio(force: int = 0):
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
                 schedule_news_refresh()
             cached_response.news = current_news_or_placeholder()
+            cached_response.theme_sectors = build_theme_sectors(
+                cached_response.funds,
+                cached_response.index,
+                cached_response.bond_index,
+                cached_response.hs300_index,
+                cached_response.sz_index,
+                cached_response.news,
+            )
             cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
@@ -3977,6 +4111,14 @@ async def get_portfolio(force: int = 0):
     if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL or force:
         schedule_news_refresh(force=bool(force))
     news = current_news_or_placeholder()
+    theme_sectors = build_theme_sectors(
+        funds,
+        index_info,
+        bond_index_info,
+        hs300_info,
+        sz_index_info,
+        news,
+    )
 
     # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
@@ -3995,6 +4137,7 @@ async def get_portfolio(force: int = 0):
         bond_index=bond_index_info,
         hs300_index=hs300_info,
         sz_index=sz_index_info,
+        theme_sectors=theme_sectors,
         historical_yields=HISTORICAL_YIELDS
     )
 
@@ -4033,10 +4176,19 @@ async def get_market_news(force: int = 0):
     news = await fetch_market_news(force=bool(force))
     if PORTFOLIO_CACHE["data"] is not None:
         PORTFOLIO_CACHE["data"].news = news
+        PORTFOLIO_CACHE["data"].theme_sectors = build_theme_sectors(
+            PORTFOLIO_CACHE["data"].funds,
+            PORTFOLIO_CACHE["data"].index,
+            PORTFOLIO_CACHE["data"].bond_index,
+            PORTFOLIO_CACHE["data"].hs300_index,
+            PORTFOLIO_CACHE["data"].sz_index,
+            news,
+        )
     return {
         "date": datetime.now().strftime("%Y-%m-%d"),
         "time": datetime.now().strftime("%H:%M:%S"),
         "news": news,
+        "theme_sectors": PORTFOLIO_CACHE["data"].theme_sectors if PORTFOLIO_CACHE["data"] is not None else [],
     }
 
 
