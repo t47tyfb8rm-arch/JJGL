@@ -1527,6 +1527,80 @@ body.dark .sector-card{
   background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
   border-color:rgba(255,255,255,.055)!important;
 }
+/* v4-profile-market-brief-20260728: compact market temperature summary with full detail in modal. */
+#tprofile .sector-panel{
+  cursor:pointer;
+}
+#tprofile .sector-panel:active{
+  transform:scale(.995);
+}
+.sector-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;
+}
+.sector-summary-chip{
+  min-width:0;
+  padding:8px 6px;
+  border-radius:13px;
+  background:rgba(47,111,214,.065);
+  text-align:center;
+}
+.sector-summary-chip .n{
+  font-size:10px;
+  color:var(--muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sector-summary-chip .v{
+  margin-top:3px;
+  font-size:13px;
+  font-weight:780;
+}
+.sector-open-all{
+  margin-top:8px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  font-size:10px;
+  color:var(--muted);
+}
+.sector-open-all b{
+  color:var(--brand-dark);
+  font-weight:700;
+}
+.sector-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.sector-detail-grid .sector-card{
+  min-height:62px;
+}
+.news-section-block.is-collapsed .news-stack .news-item:nth-child(n+5){
+  display:none;
+}
+.news-section-block.is-small .news-stack .news-item:nth-child(n+4){
+  display:none;
+}
+.news-more-entry{
+  margin-top:10px;
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:19px;
+  background:rgba(47,111,214,.08);
+  color:var(--brand-dark);
+  font-size:12px;
+  font-weight:700;
+}
+body.dark .sector-summary-chip,
+body.dark .news-more-entry{
+  background:rgba(125,175,245,.08);
+}
 /* Put news refresh time into the title row to save vertical space. */
 #tprofile .profile-panel .panel-title{
   display:flex!important;
@@ -2895,10 +2969,11 @@ function finalNewsImpactText(n,tone){const target=newsTarget(n),cat=finalNewsCat
 function finalBuildNews(items){const sorted=(items||[]).slice().sort((a,b)=>newsTs(b)-newsTs(a)),events=[],holdings=[],opinions=[];sorted.forEach(n=>{if(isOpinionGroup(n)||isOpinionNews(n)){opinions.push(n);return}if(finalNewsIsHolding(n))holdings.push(n);else events.push(n)});const picked=[],seen=new Set();function add(arr,limit){arr.forEach(n=>{const key=String(n.title||n.text||'').slice(0,80);if(picked.length<limit&&!seen.has(key)){picked.push(n);seen.add(key)}})}add(events,8);add(holdings,15);add(sorted.filter(n=>!isOpinionGroup(n)&&!isOpinionNews(n)),19);if(opinions.length){const latest=opinions[0]||{};picked.push({title:'7x24观点汇总：'+opinions.slice(0,5).map(x=>x.title||x.text||'观点').join(' / '),time:latest.time||latest.date||'',date:latest.date||latest.time||'',fetched_at:latest.fetched_at,source:'7x24',sentiment:'neutral',tags:['观点汇总','7x24观点'],items:opinions.slice(0,20),summary:'已合并 '+opinions.length+' 条评论/观点，避免占用核心资讯列表。'})}return picked.slice(0,20)}
 function finalNewsStats(list){return list.reduce((a,n)=>{const t=finalNewsTone(n);a[t]=(a[t]||0)+1;return a},{good:0,bad:0,neutral:0})}
 function finalNewsCard(n,i,extraCls=''){const tone=finalNewsTone(n),title=n.title||n.text||'市场资讯',meta=n.date||n.time||n.source||'刚刚',summary=finalNewsBrief(n),impact=finalNewsImpactText(n,tone),op=isOpinionGroup(n);return '<div class="news-item news-compact news-'+tone+' '+extraCls+(op?' news-opinion-card':'')+'" onclick="openNews('+i+')"><div class="news-row-meta"><div class="news-time">'+esc(meta)+'</div><div class="news-tags">'+newsTagHtml(n)+'</div></div><div class="news-title">'+hi(title)+'</div>'+(summary?'<div class="news-summary">'+hi(summary)+'</div>':'')+'<div class="news-advice">'+hi(impact)+'</div><div class="news-open-hint">'+(op?'查看合并观点':'阅读全文')+'</div></div>'}
-function finalNewsSection(title,desc,arr){if(!arr.length)return'';return '<div class="news-section-block"><div class="news-section-head"><b>'+esc(title)+'</b><span>'+esc(desc)+'</span></div><div class="news-stack">'+arr.map(x=>finalNewsCard(x.item,x.index,x.cls||'')).join('')+'</div></div>'}
+function finalNewsSection(title,desc,arr,cls=''){if(!arr.length)return'';return '<div class="news-section-block '+cls+'"><div class="news-section-head"><b>'+esc(title)+'</b><span>'+esc(desc)+'</span></div><div class="news-stack">'+arr.map(x=>finalNewsCard(x.item,x.index,x.cls||'')).join('')+'</div></div>'}
 function groupNewsItems(items){return finalBuildNews(items)}
 function shortRefreshTime(v){const s=String(v||'').trim(),m=s.match(/(\d{1,2}):(\d{2})/);return m?(m[1].padStart(2,'0')+':'+m[2]):(s||'--')}
-function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'更新中...':shortRefreshTime(fresh||d.time||'');if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,6),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,10),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','政策 / 指数 / 海外',key)+finalNewsSection('持仓相关','与基金和指数相关',holding)+finalNewsSection('观点汇总','评论合并展示',opinions)+finalNewsSection('更多资讯','按新闻时间倒序',rest);if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
+function renderProfile(d){const nl=document.getElementById('news-list');if(!nl)return;newsCache=groupNewsItems(d.news||[]);const onlyPlaceholder=newsCache.length===1&&isNewsPlaceholder(newsCache[0]);const rt=document.getElementById('news-refresh-time'),fresh=(newsCache.find(n=>n.fetched_at)||{}).fetched_at;if(rt)rt.textContent=onlyPlaceholder?'更新中...':shortRefreshTime(fresh||d.time||'');if(!newsCache.length){nl.innerHTML='<div class="news-empty">暂无市场简报</div>';return}const stats=finalNewsStats(newsCache),refs=newsCache.map((item,index)=>({item,index})),opinions=refs.filter(x=>isOpinionGroup(x.item)).slice(0,1),holding=refs.filter(x=>!isOpinionGroup(x.item)&&finalNewsIsHolding(x.item)).slice(0,3),key=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)).slice(0,4),rest=refs.filter(x=>!isOpinionGroup(x.item)&&!holding.some(h=>h.index===x.index)&&!key.some(k=>k.index===x.index)).slice(0,6);nl.innerHTML='<div class="news-dashboard"><div class="news-stat good"><div class="k">偏利好</div><div class="v">'+stats.good+'</div></div><div class="news-stat bad"><div class="k">偏利空</div><div class="v">'+stats.bad+'</div></div><div class="news-stat neutral"><div class="k">中性/观点</div><div class="v">'+stats.neutral+'</div></div></div><div class="news-board-note"><span>重点事件优先，评论自动合并</span><span>最新20条</span></div>'+finalNewsSection('重点事件','默认显示核心4条',key,'is-collapsed')+finalNewsSection('持仓相关','最多3条',holding,'is-small')+finalNewsSection('观点汇总','评论合并展示',opinions,'is-small')+finalNewsSection('更多资讯','按新闻时间倒序',rest,'is-small')+'<div class="news-more-entry" onclick="event.stopPropagation();openNewsBoard()">查看全部资讯</div>';if(onlyPlaceholder&&!renderProfile.newsLoading){renderProfile.newsLoading=true;loadNewsNow(true).finally(()=>{renderProfile.newsLoading=false})}}
+function openNewsBoard(){document.getElementById('news-title').textContent='全部资讯';document.getElementById('news-meta').textContent='最新20条 · 评论已合并';document.getElementById('news-body').innerHTML='<div class="news-stack">'+(newsCache||[]).map((n,i)=>finalNewsCard(n,i)).join('')+'</div>';document.getElementById('news-modal').classList.add('show')}
 function marketEventKey(title){const s=String(title||'');if(/长鑫|CXMT|存储|半导体|芯片/.test(s))return'长鑫科创上市';if(/美联储|议息|FOMC|加息|降息/.test(s))return'美联储议息';if(/A50|交割|期货交割/.test(s))return'A50交割';if(/月末|跨月|流动性|逆回购|资金面/.test(s))return'月末流动性';if(/央行|LPR|MLF|降准/.test(s))return'央行政策';if(/财报|业绩|中报/.test(s))return'财报业绩';return s.replace(/[：:，,。.！!？?\s]/g,'').slice(0,12)}
 function marketKeyNodes(d){const base=new Date(String(d?.date||new Date().toISOString().slice(0,10)).slice(0,10)).getTime(),week=7*24*3600*1000,byKey=new Map();function addNode(item){if(!item||!item.title)return;const time=Number.isFinite(item.time)?item.time:nodeDateKey(item.date,d);if(!Number.isFinite(time)||time===Number.MAX_SAFE_INTEGER||time<base||time-base>week)return;const date=item.date||new Date(time).toISOString().slice(5,10).replace('-','/'),title=String(item.title).slice(0,28),key=marketEventKey(title),node={date,title,impact:item.impact||nodeImpactFromText(title),level:item.level||nodeLevelFromText(title),score:Number(item.score||0),time};const old=byKey.get(key);if(!old||node.score>old.score||(node.score===old.score&&node.time<old.time))byKey.set(key,node)}calendarMarketEvents(d).forEach(addNode);(d?.news||[]).forEach(n=>{const text=newsText(n),title=String(n.title||n.text||text||'市场事件').replace(/^7x24观点汇总：/,'').trim(),score=Number(n.importance||importantNewsScore(n));if(score<=0)return;const ed=n.event_date?{label:md(n.event_date),time:new Date(n.event_date).getTime()}:explicitNodeDate(title+' '+text,d);if(!ed)return;addNode({date:ed.label,title,impact:nodeImpactFromText(title+text),level:nodeLevelFromText(title+text),score,time:ed.time})});[{date:'07/27',title:'长鑫科技科创板上市',impact:'科创50与半导体情绪',level:'重点',score:12},{date:'07/29',title:'美联储议息窗口',impact:'利率与成长股估值',level:'重点',score:10},{date:'07/31',title:'A50期货交割日',impact:'指数波动窗口',level:'关注',score:8},{date:'07/30',title:'月末流动性观察',impact:'资金面与债券估值',level:'关注',score:7}].forEach(addNode);const byDate=new Map();[...byKey.values()].forEach(n=>{const old=byDate.get(n.date);if(!old||n.score>old.score||(n.score===old.score&&n.time<old.time))byDate.set(n.date,n)});const sorted=[...byDate.values()].sort((a,b)=>(a.time-b.time)||(b.score-a.score)||a.title.localeCompare(b.title,'zh-CN')).slice(0,4);return sorted.length?sorted:[{date:md(d?.date)||'--',title:'等待未来一周市场节点',impact:'随资讯自动更新',level:'自动'}]}
 function aiDateBoard(nodes){return nodes.slice(0,4).map(n=>'<div class="ai-date-node"><div class="ai-date-num">'+esc(n.date)+'</div><div class="ai-date-title">'+esc(n.title)+'</div><div class="ai-date-impact">'+esc(n.impact)+' · '+esc(n.level||'关注')+'</div></div>').join('')}
@@ -2923,9 +2998,12 @@ function fundInlineActions(f,bp){return bp.is_holding?'<span class="fund-inline-
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
 function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return xs.length?xs.reduce((a,b)=>a+Number(b),0)/xs.length:null}
 function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
-function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
+function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at,source:x.source||''}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现',source:'指数行情'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪',source:'指数+持仓'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题',source:'持仓映射'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值',source:'指数+持仓'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50',source:'指数+持仓'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯',source:'资讯聚合'}]}
 function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
-function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
+function sectorCardHtml(x){const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}
+function sectorSummaryItems(items){const preferred=['半导体科创','白酒','医疗','新能源'],picked=[];preferred.forEach(n=>{const it=items.find(x=>x.name===n);if(it)picked.push(it)});items.forEach(x=>{if(picked.length<4&&!picked.some(p=>p.name===x.name))picked.push(x)});return picked.slice(0,4)}
+function openSectorBoard(){const d=lastData||{},items=themeSectorItems(d),holding=items.filter(x=>/指数\\+持仓|持仓映射|资讯聚合|指数行情/.test(String(x.note+' '+x.source))),market=items.filter(x=>x.source==='主题指数'||!holding.includes(x));document.getElementById('ai-detail-title').textContent='市场温度';document.getElementById('ai-detail-sub').textContent='持仓主题 + 独立行业主题';document.getElementById('ai-detail-body').innerHTML='<div class="ai-chart-card"><div class="ai-chart-title">市场主题 <span>医疗 / 白酒 / 新能源等</span></div><div class="sector-detail-grid">'+market.map(sectorCardHtml).join('')+'</div></div><div class="ai-chart-card"><div class="ai-chart-title">持仓主题 <span>与你关注基金相关</span></div><div class="sector-detail-grid">'+holding.map(sectorCardHtml).join('')+'</div></div>';document.getElementById('ai-detail-modal').classList.add('show')}
+function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at,summary=sectorSummaryItems(items);if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='后台更新 '+shortRefreshTime(sectorTime||d.time||'');el.innerHTML='<div class="sector-summary-grid">'+summary.map(x=>'<div class="sector-summary-chip"><div class="n">'+esc(x.name)+'</div><div class="v" style="color:'+(typeof x.value==='number'?cc(x.value):'var(--muted)')+'">'+(typeof x.value==='number'?fp(x.value):esc(x.value||x.label||'观察'))+'</div></div>').join('')+'</div><div class="sector-open-all"><span>持仓主题与市场主题分开查看</span><b onclick="event.stopPropagation();openSectorBoard()">查看全部</b></div>';const panel=el.closest('.sector-panel');if(panel)panel.onclick=openSectorBoard}
 var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);return renderProfileNewsOnly(d)}
 function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDate=String(f?.nav_date||'').slice(0,10),backend=String(d?.display_trade_date||'').slice(0,10);if(today){const day=new Date(today+'T12:00:00').getDay();if(day>=1&&day<=5)return today}return backend||navDate}
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
