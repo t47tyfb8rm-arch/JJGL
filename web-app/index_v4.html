@@ -2022,15 +2022,15 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 /* v4-fund-card-clean-20260728: rebuilt card, isolated from older overrides. */
 #tfunds .fund-clean-card{
   position:relative!important;
-  padding:13px 14px 12px!important;
-  border-radius:17px!important;
+  padding:10px 13px 10px!important;
+  border-radius:16px!important;
 }
 #tfunds .fund-clean-card:after{
   content:"";
   position:absolute;
   left:0;
-  top:16px;
-  bottom:16px;
+  top:13px;
+  bottom:13px;
   width:4px;
   border-radius:0 8px 8px 0;
   background:linear-gradient(180deg,var(--brand),#78AEEF);
@@ -2038,7 +2038,7 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 #tfunds .fund-clean-head{
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
-  gap:10px;
+  gap:8px;
   align-items:start;
 }
 #tfunds .fund-clean-title{
@@ -2048,7 +2048,7 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 #tfunds .fund-clean-name{
   display:flex;
   align-items:baseline;
-  gap:7px;
+  gap:6px;
   min-width:0;
 }
 #tfunds .fund-clean-code{
@@ -2059,7 +2059,7 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 }
 #tfunds .fund-clean-fund{
   min-width:0;
-  font-size:14px;
+  font-size:13.5px;
   font-weight:720;
   color:var(--text);
   white-space:nowrap;
@@ -2069,16 +2069,16 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 #tfunds .fund-clean-sub{
   display:flex;
   flex-wrap:wrap;
-  gap:6px;
-  margin-top:7px;
+  gap:5px;
+  margin-top:6px;
   font-size:11px;
   line-height:1.2;
 }
 #tfunds .fund-clean-pill{
   display:inline-flex;
   align-items:center;
-  height:22px;
-  padding:0 9px;
+  height:21px;
+  padding:0 8px;
   border-radius:12px;
   background:#F1F5FA;
   color:var(--muted);
@@ -2090,13 +2090,13 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 }
 #tfunds .fund-clean-date{
   text-align:right;
-  min-width:74px;
+  min-width:86px;
 }
 #tfunds .fund-clean-date .date{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  height:24px;
+  height:23px;
   padding:0 10px;
   border-radius:14px;
   background:#EEF3FA;
@@ -2109,38 +2109,43 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
   color:#80540F;
 }
 #tfunds .fund-clean-date .hint{
-  margin-top:5px;
-  font-size:10px;
-  color:var(--muted);
+  display:none!important;
+}
+#tfunds .fund-clean-date .right-signal{
+  margin-top:6px;
+  font-size:11px;
+  font-weight:760;
+  line-height:1.1;
+  white-space:nowrap;
 }
 #tfunds .fund-clean-periods{
   display:grid!important;
   grid-template-columns:repeat(3,minmax(0,1fr))!important;
-  gap:7px!important;
-  margin-top:11px!important;
+  gap:6px!important;
+  margin-top:8px!important;
 }
 #tfunds .fund-clean-periods>div{
   min-width:0;
-  padding:7px 4px!important;
-  border-radius:13px!important;
+  padding:5px 4px!important;
+  border-radius:11px!important;
   background:#EEF5FD!important;
   text-align:center;
 }
 #tfunds .fund-clean-periods .label{
-  font-size:11px!important;
+  font-size:10px!important;
   color:var(--muted)!important;
   line-height:1.1!important;
 }
 #tfunds .fund-clean-periods .num{
-  margin-top:3px!important;
-  font-size:13px!important;
+  margin-top:2px!important;
+  font-size:12px!important;
   font-weight:760!important;
   line-height:1.1!important;
 }
 #tfunds .fund-clean-actions{
   display:grid!important;
   gap:8px!important;
-  margin-top:10px!important;
+  margin-top:8px!important;
 }
 #tfunds .fund-clean-actions.two{
   grid-template-columns:repeat(2,minmax(0,1fr))!important;
@@ -2150,8 +2155,8 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
 }
 #tfunds .fund-clean-actions button{
   width:100%!important;
-  height:34px!important;
-  min-height:34px!important;
+  height:32px!important;
+  min-height:32px!important;
   border-radius:17px!important;
   font-size:12px!important;
   font-weight:720!important;
@@ -2547,7 +2552,7 @@ function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').sli
 function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+esc(md(navDate))+' '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
 function fundRightActions(f,bp){return bp.is_holding?'<div class="fund-date-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></div>':'<div class="fund-date-actions"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></div>'}
 function cleanFundActionsV4(f,bp){return bp.is_holding?'<div class="fund-clean-actions two"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+esc(f.code)+'\')">卖出</button></div>':'<div class="fund-clean-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+esc(f.code)+'\')">买入</button></div>'}
-function cleanFundSignalV4(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-clean-pill fund-clean-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' 实际 '+fp(actual)+'</span>';return '<span class="fund-clean-pill">待净值</span>'}
+function cleanFundSignalV4(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<div class="right-signal" style="color:'+cc(actual)+'">'+esc(md(navDate))+' 实际 '+fp(actual)+'</div>';return '<div class="right-signal wait">待净值</div>'}
 function renderFunds(d){
   const list=document.getElementById('fund-detail-list');
   if(!list||!d.funds)return;
@@ -2559,10 +2564,11 @@ function renderFunds(d){
     const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180);
     const displayDate=fundDisplayDate(d,f),freshDate=fundNavUpdatedForDisplay(f,d),holdVal=holdPct(f);
     const holdHtml=bp.is_holding?'<span class="fund-clean-pill" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-clean-pill">未持仓</span>';
+    const signalHtml=cleanFundSignalV4(f,d);
     return '<div class="card px tight-card fund-clean-card" onclick="openFundDetail(\''+esc(f.code)+'\')">'
       +'<div class="fund-clean-head">'
-      +'<div class="fund-clean-title"><div class="fund-clean-name"><span class="fund-clean-code">'+esc(f.code)+'</span><span class="fund-clean-fund">'+esc(shortName(f,10))+'</span></div><div class="fund-clean-sub">'+holdHtml+cleanFundSignalV4(f,d)+'</div></div>'
-      +'<div class="fund-clean-date"><div class="date '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="hint">详情</div></div>'
+      +'<div class="fund-clean-title"><div class="fund-clean-name"><span class="fund-clean-code">'+esc(f.code)+'</span><span class="fund-clean-fund">'+esc(shortName(f,10))+'</span></div><div class="fund-clean-sub">'+holdHtml+'</div></div>'
+      +'<div class="fund-clean-date"><div class="date '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div>'+signalHtml+'</div>'
       +'</div>'
       +'<div class="fund-clean-periods">'
       +'<div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div>'
