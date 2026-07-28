@@ -1772,6 +1772,61 @@ body.dark #tfunds .fund-card-subline .fund-signal.est{
   background:#1D2128!important;
   color:#8BB7FF!important;
 }
+
+/* Buy page text consistency and shorter fund actions. */
+#tbuy .history-card .chip-name,
+#tbuy .buy-distance-title .name{
+  font-size:12px!important;
+  line-height:1.25!important;
+}
+#tbuy .history-card .chip-code,
+#tbuy .buy-distance-title .code{
+  font-size:10px!important;
+}
+#tbuy .history-card .fund-meta,
+#tbuy .buy-distance-meta{
+  font-size:10px!important;
+  line-height:1.25!important;
+}
+#tbuy .history-card .history-total,
+#tbuy .buy-distance-value .num{
+  font-size:16px!important;
+  line-height:1.05!important;
+}
+#tfunds .fund-card-subline{
+  gap:5px!important;
+}
+#tfunds .fund-inline-actions{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:5px!important;
+  flex:0 0 auto!important;
+}
+#tfunds .fund-inline-actions .subtle-btn,
+#tfunds .fund-inline-actions .danger-btn,
+#tfunds .fund-inline-actions .buy-primary{
+  width:auto!important;
+  min-width:42px!important;
+  height:21px!important;
+  min-height:21px!important;
+  padding:0 9px!important;
+  border-radius:11px!important;
+  font-size:10px!important;
+  line-height:21px!important;
+  font-weight:700!important;
+}
+#tfunds .fund-inline-actions.one .buy-primary{
+  min-width:54px!important;
+}
+#tfunds .fund-card-foot{
+  display:none!important;
+}
+#tfunds .fund-list-panel #fund-detail-list>.card.px.tight-card.fund-pro-card{
+  padding-bottom:10px!important;
+}
+#tfunds .fund-period-row{
+  margin-top:7px!important;
+}
 </style>
 </head>
 <body>
@@ -2116,6 +2171,8 @@ function themeNewsBias(d,pattern){let good=0,bad=0,total=0;(d?.news||[]).forEach
 function fundCardSignal(f,d){const actual=Number(f.daily_change||0),estVal=estimateChange(f),navDate=String(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),fresh=!!navDate&&!!displayDate&&navDate===displayDate&&Math.abs(actual)>=0.0001;if(fresh)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+fp(actual)+'</span>';if(estVal!=null)return '<span class="fund-signal est">估 '+fp(estVal)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
 function openFundDetail(code){const f=findFund(code),d=lastData||{},date=fundDisplayDate(d,f)||f.nav_date||d.date;document.getElementById('ai-detail-title').textContent=f.code+' '+shortName(f,16);document.getElementById('ai-detail-sub').textContent='基金分析 · 净值 '+nav(f.current_nav)+' · '+(ymd(date)||'--');document.getElementById('ai-detail-body').innerHTML=fundDetailHtml(f);document.getElementById('ai-detail-modal').classList.add('show')}
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div><div class="fund-card-foot">'+(bp.is_holding?'<div class="action-row fund-mini-actions"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></div>':'<div class="action-row fund-mini-actions" style="grid-template-columns:1fr"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></div>')+'</div></div>'}).join('')}
+function fundInlineActions(f,bp){return bp.is_holding?'<span class="fund-inline-actions"><button class="subtle-btn" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">补仓</button><button class="danger-btn" onclick="event.stopPropagation();openTrade(\'sell\',\''+f.code+'\')">卖出</button></span>':'<span class="fund-inline-actions one"><button class="subtle-btn buy-primary" onclick="event.stopPropagation();openTrade(\'buy\',\''+f.code+'\')">买入</button></span>'}
+function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
 function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return xs.length?xs.reduce((a,b)=>a+Number(b),0)/xs.length:null}
 function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
 function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50=findThemeFund(d,/011609|科创|半导体|芯片/),bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50?displayChange(k50,d):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50?displayChange(k50,d):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
