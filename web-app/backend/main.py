@@ -4068,6 +4068,8 @@ async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
 
 async def fetch_eastmoney_global_index(secid: str, name: str) -> Optional[IndexInfo]:
     """Eastmoney global index quote, using the exact global secid."""
+    if not secid:
+        return None
     try:
         url = "https://push2.eastmoney.com/api/qt/stock/get"
         params = {
@@ -4171,6 +4173,11 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("100.DJIA", "^DJI", "^dji", "道琼斯"),
         ("251.SOX", "^SOX", "^sox", "费城半导体"),
         ("100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
+        ("", "005930.KS", "005930.kr", "三星电子"),
+        ("", "000660.KS", "000660.kr", "SK海力士"),
+        ("", "NVDA", "nvda.us", "英伟达"),
+        ("", "AMD", "amd.us", "AMD"),
+        ("", "AVGO", "avgo.us", "博通"),
     ]
     results = await asyncio.gather(
         *(fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name) for em_secid, yahoo_symbol, stooq_symbol, name in specs),
@@ -4191,16 +4198,23 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         return item.daily_change if item else None
 
     us_market = avg([x for x in [q("标普500"), q("纳指100"), q("道琼斯")] if x is not None])
-    us_tech = avg([x for x in [q("纳指100"), q("费城半导体")] if x is not None])
+    us_chip_stock = avg([x for x in [q("英伟达"), q("AMD"), q("博通")] if x is not None])
+    us_tech = avg([x for x in [q("纳指100"), q("费城半导体"), us_chip_stock] if x is not None])
+    korea_chip = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
 
     cards = [
         ("美股整体", us_market, "标普500 / 纳指100 / 道指"),
-        ("科技AI温度", us_tech, "纳指100 + 费城半导体"),
+        ("科技AI温度", us_tech, "纳指100 + 半导体指数 + 芯片龙头"),
         ("标普500", q("标普500"), "美国大盘基准"),
         ("纳指100", q("纳指100"), "大型科技成长股"),
         ("道琼斯", q("道琼斯"), "传统蓝筹工业指数"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
+        ("芯片龙头", us_chip_stock, "NVDA / AMD / AVGO"),
+        ("英伟达", q("英伟达"), "AI芯片龙头 NVDA"),
+        ("AMD", q("AMD"), "GPU / CPU 半导体"),
+        ("博通", q("博通"), "AI网络与ASIC AVGO"),
         ("韩国股市", q("韩国KOSPI"), "韩国KOSPI"),
+        ("韩国半导体", korea_chip, "三星电子 / SK海力士"),
     ]
     return [
         ThemeSectorInfo(
