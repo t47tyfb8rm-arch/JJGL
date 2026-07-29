@@ -3756,6 +3756,19 @@ def build_theme_sectors(
         ))
     if market_theme_sectors:
         sectors.extend(market_theme_sectors)
+    existing_names = {item.name for item in sectors}
+    for name, _code, display_name in THEME_MARKET_INDEXES:
+        if name in existing_names:
+            continue
+        sectors.append(ThemeSectorInfo(
+            name=name,
+            value=None,
+            label="待更新",
+            note=display_name,
+            tone="neutral",
+            source="主题指数",
+            updated_at=now_label,
+        ))
     return sectors
 
 
