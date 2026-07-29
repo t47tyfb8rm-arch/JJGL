@@ -2372,6 +2372,34 @@ body.dark #tmarket .profile-tabs:before{background:#222222!important;box-shadow:
   gap:8px!important;
   align-content:start!important;
 }
+/* buy-page-auto-height-20260729: 买点/历史面板按基金数量自然增高 */
+#tbuy.active .buy-panel,
+#tbuy.active .buy-panel.soft{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  display:block!important;
+}
+#tbuy.active #buy-signals,
+#tbuy.active #profit-benchmark,
+#tbuy.active #buy-signals .buy-board,
+#tbuy.active #buy-signals .buy-distance-list{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+#tbuy.active .buy-distance-row,
+#tbuy.active .history-card{
+  height:64px!important;
+  min-height:64px!important;
+  max-height:64px!important;
+}
+#tbuy.active .buy-distance-row + .buy-distance-row,
+#tbuy.active .history-card + .history-card{
+  margin-top:0!important;
+}
 </style>
 </head>
 <body>
