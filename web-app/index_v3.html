@@ -2351,6 +2351,27 @@ body.dark #tmarket .profile-tabs:before{background:#222222!important;box-shadow:
 /* market-pane-fixed-direct-20260729: 市场页固定高度，禁止滑动后重算 */
 /* market-pane-fixed-external-full-20260729: 固定为外部市场完整显示高度 */
 /* market-pane-fixed-external-room-20260729: 外部市场完整高度增加少量余量 */
+/* buy-page-show-added-funds-20260729: 新增基金后买点监控/历史累计不再裁剪为3条 */
+#tbuy.active #buy-signals,
+#tbuy.active #profit-benchmark{
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+#tbuy.active #buy-signals .buy-board{
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+#tbuy.active #buy-signals .buy-distance-list,
+#tbuy.active #profit-benchmark{
+  display:grid!important;
+  grid-template-rows:none!important;
+  grid-auto-rows:64px!important;
+  gap:8px!important;
+  align-content:start!important;
+}
 </style>
 </head>
 <body>
