@@ -193,6 +193,8 @@ FUND_SPECIFIC_MODELS = {
 # 实时指数缓存 {code: (timestamp, data)}，60 秒复用
 REALTIME_INDEX_CACHE = {}
 REALTIME_INDEX_TTL = 60  # 秒
+EXTERNAL_MARKET_CACHE = {"data": None, "saved_at": 0.0}
+EXTERNAL_MARKET_CACHE_TTL = 600  # 外部市场后台刷新周期 10 分钟
 # 指数残差样本（独立于 gsz 残差）
 INDEX_RESIDUAL_FILE = os.path.join(current_dir, "index_residual_cache.json")
 INDEX_RESIDUAL_CACHE = {}
@@ -4066,6 +4068,45 @@ async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
+async def fetch_sina_us_stock(symbol: str, name: str) -> Optional[IndexInfo]:
+    """Domestic-accessible Sina quote for US stocks: gb_nvda, gb_amd, etc."""
+    try:
+        clean = re.sub(r"[^A-Za-z]", "", symbol or "").lower()
+        if not clean:
+            return None
+        url = "https://hq.sinajs.cn/list=gb_" + clean
+        headers = {
+            **HTTP_HEADERS,
+            "Referer": "https://finance.sina.com.cn/stock/usstock/",
+        }
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=headers)
+            r.raise_for_status()
+            text = r.content.decode("gbk", errors="ignore").strip()
+        m = re.search(r'="([^"]*)"', text)
+        if not m:
+            return None
+        parts = [p.strip() for p in m.group(1).split(",")]
+        if len(parts) < 3 or not parts[1]:
+            return None
+        current = float(parts[1])
+        change_pct = float(parts[2])
+        previous = current / (1 + change_pct / 100) if change_pct != -100 else current
+        if current <= 0:
+            return None
+        return IndexInfo(
+            code=symbol.upper(),
+            name=name or parts[0] or symbol.upper(),
+            current=round(current, 2),
+            previous=round(previous, 2),
+            daily_change=round(change_pct, 2),
+            history=[]
+        )
+    except Exception as e:
+        print(f"[外部市场-新浪美股] {symbol} 获取失败: {e}")
+        return None
+
+
 async def fetch_eastmoney_global_index(secid: str, name: str) -> Optional[IndexInfo]:
     """Eastmoney global index quote, using the exact global secid."""
     if not secid:
@@ -4148,6 +4189,9 @@ async def fetch_external_index(em_secid: str, yahoo_symbol: str, stooq_symbol: s
     item = await fetch_eastmoney_global_index(em_secid, name)
     if item is not None:
         return item
+    item = await fetch_sina_us_stock(yahoo_symbol, name)
+    if item is not None:
+        return item
     item = await fetch_yahoo_index(yahoo_symbol, name)
     if item is not None:
         return item
@@ -4175,9 +4219,9 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
         ("", "005930.KS", "005930.kr", "三星电子"),
         ("", "000660.KS", "000660.kr", "SK海力士"),
-        ("", "NVDA", "nvda.us", "英伟达"),
-        ("", "AMD", "amd.us", "AMD"),
-        ("", "AVGO", "avgo.us", "博通"),
+        ("105.NVDA", "NVDA", "nvda.us", "英伟达"),
+        ("105.AMD", "AMD", "amd.us", "AMD"),
+        ("105.AVGO", "AVGO", "avgo.us", "博通"),
     ]
     results = await asyncio.gather(
         *(fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name) for em_secid, yahoo_symbol, stooq_symbol, name in specs),
@@ -4199,8 +4243,10 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
 
     us_market = avg([x for x in [q("标普500"), q("纳指100"), q("道琼斯")] if x is not None])
     us_chip_stock = avg([x for x in [q("英伟达"), q("AMD"), q("博通")] if x is not None])
-    us_tech = avg([x for x in [q("纳指100"), q("费城半导体"), us_chip_stock] if x is not None])
-    korea_chip = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
+    us_chip_signal = us_chip_stock if us_chip_stock is not None else q("费城半导体")
+    us_tech = avg([x for x in [q("纳指100"), q("费城半导体"), us_chip_signal] if x is not None])
+    korea_chip_stock = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
+    korea_chip = korea_chip_stock if korea_chip_stock is not None else avg([x for x in [q("韩国KOSPI"), q("费城半导体")] if x is not None])
 
     cards = [
         ("美股整体", us_market, "标普500 / 纳指100 / 道指"),
@@ -4209,13 +4255,18 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("纳指100", q("纳指100"), "大型科技成长股"),
         ("道琼斯", q("道琼斯"), "传统蓝筹工业指数"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
-        ("芯片龙头", us_chip_stock, "NVDA / AMD / AVGO"),
-        ("英伟达", q("英伟达"), "AI芯片龙头 NVDA"),
-        ("AMD", q("AMD"), "GPU / CPU 半导体"),
-        ("博通", q("博通"), "AI网络与ASIC AVGO"),
+        ("芯片龙头", us_chip_signal, "NVDA / AMD / AVGO"),
         ("韩国股市", q("韩国KOSPI"), "韩国KOSPI"),
         ("韩国半导体", korea_chip, "三星电子 / SK海力士"),
     ]
+    for stock_name, note in [
+        ("英伟达", "AI芯片龙头 NVDA"),
+        ("AMD", "GPU / CPU 半导体"),
+        ("博通", "AI网络与ASIC AVGO"),
+    ]:
+        value = q(stock_name)
+        if value is not None:
+            cards.append((stock_name, value, note))
     return [
         ThemeSectorInfo(
             name=name,
@@ -4228,6 +4279,22 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         )
         for name, value, note in cards
     ]
+
+
+async def get_external_market_temperature() -> List[ThemeSectorInfo]:
+    """Backend-managed external market cache. Frontend reads the cached result only."""
+    now_ts = time.time()
+    cached = EXTERNAL_MARKET_CACHE.get("data")
+    if cached is not None and (now_ts - EXTERNAL_MARKET_CACHE.get("saved_at", 0.0)) < EXTERNAL_MARKET_CACHE_TTL:
+        return cached
+    fresh = await fetch_external_market_temperature()
+    has_value = any(getattr(item, "value", None) is not None for item in fresh)
+    if has_value or cached is None:
+        EXTERNAL_MARKET_CACHE["data"] = fresh
+        EXTERNAL_MARKET_CACHE["saved_at"] = now_ts
+        return fresh
+    # Keep the last usable snapshot when all upstreams fail temporarily.
+    return cached
 
 
 async def fetch_index_history_for_code(code: str, days: int = 7) -> List[IndexHistoryItem]:
@@ -4369,9 +4436,7 @@ async def get_portfolio(force: int = 0):
                 cached_market_themes,
                 cached_response.k50_index,
             )
-            if not getattr(cached_response, "external_markets", None) or (now_ts - PORTFOLIO_CACHE.get("saved_at", 0.0)) >= 600:
-                cached_response.external_markets = await fetch_external_market_temperature()
-                PORTFOLIO_CACHE["saved_at"] = now_ts
+            cached_response.external_markets = await get_external_market_temperature()
             cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
@@ -4459,7 +4524,7 @@ async def get_portfolio(force: int = 0):
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
     fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
     theme_market_task = fetch_theme_market_sectors()
-    external_market_task = fetch_external_market_temperature()
+    external_market_task = get_external_market_temperature()
     fund_results = await asyncio.gather(*fund_tasks, return_exceptions=True)
     theme_market_sectors, external_markets = await asyncio.gather(theme_market_task, external_market_task)
 
