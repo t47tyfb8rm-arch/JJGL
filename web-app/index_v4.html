@@ -1565,13 +1565,20 @@ body.dark .sector-card{
 }
 #tprofile .profile-pane{
   display:none;
-  min-height:420px;
+  min-height:360px;
+  opacity:0;
+  transform:translateY(6px);
 }
 #tprofile .profile-pane.active{
   display:block;
+  animation:profilePaneIn .18s ease-out forwards;
 }
 #tprofile #profile-pane-news{
-  min-height:520px;
+  min-height:460px;
+}
+@keyframes profilePaneIn{
+  from{opacity:0;transform:translateY(6px)}
+  to{opacity:1;transform:translateY(0)}
 }
 #external-market-list .external-group-title{
   margin:10px 2px 8px;
