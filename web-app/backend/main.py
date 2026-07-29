@@ -4659,9 +4659,31 @@ async def add_watched_fund(payload: dict):
         WATCHED_FUNDS.append(fund_code)
     HISTORICAL_YIELDS[fund_code] = {"yield": round(historical_yield, 2), "date": follow_date}
     BUY_POINT_CONFIG[fund_code] = {"drop_threshold": round(drop_threshold, 2)}
-    if fund_code not in BUY_POINT_REFS and fund.current_nav > 0:
-        BUY_POINT_REFS[fund_code] = {"ref_nav": round(fund.current_nav, 4), "ref_date": follow_date}
-        save_buy_point_refs(BUY_POINT_REFS)
+    ref_nav = round(float(fund.current_nav or 0.0), 4)
+    ref_date = str(fund.nav_date or follow_date)[:10] or follow_date
+    if ref_nav > 0:
+        BUY_POINT_REFS[fund_code] = {"ref_nav": ref_nav, "ref_date": ref_date}
+        if not save_buy_point_refs(BUY_POINT_REFS):
+            raise HTTPException(status_code=500, detail="保存买点参考失败")
+
+        # 新增关注基金不是实际买入，但也要落一条非持仓基准记录。
+        # 这样买点监控、历史累计收益、删除清理都能围绕同一个 code 完整工作。
+        COST_NAVS[fund_code] = {
+            "buy_nav": ref_nav,
+            "buy_date": follow_date,
+            "buy_price": ref_nav,
+            "shares": 0.0,
+            "realized_yield_pct": 0.0,
+            "yield_pct": round(historical_yield, 2),
+            "total_return": round(historical_yield, 2),
+            "transactions": [],
+            "is_holding": False,
+            "sell_date": "",
+            "sell_price": 0.0
+        }
+        if not save_cost_navs_to_file(COST_NAVS):
+            raise HTTPException(status_code=500, detail="保存历史收益失败")
+    FUND_DETAIL_CACHE.pop(fund_code, None)
 
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
