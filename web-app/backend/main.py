@@ -1860,6 +1860,62 @@ def compute_cost_navs_from_historical(current_navs: Dict[str, float]) -> Dict[st
 COST_NAVS = load_cost_navs_from_file()
 
 
+def ensure_added_fund_tracking_baseline(fund_code: str, current_nav: float, nav_date: str) -> None:
+    """add-fund-tracking-baseline-20260729: 新增关注基金自动补齐买点监控和历史累计基准。"""
+    fund_code = str(fund_code or "").strip()
+    if not fund_code or fund_code not in FUND_SETTINGS:
+        return
+    try:
+        nav_value = round(float(current_nav or 0.0), 4)
+    except Exception:
+        nav_value = 0.0
+    if nav_value <= 0:
+        return
+
+    cfg = FUND_SETTINGS.get(fund_code, {}) if isinstance(FUND_SETTINGS.get(fund_code), dict) else {}
+    follow_date = str(cfg.get("follow_date") or cfg.get("historical_date") or nav_date or datetime.now().strftime("%Y-%m-%d"))[:10]
+    ref_date = str(nav_date or follow_date)[:10] or follow_date
+    historical_yield = round(float(cfg.get("historical_yield", 0.0) or 0.0), 2)
+    changed_refs = False
+    changed_costs = False
+
+    ref_data = BUY_POINT_REFS.get(fund_code, {}) if isinstance(BUY_POINT_REFS.get(fund_code), dict) else {}
+    try:
+        ref_nav = round(float(ref_data.get("ref_nav", 0.0) or 0.0), 4)
+    except Exception:
+        ref_nav = 0.0
+    if ref_nav <= 0:
+        BUY_POINT_REFS[fund_code] = {"ref_nav": nav_value, "ref_date": ref_date}
+        ref_nav = nav_value
+        changed_refs = True
+
+    cost_data = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
+    try:
+        cost_nav = round(float(cost_data.get("buy_nav", 0.0) or cost_data.get("cost_nav", 0.0) or 0.0), 4)
+    except Exception:
+        cost_nav = 0.0
+    if cost_nav <= 0:
+        COST_NAVS[fund_code] = {
+            "buy_nav": ref_nav,
+            "buy_date": follow_date,
+            "buy_price": ref_nav,
+            "shares": 0.0,
+            "realized_yield_pct": 0.0,
+            "yield_pct": historical_yield,
+            "total_return": historical_yield,
+            "transactions": [],
+            "is_holding": False,
+            "sell_date": "",
+            "sell_price": 0.0,
+        }
+        changed_costs = True
+
+    if changed_refs:
+        save_buy_point_refs(BUY_POINT_REFS)
+    if changed_costs:
+        save_cost_navs_to_file(COST_NAVS)
+
+
 # ============= 数据抓取函数 =============
 
 async def fetch_fund_period_returns(fund_code: str, force: int = 0) -> dict:
@@ -3216,6 +3272,8 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 break
             if display_estimated_change == 0.0 and _est_value is not None:
                 display_estimated_change = round(_est_num, 3)
+
+        ensure_added_fund_tracking_baseline(fund_code, current_nav, nav_date)
 
         return FundInfo(
             code=fund_code,
@@ -4683,6 +4741,7 @@ async def add_watched_fund(payload: dict):
         }
         if not save_cost_navs_to_file(COST_NAVS):
             raise HTTPException(status_code=500, detail="保存历史收益失败")
+    ensure_added_fund_tracking_baseline(fund_code, ref_nav, ref_date)
     FUND_DETAIL_CACHE.pop(fund_code, None)
 
     PORTFOLIO_CACHE["data"] = None
