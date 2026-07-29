@@ -194,7 +194,7 @@ FUND_SPECIFIC_MODELS = {
 REALTIME_INDEX_CACHE = {}
 REALTIME_INDEX_TTL = 60  # 秒
 EXTERNAL_MARKET_CACHE = {"data": None, "saved_at": 0.0}
-EXTERNAL_MARKET_CACHE_TTL = 600  # 外部市场后台刷新周期 10 分钟
+EXTERNAL_MARKET_CACHE_TTL = 300  # external-market-refresh-5min-20260729: 外部市场后台刷新周期 5 分钟
 # 指数残差样本（独立于 gsz 残差）
 INDEX_RESIDUAL_FILE = os.path.join(current_dir, "index_residual_cache.json")
 INDEX_RESIDUAL_CACHE = {}
