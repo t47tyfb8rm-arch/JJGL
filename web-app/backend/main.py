@@ -4066,12 +4066,12 @@ async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
-async def fetch_eastmoney_global_index(symbol: str, name: str) -> Optional[IndexInfo]:
-    """Eastmoney global index quote, using secid=100.{symbol}."""
+async def fetch_eastmoney_global_index(secid: str, name: str) -> Optional[IndexInfo]:
+    """Eastmoney global index quote, using the exact global secid."""
     try:
         url = "https://push2.eastmoney.com/api/qt/stock/get"
         params = {
-            "secid": f"100.{symbol}",
+            "secid": secid,
             "fields": "f43,f57,f58,f60,f169,f170",
             "_": int(time.time() * 1000),
         }
@@ -4086,15 +4086,15 @@ async def fetch_eastmoney_global_index(symbol: str, name: str) -> Optional[Index
         if current <= 0:
             return None
         return IndexInfo(
-            code=symbol,
-            name=name or data.get("f58") or symbol,
+            code=secid,
+            name=name or data.get("f58") or secid,
             current=round(current, 2),
             previous=round(previous, 2),
             daily_change=round(change_pct, 2),
             history=[]
         )
     except Exception as e:
-        print(f"[外部市场-东财] {symbol} 获取失败: {e}")
+        print(f"[外部市场-东财] {secid} 获取失败: {e}")
         return None
 
 
@@ -4141,9 +4141,9 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
-async def fetch_external_index(em_symbol: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
+async def fetch_external_index(em_secid: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
     """Eastmoney first, Yahoo/Stooq fallback, so overseas market cards do not stay empty."""
-    item = await fetch_eastmoney_global_index(em_symbol, name)
+    item = await fetch_eastmoney_global_index(em_secid, name)
     if item is not None:
         return item
     item = await fetch_yahoo_index(yahoo_symbol, name)
@@ -4166,20 +4166,18 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     """Fetch US/Korea markets and return cards using the same temperature model."""
     now_text = datetime.now().strftime("%H:%M")
     specs = [
-        ("SPX", "^GSPC", "^spx", "标普500"),
-        ("NDX", "^NDX", "^ndx", "纳指100"),
-        ("DJIA", "^DJI", "^dji", "道琼斯"),
-        ("RUT", "^RUT", "^rut", "罗素2000"),
-        ("SOX", "^SOX", "^sox", "费城半导体"),
-        ("KS11", "^KS11", "^ks11", "韩国KOSPI"),
-        ("KQ11", "^KQ11", "^kq11", "韩国KOSDAQ"),
+        ("100.SPX", "^GSPC", "^spx", "标普500"),
+        ("100.NDX", "^NDX", "^ndx", "纳指100"),
+        ("100.DJIA", "^DJI", "^dji", "道琼斯"),
+        ("251.SOX", "^SOX", "^sox", "费城半导体"),
+        ("100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
     ]
     results = await asyncio.gather(
-        *(fetch_external_index(em_symbol, yahoo_symbol, stooq_symbol, name) for em_symbol, yahoo_symbol, stooq_symbol, name in specs),
+        *(fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name) for em_secid, yahoo_symbol, stooq_symbol, name in specs),
         return_exceptions=True
     )
     quotes: Dict[str, IndexInfo] = {}
-    for (_em_symbol, _yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
+    for (_em_secid, _yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
         if isinstance(result, IndexInfo):
             quotes[name] = result
         elif isinstance(result, Exception):
@@ -4194,7 +4192,6 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
 
     us_market = avg([x for x in [q("标普500"), q("纳指100"), q("道琼斯")] if x is not None])
     us_tech = avg([x for x in [q("纳指100"), q("费城半导体")] if x is not None])
-    korea_market = avg([x for x in [q("韩国KOSPI"), q("韩国KOSDAQ")] if x is not None])
 
     cards = [
         ("美股整体", us_market, "标普500 / 纳指100 / 道指"),
@@ -4203,10 +4200,7 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("纳指100", q("纳指100"), "大型科技成长股"),
         ("道琼斯", q("道琼斯"), "传统蓝筹工业指数"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
-        ("小盘风险", q("罗素2000"), "罗素2000风险偏好"),
-        ("韩国股市", korea_market, "KOSPI / KOSDAQ"),
-        ("韩国KOSPI", q("韩国KOSPI"), "韩国主板指数"),
-        ("韩国KOSDAQ", q("韩国KOSDAQ"), "韩国成长股指数"),
+        ("韩国股市", q("韩国KOSPI"), "韩国KOSPI"),
     ]
     return [
         ThemeSectorInfo(
