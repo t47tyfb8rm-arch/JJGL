@@ -1538,6 +1538,7 @@ body.dark .sector-card{
   overflow:hidden!important;
 }
 #tprofile .profile-tabs{
+  position:relative;
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:7px;
@@ -1545,8 +1546,30 @@ body.dark .sector-card{
   margin-bottom:10px;
   border-radius:15px;
   background:rgba(229,239,251,.72);
+  overflow:hidden;
+}
+#tprofile .profile-tabs:before{
+  content:"";
+  position:absolute;
+  top:3px;
+  bottom:3px;
+  left:3px;
+  width:calc((100% - 6px) / 3);
+  border-radius:12px;
+  background:#FFFFFF;
+  box-shadow:0 6px 14px rgba(31,86,174,.10);
+  transform:translateX(0);
+  transition:transform .24s cubic-bezier(.2,.8,.2,1);
+}
+#tprofile .profile-tabs.pane-news:before{
+  transform:translateX(100%);
+}
+#tprofile .profile-tabs.pane-external:before{
+  transform:translateX(200%);
 }
 #tprofile .profile-tabs button{
+  position:relative;
+  z-index:1;
   height:34px;
   border:0;
   border-radius:12px;
@@ -1554,11 +1577,10 @@ body.dark .sector-card{
   color:var(--muted);
   font-size:13px;
   font-weight:760;
+  transition:color .18s ease;
 }
 #tprofile .profile-tabs button.active{
-  background:#FFFFFF;
   color:#155CA8;
-  box-shadow:0 6px 14px rgba(31,86,174,.10);
 }
 #tprofile .profile-switch-body{
   touch-action:pan-y;
@@ -1598,8 +1620,10 @@ body.dark #tprofile .profile-tabs{
   background:rgba(255,255,255,.045)!important;
 }
 body.dark #tprofile .profile-tabs button.active{
-  background:#222222!important;
   color:#DDE8FF!important;
+}
+body.dark #tprofile .profile-tabs:before{
+  background:#222222!important;
   box-shadow:none!important;
 }
 /* Put news refresh time into the title row to save vertical space. */
@@ -2577,10 +2601,11 @@ function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return 
 function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
 function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50Idx=d.k50_index||{},bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
 function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
-function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
+function ensureThemeSector12(items){const out=items.slice(),names=new Set(out.map(x=>x.name)),extra=[['医疗','中证医疗'],['白酒','中证白酒'],['新能源','中证新能源'],['消费','中证消费'],['券商','证券公司'],['银行','中证银行']];extra.forEach(([name,note])=>{if(!names.has(name))out.push({name,value:'待更新',note,tone:'neutral'})});return out}
+function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=ensureThemeSector12(themeSectorItems(d)),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
 const profilePaneOrder=['temperature','news','external'];
-function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';document.querySelectorAll('#tprofile .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tprofile .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name}
-function initProfileSwipe(){const body=document.getElementById('profile-switch-body');if(!body||body.dataset.swipeReady)return;body.dataset.swipeReady='1';let sx=0,sy=0;body.addEventListener('touchstart',e=>{const t=e.touches&&e.touches[0];if(!t)return;sx=t.clientX;sy=t.clientY},{passive:true});body.addEventListener('touchend',e=>{const t=e.changedTouches&&e.changedTouches[0];if(!t)return;const dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)<46||Math.abs(dx)<Math.abs(dy)*1.4)return;const cur=profilePaneOrder.indexOf(window.profilePane||'temperature'),next=Math.max(0,Math.min(profilePaneOrder.length-1,cur+(dx<0?1:-1)));setProfilePane(profilePaneOrder[next])},{passive:true})}
+function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';const tabs=document.querySelector('#tprofile .profile-tabs');if(tabs){tabs.classList.remove('pane-temperature','pane-news','pane-external');tabs.classList.add('pane-'+name)}document.querySelectorAll('#tprofile .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tprofile .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name}
+function initProfileSwipe(){const body=document.getElementById('profile-switch-body');if(!body||body.dataset.swipeReady)return;body.dataset.swipeReady='1';let sx=0,sy=0;body.addEventListener('touchstart',e=>{const t=e.touches&&e.touches[0];if(!t)return;sx=t.clientX;sy=t.clientY},{passive:true});body.addEventListener('touchend',e=>{const t=e.changedTouches&&e.changedTouches[0];if(!t)return;const dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)<58||Math.abs(dx)<Math.abs(dy)*1.7)return;const cur=profilePaneOrder.indexOf(window.profilePane||'temperature'),next=Math.max(0,Math.min(profilePaneOrder.length-1,cur+(dx<0?1:-1)));setProfilePane(profilePaneOrder[next])},{passive:true})}
 function externalSectorHtml(x){const val=(x&&x.value!=null&&x.value!=='')?Number(x.value):null,tone=x?.tone||(val==null?'neutral':val>0?'good':val<0?'bad':'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x?.name||'外部市场')+'</div><div class="sector-value">'+sectorValueHtml(val==null?(x?.label||null):val)+'</div></div><div class="sector-note">'+esc(x?.note||x?.source||'后台行情')+'</div></div>'}
 function renderExternalMarkets(d){const el=document.getElementById('external-market-list');if(!el)return;const items=Array.isArray(d?.external_markets)?d.external_markets:[],nums=items.map(x=>x.value==null?null:Number(x.value)).filter(x=>Number.isFinite(x)),avg=avgNums(nums),overall=document.getElementById('external-overall'),up=document.getElementById('external-update'),tm=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='外部市场 · 后台更新 '+(tm||shortRefreshTime(d?.time||''));if(!items.length){el.innerHTML='<div class="news-empty">外部市场后台更新中</div>';return}const us=items.filter(x=>!/韩国|KOSPI|KOSDAQ/i.test(x.name||'')),kr=items.filter(x=>/韩国|KOSPI|KOSDAQ/i.test(x.name||''));el.innerHTML='<div class="external-group-title">美国市场</div><div class="sector-grid">'+us.map(externalSectorHtml).join('')+'</div><div class="external-group-title">韩国股市</div><div class="sector-grid">'+kr.map(externalSectorHtml).join('')+'</div>'}
 var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);renderExternalMarkets(d);initProfileSwipe();setProfilePane(window.profilePane||'temperature');return renderProfileNewsOnly(d)}
