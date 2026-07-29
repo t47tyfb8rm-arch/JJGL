@@ -4120,8 +4120,14 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     specs = [
         ("^GSPC", "^spx", "标普500"),
         ("^IXIC", "^ndq", "纳斯达克"),
+        ("^NDX", "^ndx", "纳指100"),
         ("^DJI", "^dji", "道琼斯"),
+        ("^RUT", "^rut", "罗素2000"),
         ("^SOX", "^sox", "费城半导体"),
+        ("NVDA", "nvda.us", "英伟达"),
+        ("MSFT", "msft.us", "微软"),
+        ("AVGO", "avgo.us", "博通"),
+        ("AMD", "amd.us", "AMD"),
         ("^KS11", "^ks11", "韩国KOSPI"),
         ("^KQ11", "^kq11", "韩国KOSDAQ"),
     ]
@@ -4144,13 +4150,17 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         return item.daily_change if item else None
 
     us_market = avg([x for x in [q("标普500"), q("纳斯达克"), q("道琼斯")] if x is not None])
-    us_ai = avg([x for x in [q("纳斯达克"), q("费城半导体")] if x is not None])
+    us_tech = avg([x for x in [q("纳斯达克"), q("纳指100")] if x is not None])
+    us_ai = avg([x for x in [q("英伟达"), q("微软"), q("博通"), q("AMD")] if x is not None])
     korea_market = avg([x for x in [q("韩国KOSPI"), q("韩国KOSDAQ")] if x is not None])
 
     cards = [
         ("美股整体", us_market, "标普500 / 纳指 / 道指"),
-        ("美股科技AI", us_ai, "纳指 + 半导体情绪"),
+        ("纳指科技", us_tech, "纳斯达克 + 纳指100"),
+        ("纳指100", q("纳指100"), "大型科技成长股"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
+        ("AI龙头", us_ai, "NVDA / MSFT / AVGO / AMD"),
+        ("小盘风险", q("罗素2000"), "罗素2000风险偏好"),
         ("韩国股市", korea_market, "KOSPI / KOSDAQ"),
         ("韩国KOSPI", q("韩国KOSPI"), "韩国主板指数"),
         ("韩国KOSDAQ", q("韩国KOSDAQ"), "韩国成长股指数"),
