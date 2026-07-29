@@ -27,6 +27,7 @@ import asyncio
 import os
 import json
 import time
+from urllib.parse import quote
 
 app = FastAPI(title="基金管理系统", version="2.3.2")
 
@@ -1497,6 +1498,7 @@ class PortfolioResponse(BaseModel):
     hs300_index: Optional[IndexInfo] = None  # 沪深300指数
     sz_index: Optional[IndexInfo] = None  # 深证成指
     theme_sectors: List[ThemeSectorInfo] = []  # 主题板块温度
+    external_markets: List[ThemeSectorInfo] = []  # 外部市场温度（美股/韩国）
     historical_yields: Dict[str, dict] = {}  # 历史收益基准（含日期）
 
 
@@ -4018,6 +4020,104 @@ async def fetch_generic_index(code: str, name: str) -> IndexInfo:
     )
 
 
+async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
+    """Fetch global index quote from Yahoo chart API for external-market temperature."""
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}"
+        params = {"range": "5d", "interval": "1d"}
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            r = await client.get(url, params=params, headers=HTTP_HEADERS)
+            r.raise_for_status()
+            payload = r.json()
+        result = ((payload.get("chart") or {}).get("result") or [None])[0] or {}
+        meta = result.get("meta") or {}
+        quote_data = (((result.get("indicators") or {}).get("quote") or [{}])[0]) or {}
+        closes = [float(x) for x in (quote_data.get("close") or []) if x is not None and float(x) > 0]
+        current = float(meta.get("regularMarketPrice") or (closes[-1] if closes else 0))
+        previous = float(meta.get("chartPreviousClose") or (closes[-2] if len(closes) >= 2 else 0))
+        if current <= 0:
+            return None
+        if previous <= 0:
+            previous = current
+        daily_change = round((current - previous) / previous * 100, 2) if previous > 0 else 0.0
+        return IndexInfo(
+            code=symbol,
+            name=name,
+            current=round(current, 2),
+            previous=round(previous, 2),
+            daily_change=daily_change,
+            history=[]
+        )
+    except Exception as e:
+        print(f"[外部市场] {symbol} 获取失败: {e}")
+        return None
+
+
+def _external_tone(value: Optional[float]) -> str:
+    if value is None:
+        return "neutral"
+    if value > 0.15:
+        return "good"
+    if value < -0.15:
+        return "bad"
+    return "neutral"
+
+
+async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
+    """Fetch US/Korea markets and return cards using the same temperature model."""
+    now_text = datetime.now().strftime("%H:%M")
+    specs = [
+        ("^GSPC", "标普500"),
+        ("^IXIC", "纳斯达克"),
+        ("^DJI", "道琼斯"),
+        ("^SOX", "费城半导体"),
+        ("^KS11", "韩国KOSPI"),
+        ("^KQ11", "韩国KOSDAQ"),
+    ]
+    results = await asyncio.gather(
+        *(fetch_yahoo_index(symbol, name) for symbol, name in specs),
+        return_exceptions=True
+    )
+    quotes: Dict[str, IndexInfo] = {}
+    for (symbol, name), result in zip(specs, results):
+        if isinstance(result, IndexInfo):
+            quotes[name] = result
+        elif isinstance(result, Exception):
+            print(f"[外部市场] {name} 异常: {result}")
+
+    def avg(values: List[float]) -> Optional[float]:
+        return sum(values) / len(values) if values else None
+
+    def q(name: str) -> Optional[float]:
+        item = quotes.get(name)
+        return item.daily_change if item else None
+
+    us_market = avg([x for x in [q("标普500"), q("纳斯达克"), q("道琼斯")] if x is not None])
+    us_ai = avg([x for x in [q("纳斯达克"), q("费城半导体")] if x is not None])
+    korea_market = avg([x for x in [q("韩国KOSPI"), q("韩国KOSDAQ")] if x is not None])
+
+    cards = [
+        ("美股整体", us_market, "标普500 / 纳指 / 道指"),
+        ("美股科技AI", us_ai, "纳指 + 半导体情绪"),
+        ("美股半导体", q("费城半导体"), "费城半导体指数"),
+        ("韩国股市", korea_market, "KOSPI / KOSDAQ"),
+        ("韩国KOSPI", q("韩国KOSPI"), "韩国主板指数"),
+        ("韩国KOSDAQ", q("韩国KOSDAQ"), "韩国成长股指数"),
+    ]
+    return [
+        ThemeSectorInfo(
+            name=name,
+            value=round(value, 2) if value is not None else None,
+            label="" if value is not None else "待更新",
+            note=note,
+            tone=_external_tone(value),
+            source="外部市场",
+            updated_at=now_text,
+        )
+        for name, value, note in cards
+    ]
+
+
 async def fetch_index_history_for_code(code: str, days: int = 7) -> List[IndexHistoryItem]:
     """
     获取指定指数近 N 天历史 K 线
@@ -4157,6 +4257,9 @@ async def get_portfolio(force: int = 0):
                 cached_market_themes,
                 cached_response.k50_index,
             )
+            if not getattr(cached_response, "external_markets", None) or (now_ts - PORTFOLIO_CACHE.get("saved_at", 0.0)) >= 600:
+                cached_response.external_markets = await fetch_external_market_temperature()
+                PORTFOLIO_CACHE["saved_at"] = now_ts
             cached_response.time = now.strftime("%H:%M:%S")
             return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
@@ -4244,8 +4347,9 @@ async def get_portfolio(force: int = 0):
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
     fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
     theme_market_task = fetch_theme_market_sectors()
+    external_market_task = fetch_external_market_temperature()
     fund_results = await asyncio.gather(*fund_tasks, return_exceptions=True)
-    theme_market_sectors = await theme_market_task
+    theme_market_sectors, external_markets = await asyncio.gather(theme_market_task, external_market_task)
 
     funds: List[FundInfo] = []
     for result in fund_results:
@@ -4289,6 +4393,7 @@ async def get_portfolio(force: int = 0):
         hs300_index=hs300_info,
         sz_index=sz_index_info,
         theme_sectors=theme_sectors,
+        external_markets=external_markets,
         historical_yields=HISTORICAL_YIELDS
     )
 
