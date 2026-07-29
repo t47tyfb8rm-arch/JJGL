@@ -2334,7 +2334,8 @@ body.dark #tmarket .profile-tabs button.active{color:#DDE8FF!important}
 body.dark #tmarket .profile-tabs:before{background:#222222!important;box-shadow:none!important}
 @media(max-width:390px){.tab-i{font-size:9.5px}.tab-i svg{width:20px;height:20px}.tab-i .yen-icon{font-size:22px}}
 /* market-pane-equal-height-20260729: 市场温度/外部市场滑动时高度一致 */
-#tmarket .profile-switch-body{min-height:430px}
+#tmarket .profile-switch-body{height:560px!important;min-height:560px!important;transition:none!important}
+/* market-pane-fixed-height-20260729: 禁止点击后动态撑高 */
 </style>
 </head>
 <body>
@@ -2719,7 +2720,7 @@ function ensureThemeSector12(items){const out=items.slice(),names=new Set(out.ma
 function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=ensureThemeSector12(themeSectorItems(d)),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
 const profilePaneOrder=['temperature','external'];
 function profilePaneIndex(name){return profilePaneOrder.indexOf(name)<0?0:profilePaneOrder.indexOf(name)}
-function profilePaneHeight(name){return Math.max(430,...profilePaneOrder.map(x=>{const p=document.getElementById('profile-pane-'+x);return p?p.scrollHeight:0}))}
+function profilePaneHeight(name){return 560}
 function setProfileHeight(name){const body=document.getElementById('profile-switch-body');if(body)body.style.height=profilePaneHeight(name)+'px'}
 function moveProfileTrack(name,dragPct=null){const track=document.getElementById('profile-track'),idx=profilePaneIndex(name),x=dragPct==null?(-idx*50):dragPct;if(track)track.style.transform='translate3d('+x+'%,0,0)'}
 function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';const tabs=document.querySelector('#tmarket .profile-tabs');if(tabs){tabs.classList.remove('pane-temperature','pane-news','pane-external');tabs.classList.add('pane-'+name)}document.querySelectorAll('#tmarket .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tmarket .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name;moveProfileTrack(name);setProfileHeight(name)}
