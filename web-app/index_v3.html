@@ -2304,7 +2304,10 @@ body.dark #tbuy .buy-distance-row.is-far{
   position:relative;
   overflow:hidden;
   touch-action:pan-y;
-  transition:height .24s cubic-bezier(.2,.8,.2,1);
+  height:430px!important;
+  min-height:430px!important;
+  max-height:430px!important;
+  transition:none!important;
 }
 #tmarket .profile-track{
   display:flex;
@@ -2318,7 +2321,9 @@ body.dark #tbuy .buy-distance-row.is-far{
   display:block;
   flex:0 0 50%;
   min-width:50%;
-  min-height:430px;
+  height:430px!important;
+  min-height:430px!important;
+  max-height:430px!important;
   opacity:1;
   transform:none;
   transition:opacity .22s ease,transform .22s ease;
@@ -2343,6 +2348,7 @@ body.dark #tmarket .profile-tabs:before{background:#222222!important;box-shadow:
 /* market-pane-render-sync-20260729: 外部市场渲染后再同步高度 */
 /* market-pane-natural-external-height-20260729: 去掉额外高度补偿 */
 /* market-pane-initial-sync-20260729: 初始渲染即同步外部市场高度 */
+/* market-pane-fixed-direct-20260729: 市场页固定高度，禁止滑动后重算 */
 </style>
 </head>
 <body>
@@ -2727,9 +2733,9 @@ function ensureThemeSector12(items){const out=items.slice(),names=new Set(out.ma
 function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=ensureThemeSector12(themeSectorItems(d)),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
 const profilePaneOrder=['temperature','external'];
 function profilePaneIndex(name){return profilePaneOrder.indexOf(name)<0?0:profilePaneOrder.indexOf(name)}
-function profilePaneHeight(name){const external=document.getElementById('profile-pane-external');if(external){external.style.height='auto';external.style.minHeight='430px'}return Math.max(430,external?external.scrollHeight:0)+2}
-function setProfileHeight(name){const h=profilePaneHeight(name);const body=document.getElementById('profile-switch-body');if(body)body.style.height=h+'px';profilePaneOrder.forEach(x=>{const p=document.getElementById('profile-pane-'+x);if(p){p.style.height=h+'px';p.style.minHeight=h+'px'}})}
-function scheduleProfileHeightSync(){setProfileHeight(window.profilePane||'temperature');requestAnimationFrame(()=>setProfileHeight(window.profilePane||'temperature'));[40,120,260,520].forEach(t=>setTimeout(()=>setProfileHeight(window.profilePane||'temperature'),t))}
+function profilePaneHeight(name){return 430}
+function setProfileHeight(name){const h=profilePaneHeight(name);const body=document.getElementById('profile-switch-body');if(body){body.style.height=h+'px';body.style.minHeight=h+'px';body.style.maxHeight=h+'px'}profilePaneOrder.forEach(x=>{const p=document.getElementById('profile-pane-'+x);if(p){p.style.height=h+'px';p.style.minHeight=h+'px';p.style.maxHeight=h+'px'}})}
+function scheduleProfileHeightSync(){setProfileHeight(window.profilePane||'temperature')}
 function moveProfileTrack(name,dragPct=null){const track=document.getElementById('profile-track'),idx=profilePaneIndex(name),x=dragPct==null?(-idx*50):dragPct;if(track)track.style.transform='translate3d('+x+'%,0,0)'}
 function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';const tabs=document.querySelector('#tmarket .profile-tabs');if(tabs){tabs.classList.remove('pane-temperature','pane-news','pane-external');tabs.classList.add('pane-'+name)}document.querySelectorAll('#tmarket .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tmarket .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name;moveProfileTrack(name);setProfileHeight(name)}
 function initProfileSwipe(){const body=document.getElementById('profile-switch-body'),track=document.getElementById('profile-track');if(!body||!track||body.dataset.swipeReady)return;body.dataset.swipeReady='1';let sx=0,sy=0,dragging=false,lockedVertical=false,startIdx=0;body.addEventListener('touchstart',e=>{const t=e.touches&&e.touches[0];if(!t)return;sx=t.clientX;sy=t.clientY;dragging=false;lockedVertical=false;startIdx=profilePaneIndex(window.profilePane||'temperature')},{passive:true});body.addEventListener('touchmove',e=>{const t=e.touches&&e.touches[0];if(!t||lockedVertical)return;const dx=t.clientX-sx,dy=t.clientY-sy;if(!dragging){if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)*.72){lockedVertical=true;return}if(Math.abs(dx)<22||Math.abs(dx)<Math.abs(dy)*1.9)return;dragging=true;track.classList.add('dragging')}const width=Math.max(1,body.clientWidth),base=-startIdx*50,raw=dx/width*50,delta=Math.max(-42,Math.min(42,raw*.72));moveProfileTrack(window.profilePane||'temperature',base+delta)},{passive:true});body.addEventListener('touchend',e=>{if(!dragging){setProfilePane(window.profilePane||'temperature');return}track.classList.remove('dragging');const t=e.changedTouches&&e.changedTouches[0],dx=t?t.clientX-sx:0,width=Math.max(1,body.clientWidth),pass=Math.abs(dx)>Math.min(132,width*.34);let next=startIdx;if(pass)next=Math.max(0,Math.min(profilePaneOrder.length-1,startIdx+(dx<0?1:-1)));setProfilePane(profilePaneOrder[next])},{passive:true})}
