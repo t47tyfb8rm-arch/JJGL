@@ -4053,6 +4053,38 @@ async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
+async def fetch_eastmoney_global_index(symbol: str, name: str) -> Optional[IndexInfo]:
+    """Eastmoney global index quote, using secid=100.{symbol}."""
+    try:
+        url = "https://push2.eastmoney.com/api/qt/stock/get"
+        params = {
+            "secid": f"100.{symbol}",
+            "fields": "f43,f57,f58,f60,f169,f170",
+            "_": int(time.time() * 1000),
+        }
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            r = await client.get(url, params=params, headers={**HTTP_HEADERS, "Referer": "https://quote.eastmoney.com/center/gridlist.html"})
+            r.raise_for_status()
+            data = r.json().get("data") or {}
+        current = _em_scaled(data.get("f43"))
+        previous = _em_scaled(data.get("f60"))
+        change_amt = _em_scaled(data.get("f169"))
+        change_pct = _em_scaled(data.get("f170"))
+        if current <= 0:
+            return None
+        return IndexInfo(
+            code=symbol,
+            name=name or data.get("f58") or symbol,
+            current=round(current, 2),
+            previous=round(previous, 2),
+            daily_change=round(change_pct, 2),
+            history=[]
+        )
+    except Exception as e:
+        print(f"[外部市场-东财] {symbol} 获取失败: {e}")
+        return None
+
+
 async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
     """Fallback global index quote from Stooq daily CSV."""
     try:
@@ -4096,8 +4128,11 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
-async def fetch_external_index(yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
-    """Yahoo first, Stooq fallback, so overseas market cards do not stay empty."""
+async def fetch_external_index(em_symbol: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
+    """Eastmoney first, Yahoo/Stooq fallback, so overseas market cards do not stay empty."""
+    item = await fetch_eastmoney_global_index(em_symbol, name)
+    if item is not None:
+        return item
     item = await fetch_yahoo_index(yahoo_symbol, name)
     if item is not None:
         return item
@@ -4118,25 +4153,20 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     """Fetch US/Korea markets and return cards using the same temperature model."""
     now_text = datetime.now().strftime("%H:%M")
     specs = [
-        ("^GSPC", "^spx", "标普500"),
-        ("^IXIC", "^ndq", "纳斯达克"),
-        ("^NDX", "^ndx", "纳指100"),
-        ("^DJI", "^dji", "道琼斯"),
-        ("^RUT", "^rut", "罗素2000"),
-        ("^SOX", "^sox", "费城半导体"),
-        ("NVDA", "nvda.us", "英伟达"),
-        ("MSFT", "msft.us", "微软"),
-        ("AVGO", "avgo.us", "博通"),
-        ("AMD", "amd.us", "AMD"),
-        ("^KS11", "^ks11", "韩国KOSPI"),
-        ("^KQ11", "^kq11", "韩国KOSDAQ"),
+        ("SPX", "^GSPC", "^spx", "标普500"),
+        ("NDX", "^NDX", "^ndx", "纳指100"),
+        ("DJIA", "^DJI", "^dji", "道琼斯"),
+        ("RUT", "^RUT", "^rut", "罗素2000"),
+        ("SOX", "^SOX", "^sox", "费城半导体"),
+        ("KS11", "^KS11", "^ks11", "韩国KOSPI"),
+        ("KQ11", "^KQ11", "^kq11", "韩国KOSDAQ"),
     ]
     results = await asyncio.gather(
-        *(fetch_external_index(yahoo_symbol, stooq_symbol, name) for yahoo_symbol, stooq_symbol, name in specs),
+        *(fetch_external_index(em_symbol, yahoo_symbol, stooq_symbol, name) for em_symbol, yahoo_symbol, stooq_symbol, name in specs),
         return_exceptions=True
     )
     quotes: Dict[str, IndexInfo] = {}
-    for (_yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
+    for (_em_symbol, _yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
         if isinstance(result, IndexInfo):
             quotes[name] = result
         elif isinstance(result, Exception):
@@ -4149,17 +4179,17 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         item = quotes.get(name)
         return item.daily_change if item else None
 
-    us_market = avg([x for x in [q("标普500"), q("纳斯达克"), q("道琼斯")] if x is not None])
-    us_tech = avg([x for x in [q("纳斯达克"), q("纳指100")] if x is not None])
-    us_ai = avg([x for x in [q("英伟达"), q("微软"), q("博通"), q("AMD")] if x is not None])
+    us_market = avg([x for x in [q("标普500"), q("纳指100"), q("道琼斯")] if x is not None])
+    us_tech = avg([x for x in [q("纳指100"), q("费城半导体")] if x is not None])
     korea_market = avg([x for x in [q("韩国KOSPI"), q("韩国KOSDAQ")] if x is not None])
 
     cards = [
-        ("美股整体", us_market, "标普500 / 纳指 / 道指"),
-        ("纳指科技", us_tech, "纳斯达克 + 纳指100"),
+        ("美股整体", us_market, "标普500 / 纳指100 / 道指"),
+        ("科技AI温度", us_tech, "纳指100 + 费城半导体"),
+        ("标普500", q("标普500"), "美国大盘基准"),
         ("纳指100", q("纳指100"), "大型科技成长股"),
+        ("道琼斯", q("道琼斯"), "传统蓝筹工业指数"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
-        ("AI龙头", us_ai, "NVDA / MSFT / AVGO / AMD"),
         ("小盘风险", q("罗素2000"), "罗素2000风险偏好"),
         ("韩国股市", korea_market, "KOSPI / KOSDAQ"),
         ("韩国KOSPI", q("韩国KOSPI"), "韩国主板指数"),
