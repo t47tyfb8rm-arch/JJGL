@@ -4185,17 +4185,14 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
 
 
 async def fetch_external_index(em_secid: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
-    """Eastmoney first, Yahoo/Stooq fallback, so overseas market cards do not stay empty."""
+    """Domestic sources only: Eastmoney exact secid first, Sina US quote second."""
     item = await fetch_eastmoney_global_index(em_secid, name)
     if item is not None:
         return item
     item = await fetch_sina_us_stock(yahoo_symbol, name)
     if item is not None:
         return item
-    item = await fetch_yahoo_index(yahoo_symbol, name)
-    if item is not None:
-        return item
-    return await fetch_stooq_index(stooq_symbol, name)
+    return None
 
 
 def _external_tone(value: Optional[float]) -> str:
@@ -4217,8 +4214,8 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("100.DJIA", "^DJI", "^dji", "道琼斯"),
         ("251.SOX", "^SOX", "^sox", "费城半导体"),
         ("100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
-        ("", "005930.KS", "005930.kr", "三星电子"),
-        ("", "000660.KS", "000660.kr", "SK海力士"),
+        ("177.005930", "005930.KS", "005930.kr", "三星电子"),
+        ("177.000660", "000660.KS", "000660.kr", "SK海力士"),
         ("105.NVDA", "NVDA", "nvda.us", "英伟达"),
         ("105.AMD", "AMD", "amd.us", "AMD"),
         ("105.AVGO", "AVGO", "avgo.us", "博通"),
