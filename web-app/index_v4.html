@@ -1527,15 +1527,83 @@ body.dark .sector-card{
   background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
   border-color:rgba(255,255,255,.055)!important;
 }
+/* v4-profile-3pane-market-20260729: 我的页三模块切换：市场温度 / 资讯 / 外部市场 */
+#tprofile .profile-switch-card{
+  margin:8px 14px 10px!important;
+  padding:12px!important;
+  border-radius:18px!important;
+  background:linear-gradient(180deg,#FFFFFF 0%,#F4F8FD 100%)!important;
+  border:1px solid rgba(219,232,248,.95)!important;
+  box-shadow:0 8px 22px rgba(31,86,174,.075)!important;
+  overflow:hidden!important;
+}
+#tprofile .profile-tabs{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:7px;
+  padding:3px;
+  margin-bottom:10px;
+  border-radius:15px;
+  background:rgba(229,239,251,.72);
+}
+#tprofile .profile-tabs button{
+  height:34px;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:760;
+}
+#tprofile .profile-tabs button.active{
+  background:#FFFFFF;
+  color:#155CA8;
+  box-shadow:0 6px 14px rgba(31,86,174,.10);
+}
+#tprofile .profile-switch-body{
+  touch-action:pan-y;
+}
+#tprofile .profile-pane{
+  display:none;
+  min-height:420px;
+}
+#tprofile .profile-pane.active{
+  display:block;
+}
+#tprofile #profile-pane-news{
+  min-height:520px;
+}
+#external-market-list .external-group-title{
+  margin:10px 2px 8px;
+  font-size:13px;
+  font-weight:780;
+  color:var(--ink);
+}
+#external-market-list .external-group-title:first-child{
+  margin-top:0;
+}
+body.dark #tprofile .profile-switch-card{
+  background:#171717!important;
+  border-color:rgba(255,255,255,.06)!important;
+  box-shadow:none!important;
+}
+body.dark #tprofile .profile-tabs{
+  background:rgba(255,255,255,.045)!important;
+}
+body.dark #tprofile .profile-tabs button.active{
+  background:#222222!important;
+  color:#DDE8FF!important;
+  box-shadow:none!important;
+}
 /* Put news refresh time into the title row to save vertical space. */
-#tprofile .profile-panel .panel-title{
+#tprofile #profile-pane-news .panel-title{
   display:flex!important;
   align-items:center!important;
   justify-content:space-between!important;
   gap:10px!important;
   margin-bottom:8px!important;
 }
-#tprofile .profile-panel #news-refresh-time{
+#tprofile #profile-pane-news #news-refresh-time{
   margin:0!important;
   flex:0 0 auto!important;
   max-width:132px!important;
@@ -1546,7 +1614,7 @@ body.dark .sector-card{
   overflow:hidden!important;
   text-overflow:ellipsis!important;
 }
-body.dark #tprofile .profile-panel #news-refresh-time{
+body.dark #tprofile #profile-pane-news #news-refresh-time{
   color:#9CA3AD!important;
 }
 
@@ -2211,16 +2279,32 @@ body.dark #tbuy .buy-distance-row.is-far{
 <!-- ===== PROFILE ===== -->
 <div id="tprofile" class="tab-c">
   <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
-  <div class="card px tight-card sector-panel">
-    <div class="sector-headline">
-      <div><div class="sector-title">主题温度</div><div class="sector-sub" id="sector-update">按持仓主题与市场指数聚合</div></div>
-      <div class="sector-score"><div class="num" id="sector-overall">--</div><span>今日整体</span></div>
+  <div class="card px tight-card profile-switch-card">
+    <div class="profile-tabs">
+      <button class="active" data-profile-tab="temperature" onclick="setProfilePane('temperature')">市场温度</button>
+      <button data-profile-tab="news" onclick="setProfilePane('news')">资讯</button>
+      <button data-profile-tab="external" onclick="setProfilePane('external')">外部市场</button>
     </div>
-    <div class="sector-grid" id="theme-sector-list"><div class="t2 pb">加载中...</div></div>
-  </div>
-  <div class="card px tight-card profile-panel">
-    <div class="panel-kicker">Market Brief</div><div class="panel-title"><span>持仓资讯与操作参考</span><span class="muted" id="news-refresh-time">资讯更新 --</span></div>
-    <div id="news-list"><div class="t2 pb">加载中...</div></div>
+    <div class="profile-switch-body" id="profile-switch-body">
+      <section class="profile-pane active" id="profile-pane-temperature">
+        <div class="sector-headline">
+          <div><div class="sector-title">主题温度</div><div class="sector-sub" id="sector-update">按持仓主题与市场指数聚合</div></div>
+          <div class="sector-score"><div class="num" id="sector-overall">--</div><span>今日整体</span></div>
+        </div>
+        <div class="sector-grid" id="theme-sector-list"><div class="t2 pb">加载中...</div></div>
+      </section>
+      <section class="profile-pane" id="profile-pane-news">
+        <div class="panel-kicker">Market Brief</div><div class="panel-title"><span>持仓资讯与操作参考</span><span class="muted" id="news-refresh-time">--</span></div>
+        <div id="news-list"><div class="t2 pb">加载中...</div></div>
+      </section>
+      <section class="profile-pane" id="profile-pane-external">
+        <div class="sector-headline">
+          <div><div class="sector-title">外部市场</div><div class="sector-sub" id="external-update">美股科技/AI、半导体与韩国股市</div></div>
+          <div class="sector-score"><div class="num" id="external-overall">--</div><span>海外温度</span></div>
+        </div>
+        <div id="external-market-list"><div class="t2 pb">加载中...</div></div>
+      </section>
+    </div>
   </div>
 </div>
 </div><!-- /content -->
@@ -2487,7 +2571,12 @@ function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.
 function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50Idx=d.k50_index||{},bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
 function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
 function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=themeSectorItems(d),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
-var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);return renderProfileNewsOnly(d)}
+const profilePaneOrder=['temperature','news','external'];
+function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';document.querySelectorAll('#tprofile .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tprofile .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name}
+function initProfileSwipe(){const body=document.getElementById('profile-switch-body');if(!body||body.dataset.swipeReady)return;body.dataset.swipeReady='1';let sx=0,sy=0;body.addEventListener('touchstart',e=>{const t=e.touches&&e.touches[0];if(!t)return;sx=t.clientX;sy=t.clientY},{passive:true});body.addEventListener('touchend',e=>{const t=e.changedTouches&&e.changedTouches[0];if(!t)return;const dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)<46||Math.abs(dx)<Math.abs(dy)*1.4)return;const cur=profilePaneOrder.indexOf(window.profilePane||'temperature'),next=Math.max(0,Math.min(profilePaneOrder.length-1,cur+(dx<0?1:-1)));setProfilePane(profilePaneOrder[next])},{passive:true})}
+function externalSectorHtml(x){const val=(x&&x.value!=null&&x.value!=='')?Number(x.value):null,tone=x?.tone||(val==null?'neutral':val>0?'good':val<0?'bad':'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x?.name||'外部市场')+'</div><div class="sector-value">'+sectorValueHtml(val==null?(x?.label||null):val)+'</div></div><div class="sector-note">'+esc(x?.note||x?.source||'后台行情')+'</div></div>'}
+function renderExternalMarkets(d){const el=document.getElementById('external-market-list');if(!el)return;const items=Array.isArray(d?.external_markets)?d.external_markets:[],nums=items.map(x=>x.value==null?null:Number(x.value)).filter(x=>Number.isFinite(x)),avg=avgNums(nums),overall=document.getElementById('external-overall'),up=document.getElementById('external-update'),tm=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='外部市场 · 后台更新 '+(tm||shortRefreshTime(d?.time||''));if(!items.length){el.innerHTML='<div class="news-empty">外部市场后台更新中</div>';return}const us=items.filter(x=>!/韩国|KOSPI|KOSDAQ/i.test(x.name||'')),kr=items.filter(x=>/韩国|KOSPI|KOSDAQ/i.test(x.name||''));el.innerHTML='<div class="external-group-title">美国市场</div><div class="sector-grid">'+us.map(externalSectorHtml).join('')+'</div><div class="external-group-title">韩国股市</div><div class="sector-grid">'+kr.map(externalSectorHtml).join('')+'</div>'}
+var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);renderExternalMarkets(d);initProfileSwipe();setProfilePane(window.profilePane||'temperature');return renderProfileNewsOnly(d)}
 function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDate=String(f?.nav_date||'').slice(0,10),backend=String(d?.display_trade_date||'').slice(0,10);if(today){const day=new Date(today+'T12:00:00').getDay();if(day>=1&&day<=5)return today}return backend||navDate}
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
 function fundCardSignal(f,d){const actual=Number(f.daily_change||0),navDate=String(f.nav_date||'').slice(0,10);if(navDate)return '<span class="fund-signal" style="color:'+cc(actual)+'">实际 '+esc(md(navDate))+' '+fp(actual)+'</span>';return '<span class="fund-signal wait">待净值</span>'}
