@@ -4053,6 +4053,57 @@ async def fetch_yahoo_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
+async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
+    """Fallback global index quote from Stooq daily CSV."""
+    try:
+        end = datetime.now()
+        start = end - timedelta(days=18)
+        url = "https://stooq.com/q/d/l/"
+        params = {
+            "s": symbol,
+            "i": "d",
+            "d1": start.strftime("%Y%m%d"),
+            "d2": end.strftime("%Y%m%d"),
+        }
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(url, params=params, headers=HTTP_HEADERS)
+            r.raise_for_status()
+            text = r.text.strip()
+        rows = []
+        for line in text.splitlines()[1:]:
+            parts = [x.strip() for x in line.split(",")]
+            if len(parts) >= 5 and parts[4] not in ("", "0", "N/D"):
+                rows.append(parts)
+        if not rows:
+            return None
+        latest = rows[-1]
+        previous = rows[-2] if len(rows) >= 2 else rows[-1]
+        current = float(latest[4])
+        prev_close = float(previous[4])
+        if current <= 0 or prev_close <= 0:
+            return None
+        daily_change = round((current - prev_close) / prev_close * 100, 2)
+        return IndexInfo(
+            code=symbol,
+            name=name,
+            current=round(current, 2),
+            previous=round(prev_close, 2),
+            daily_change=daily_change,
+            history=[]
+        )
+    except Exception as e:
+        print(f"[外部市场-Stooq] {symbol} 获取失败: {e}")
+        return None
+
+
+async def fetch_external_index(yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
+    """Yahoo first, Stooq fallback, so overseas market cards do not stay empty."""
+    item = await fetch_yahoo_index(yahoo_symbol, name)
+    if item is not None:
+        return item
+    return await fetch_stooq_index(stooq_symbol, name)
+
+
 def _external_tone(value: Optional[float]) -> str:
     if value is None:
         return "neutral"
@@ -4067,19 +4118,19 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     """Fetch US/Korea markets and return cards using the same temperature model."""
     now_text = datetime.now().strftime("%H:%M")
     specs = [
-        ("^GSPC", "标普500"),
-        ("^IXIC", "纳斯达克"),
-        ("^DJI", "道琼斯"),
-        ("^SOX", "费城半导体"),
-        ("^KS11", "韩国KOSPI"),
-        ("^KQ11", "韩国KOSDAQ"),
+        ("^GSPC", "^spx", "标普500"),
+        ("^IXIC", "^ndq", "纳斯达克"),
+        ("^DJI", "^dji", "道琼斯"),
+        ("^SOX", "^sox", "费城半导体"),
+        ("^KS11", "^ks11", "韩国KOSPI"),
+        ("^KQ11", "^kq11", "韩国KOSDAQ"),
     ]
     results = await asyncio.gather(
-        *(fetch_yahoo_index(symbol, name) for symbol, name in specs),
+        *(fetch_external_index(yahoo_symbol, stooq_symbol, name) for yahoo_symbol, stooq_symbol, name in specs),
         return_exceptions=True
     )
     quotes: Dict[str, IndexInfo] = {}
-    for (symbol, name), result in zip(specs, results):
+    for (_yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
         if isinstance(result, IndexInfo):
             quotes[name] = result
         elif isinstance(result, Exception):
