@@ -563,6 +563,37 @@ body.dark .app-top .icon-btn,body.dark .app-top .top-pill,body.dark .app-top .mi
   border:1px solid rgba(255,255,255,.045)!important;
   box-shadow:0 6px 16px rgba(0,0,0,.24)!important;
 }
+/* v4-market-top-soft-gradient-20260730: market top card uses a full-card soft gradient instead of a local blob. */
+#tmarket .app-top.sub-top{
+  background:linear-gradient(112deg,#FFFFFF 0%,#F8FBFF 46%,#EAF4FF 100%)!important;
+  border:1px solid rgba(199,220,244,.78)!important;
+  box-shadow:0 10px 24px rgba(23,74,142,.075)!important;
+}
+#tmarket .app-top.sub-top:before{
+  display:none!important;
+  content:none!important;
+}
+#tmarket .app-top.sub-top:after{
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  height:100%!important;
+  background:linear-gradient(90deg,rgba(47,111,214,.035),rgba(47,111,214,0) 58%)!important;
+  pointer-events:none!important;
+}
+#tmarket .app-top.sub-top .top-pill{
+  background:rgba(255,255,255,.9)!important;
+  border:1px solid rgba(214,229,246,.72)!important;
+  box-shadow:0 8px 18px rgba(23,74,142,.075)!important;
+}
+body.dark #tmarket .app-top.sub-top{
+  background:linear-gradient(112deg,#171717 0%,#1B1B1B 56%,#222222 100%)!important;
+  border-color:rgba(255,255,255,.055)!important;
+  box-shadow:none!important;
+}
+body.dark #tmarket .app-top.sub-top:after{
+  background:linear-gradient(90deg,rgba(255,255,255,.035),rgba(255,255,255,0) 60%)!important;
+}
 /* AI strategy cards: make each fund visually separated. */
 #tai #ai-content{display:grid!important;gap:10px!important}
 #tai .ai-detail{
