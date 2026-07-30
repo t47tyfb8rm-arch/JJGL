@@ -27,6 +27,7 @@ import asyncio
 import os
 import json
 import time
+import sqlite3
 from urllib.parse import quote
 
 app = FastAPI(title="基金管理系统", version="2.3.2")
@@ -89,6 +90,7 @@ async def daily_model_fitter():
 async def start_snapshot_scheduler():
     """启动后台调度任务"""
     import asyncio as _asyncio
+    init_app_db()
     _asyncio.create_task(snapshot_scheduler())
     _asyncio.create_task(daily_model_fitter())
     _asyncio.create_task(background_portfolio_refresher())
@@ -158,6 +160,131 @@ def should_fetch_estimation() -> bool:
 
 # 获取当前目录（backend）
 current_dir = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(current_dir, "fund_manager.db")
+
+
+def init_app_db():
+    os.makedirs(current_dir, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_key TEXT NOT NULL DEFAULT 'latest',
+                created_at REAL NOT NULL,
+                trade_date TEXT,
+                market_status TEXT,
+                payload TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_key_created ON portfolio_snapshots(snapshot_key, created_at DESC)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_daily_snapshots (
+                code TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                name TEXT,
+                nav_date TEXT,
+                current_nav REAL,
+                daily_change REAL,
+                estimated_change REAL,
+                buy_point_json TEXT,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, snapshot_date)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS news_snapshots (
+                news_key TEXT NOT NULL DEFAULT 'latest',
+                created_at REAL NOT NULL,
+                payload TEXT NOT NULL,
+                PRIMARY KEY(news_key)
+            )
+        """)
+        conn.commit()
+
+
+def _model_dump(obj):
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    return obj.dict()
+
+
+def save_portfolio_to_db(response):
+    try:
+        init_app_db()
+        payload = json.dumps(_model_dump(response), ensure_ascii=False, separators=(",", ":"))
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO portfolio_snapshots(snapshot_key, created_at, trade_date, market_status, payload) VALUES(?,?,?,?,?)",
+                ("latest", now_ts, response.date, response.market_status, payload),
+            )
+            conn.execute(
+                "DELETE FROM portfolio_snapshots WHERE snapshot_key='latest' AND id NOT IN (SELECT id FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 24)"
+            )
+            for fund in response.funds or []:
+                fund_payload = json.dumps(_model_dump(fund), ensure_ascii=False, separators=(",", ":"))
+                buy_point_payload = json.dumps(_model_dump(fund.buy_point), ensure_ascii=False, separators=(",", ":")) if getattr(fund, "buy_point", None) else "{}"
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO fund_daily_snapshots
+                    (code, snapshot_date, name, nav_date, current_nav, daily_change, estimated_change, buy_point_json, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        fund.code,
+                        response.date,
+                        fund.name,
+                        fund.nav_date,
+                        fund.current_nav,
+                        fund.daily_change,
+                        fund.estimated_change,
+                        buy_point_payload,
+                        fund_payload,
+                        now_ts,
+                    ),
+                )
+            news_payload = json.dumps([_model_dump(n) for n in response.news or []], ensure_ascii=False, separators=(",", ":"))
+            conn.execute(
+                "INSERT OR REPLACE INTO news_snapshots(news_key, created_at, payload) VALUES(?,?,?)",
+                ("latest", now_ts, news_payload),
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save portfolio failed: {e}")
+
+
+def load_portfolio_from_db(max_age_seconds: int = 180):
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT created_at, payload FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return None
+        created_at, payload = row
+        if max_age_seconds > 0 and time.time() - float(created_at) > max_age_seconds:
+            return None
+        data = json.loads(payload)
+        if hasattr(PortfolioResponse, "model_validate"):
+            return PortfolioResponse.model_validate(data)
+        return PortfolioResponse.parse_obj(data)
+    except Exception as e:
+        print(f"[DB] load portfolio failed: {e}")
+        return None
+
+
+def clear_portfolio_db_cache():
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("DELETE FROM portfolio_snapshots WHERE snapshot_key='latest'")
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] clear portfolio failed: {e}")
 
 EST_CACHE_FILE = os.path.join(current_dir, "est_cache.json")
 CORRECTION_CACHE_FILE = os.path.join(current_dir, "correction_cache.json")
@@ -4678,6 +4805,14 @@ async def get_portfolio(force: int = 0, lite: int = 0):
     now = datetime.now()
     is_trading = is_trading_time()
     disclosed = _is_today_disclosed()
+    if force == 0 and PORTFOLIO_CACHE["data"] is None:
+        db_max_age = 180 if is_trading else 900
+        db_response = load_portfolio_from_db(max_age_seconds=db_max_age)
+        if db_response is not None:
+            db_response.time = now.strftime("%H:%M:%S")
+            PORTFOLIO_CACHE["data"] = db_response
+            PORTFOLIO_CACHE["saved_at"] = now_ts
+            return lite_portfolio_response(db_response) if lite else db_response
     if PORTFOLIO_CACHE["data"] is not None:
         if disclosed and force == 0:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
@@ -4861,6 +4996,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
     if not lite:
         PORTFOLIO_CACHE["data"] = response
         PORTFOLIO_CACHE["saved_at"] = time.time()
+        save_portfolio_to_db(response)
 
     return lite_portfolio_response(response) if lite else response
 
@@ -4883,7 +5019,7 @@ async def background_portfolio_refresher():
                 finally:
                     BACKGROUND_PORTFOLIO_REFRESHING = False
             disclosed = _is_today_disclosed()
-            interval = 30 if (is_trading_time() or not disclosed) else 300
+            interval = 120 if (is_trading_time() or not disclosed) else 300
         except Exception as e:
             BACKGROUND_PORTFOLIO_REFRESHING = False
             interval = 60
@@ -5001,6 +5137,7 @@ async def add_watched_fund(payload: dict):
 
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
     return {
         "ok": True,
         "code": fund_code,
@@ -5039,6 +5176,7 @@ async def delete_watched_fund(fund_code: str):
 
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
     return {"ok": True, "code": fund_code, "deleted": True}
 
 
@@ -5088,6 +5226,7 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     save_cost_navs_to_file(COST_NAVS)
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
 
     return {
         "code": fund_code,
@@ -5168,6 +5307,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
     save_cost_navs_to_file(COST_NAVS)
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
 
     return {
         "code": fund_code,
