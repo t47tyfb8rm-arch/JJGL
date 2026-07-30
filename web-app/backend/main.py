@@ -4264,7 +4264,6 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     """Fetch US/Korea markets and return cards using the same temperature model."""
     now_text = datetime.now().strftime("%H:%M")
     specs = [
-        ("100.SPX", "^GSPC", "^spx", "标普500"),
         ("100.NDX", "^NDX", "^ndx", "纳指100"),
         ("100.DJIA", "^DJI", "^dji", "道琼斯"),
         ("251.SOX", "^SOX", "^sox", "费城半导体"),
@@ -4274,6 +4273,11 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("105.NVDA", "NVDA", "nvda.us", "英伟达"),
         ("105.AMD", "AMD", "amd.us", "AMD"),
         ("105.AVGO", "AVGO", "avgo.us", "博通"),
+        ("105.MSFT", "MSFT", "msft.us", "微软"),
+        ("105.AAPL", "AAPL", "aapl.us", "苹果"),
+        ("105.GOOGL", "GOOGL", "googl.us", "谷歌"),
+        ("105.AMZN", "AMZN", "amzn.us", "亚马逊"),
+        ("105.TSLA", "TSLA", "tsla.us", "特斯拉"),
     ]
     results = await asyncio.gather(
         *(fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name) for em_secid, yahoo_symbol, stooq_symbol, name in specs),
@@ -4293,17 +4297,18 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         item = quotes.get(name)
         return item.daily_change if item else None
 
-    us_market = avg([x for x in [q("标普500"), q("纳指100"), q("道琼斯")] if x is not None])
+    us_market = avg([x for x in [q("纳指100"), q("道琼斯")] if x is not None])
     us_chip_stock = avg([x for x in [q("英伟达"), q("AMD"), q("博通")] if x is not None])
     us_chip_signal = us_chip_stock if us_chip_stock is not None else q("费城半导体")
+    us_leaders = avg([x for x in [q("英伟达"), q("微软"), q("苹果"), q("谷歌"), q("亚马逊"), q("特斯拉")] if x is not None])
     us_tech = avg([x for x in [q("纳指100"), q("费城半导体"), us_chip_signal] if x is not None])
     korea_chip_stock = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
     korea_chip = korea_chip_stock if korea_chip_stock is not None else avg([x for x in [q("韩国KOSPI"), q("费城半导体")] if x is not None])
 
     cards = [
-        ("美股整体", us_market, "标普500 / 纳指100 / 道指"),
+        ("美股整体", us_market, "纳指100 / 道指"),
         ("科技AI温度", us_tech, "纳指100 + 半导体指数 + 芯片龙头"),
-        ("标普500", q("标普500"), "美国大盘基准"),
+        ("美股龙头", us_leaders, "NVDA / MSFT / AAPL / GOOGL / AMZN / TSLA"),
         ("纳指100", q("纳指100"), "大型科技成长股"),
         ("道琼斯", q("道琼斯"), "传统蓝筹工业指数"),
         ("美股半导体", q("费城半导体"), "费城半导体指数"),
