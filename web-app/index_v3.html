@@ -1620,9 +1620,38 @@ body.dark .sector-card{
   font-size:13px;
   font-weight:780;
   color:var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
 }
 #external-market-list .external-group-title:first-child{
   margin-top:0;
+}
+#external-market-list .external-session{
+  flex:none;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:760;
+  color:#64748b;
+  background:rgba(148,163,184,.14);
+}
+#external-market-list .external-session.open{
+  color:#1f8b67;
+  background:rgba(45,185,126,.12);
+}
+#external-market-list .external-session.closed{
+  color:#8a6a2f;
+  background:rgba(245,181,74,.14);
+}
+#external-market-list .external-session.pre{
+  color:#2b64aa;
+  background:rgba(47,111,214,.12);
+}
+body.dark #external-market-list .external-session{
+  color:#d6d6d6;
+  background:rgba(255,255,255,.08);
 }
 #tprofile .external-inline{
   margin-top:12px;
@@ -2791,7 +2820,11 @@ function moveProfileTrack(name,dragPct=null){const track=document.getElementById
 function setProfilePane(name){if(!profilePaneOrder.includes(name))name='temperature';const tabs=document.querySelector('#tmarket .profile-tabs');if(tabs){tabs.classList.remove('pane-temperature','pane-news','pane-external');tabs.classList.add('pane-'+name)}document.querySelectorAll('#tmarket .profile-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.profileTab===name));document.querySelectorAll('#tmarket .profile-pane').forEach(p=>p.classList.toggle('active',p.id==='profile-pane-'+name));window.profilePane=name;moveProfileTrack(name);setProfileHeight(name)}
 function initProfileSwipe(){const body=document.getElementById('profile-switch-body'),track=document.getElementById('profile-track');if(!body||!track||body.dataset.swipeReady)return;body.dataset.swipeReady='1';let sx=0,sy=0,dragging=false,lockedVertical=false,startIdx=0;body.addEventListener('touchstart',e=>{const t=e.touches&&e.touches[0];if(!t)return;sx=t.clientX;sy=t.clientY;dragging=false;lockedVertical=false;startIdx=profilePaneIndex(window.profilePane||'temperature')},{passive:true});body.addEventListener('touchmove',e=>{const t=e.touches&&e.touches[0];if(!t||lockedVertical)return;const dx=t.clientX-sx,dy=t.clientY-sy;if(!dragging){if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)*.72){lockedVertical=true;return}if(Math.abs(dx)<22||Math.abs(dx)<Math.abs(dy)*1.9)return;dragging=true;track.classList.add('dragging')}const width=Math.max(1,body.clientWidth),base=-startIdx*50,raw=dx/width*50,delta=Math.max(-42,Math.min(42,raw*.72));moveProfileTrack(window.profilePane||'temperature',base+delta)},{passive:true});body.addEventListener('touchend',e=>{if(!dragging){setProfilePane(window.profilePane||'temperature');return}track.classList.remove('dragging');const t=e.changedTouches&&e.changedTouches[0],dx=t?t.clientX-sx:0,width=Math.max(1,body.clientWidth),pass=Math.abs(dx)>Math.min(132,width*.34);let next=startIdx;if(pass)next=Math.max(0,Math.min(profilePaneOrder.length-1,startIdx+(dx<0?1:-1)));setProfilePane(profilePaneOrder[next])},{passive:true})}
 function externalSectorHtml(x){const val=(x&&x.value!=null&&x.value!=='')?Number(x.value):null,tone=x?.tone||(val==null?'neutral':val>0?'good':val<0?'bad':'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x?.name||'外部市场')+'</div><div class="sector-value">'+sectorValueHtml(val==null?(x?.label||null):val)+'</div></div><div class="sector-note">'+esc(x?.note||x?.source||'后台行情')+'</div></div>'}
-function renderExternalMarkets(d){const el=document.getElementById('external-market-list');if(!el)return;const items=Array.isArray(d?.external_markets)?d.external_markets:[],nums=items.map(x=>x.value==null?null:Number(x.value)).filter(x=>Number.isFinite(x)),avg=avgNums(nums),overall=document.getElementById('external-overall'),up=document.getElementById('external-update'),tm=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='外部市场 · 后台更新 '+(tm||shortRefreshTime(d?.time||''));if(!items.length){el.innerHTML='<div class="news-empty">外部市场后台更新中</div>';scheduleProfileHeightSync();return}const us=items.filter(x=>!/韩国|KOSPI|KOSDAQ/i.test(x.name||'')),kr=items.filter(x=>/韩国|KOSPI|KOSDAQ/i.test(x.name||''));el.innerHTML='<div class="external-group-title">美国市场</div><div class="sector-grid">'+us.map(externalSectorHtml).join('')+'</div><div class="external-group-title">韩国股市</div><div class="sector-grid">'+kr.map(externalSectorHtml).join('')+'</div>';scheduleProfileHeightSync()}
+// v3-external-market-session-title-20260730: V3 同步外部市场收盘/盘中状态。
+function externalNowMinutes(d){const t=String(d?.time||new Date().toTimeString().slice(0,8));return Number(t.slice(0,2)||0)*60+Number(t.slice(3,5)||0)}
+function externalSession(kind,d){const mins=externalNowMinutes(d),today=String(d?.date||'').slice(0,10),month=Number(today.slice(5,7)||new Date().getMonth()+1),usSummer=month>=3&&month<=11;if(kind==='kr'){const open=8*60,close=14*60+30;if(mins>=open&&mins<close)return {cls:'open',txt:'盘中 14:30收盘'};if(mins>=close)return {cls:'closed',txt:'已收盘 14:30'};return {cls:'pre',txt:'未开盘 08:00'}}const open=(usSummer?21:22)*60+30,close=usSummer?4*60:5*60;if(mins>=open||mins<close)return {cls:'open',txt:'盘中 '+(usSummer?'04:00':'05:00')+'收盘'};if(mins>=close&&mins<open)return {cls:'closed',txt:'已收盘 '+(usSummer?'04:00':'05:00')};return {cls:'pre',txt:'未开盘 '+(usSummer?'21:30':'22:30')}}
+function externalGroupTitle(label,session){return '<div class="external-group-title"><span>'+esc(label)+'</span><span class="external-session '+esc(session.cls)+'">'+esc(session.txt)+'</span></div>'}
+function renderExternalMarkets(d){const el=document.getElementById('external-market-list');if(!el)return;const items=Array.isArray(d?.external_markets)?d.external_markets:[],nums=items.map(x=>x.value==null?null:Number(x.value)).filter(x=>Number.isFinite(x)),avg=avgNums(nums),overall=document.getElementById('external-overall'),up=document.getElementById('external-update'),tm=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='外部市场 · 后台更新 '+(tm||shortRefreshTime(d?.time||''));if(!items.length){el.innerHTML='<div class="news-empty">外部市场后台更新中</div>';scheduleProfileHeightSync();return}const us=items.filter(x=>!/韩国|KOSPI|KOSDAQ/i.test(x.name||'')),kr=items.filter(x=>/韩国|KOSPI|KOSDAQ/i.test(x.name||''));el.innerHTML=externalGroupTitle('美国市场',externalSession('us',d))+'<div class="sector-grid">'+us.map(externalSectorHtml).join('')+'</div>'+externalGroupTitle('韩国股市',externalSession('kr',d))+'<div class="sector-grid">'+kr.map(externalSectorHtml).join('')+'</div>';scheduleProfileHeightSync()}
 var renderProfileNewsOnly=renderProfile;renderProfile=function(d){renderThemeSectors(d);renderExternalMarkets(d);const result=renderProfileNewsOnly(d);initProfileSwipe();setProfilePane(window.profilePane||'temperature');scheduleProfileHeightSync();return result}
 function fundDisplayDate(d,f){const today=String(d?.date||'').slice(0,10),navDate=String(f?.nav_date||'').slice(0,10),backend=String(d?.display_trade_date||'').slice(0,10);if(today){const day=new Date(today+'T12:00:00').getDay();if(day>=1&&day<=5)return today}return backend||navDate}
 function fundNavUpdatedForDisplay(f,d){const navDate=String(f?.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f);return !!navDate&&!!displayDate&&navDate===displayDate}
