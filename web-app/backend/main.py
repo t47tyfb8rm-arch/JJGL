@@ -4283,10 +4283,20 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("105.TSLA", "TSLA", "tsla.us", "特斯拉"),
         ("105.TSM", "TSM", "tsm.us", "台积电"),
         ("105.ASML", "ASML", "asml.us", "阿斯麦"),
+        ("105.AMAT", "AMAT", "amat.us", "应用材料"),
         ("105.ORCL", "ORCL", "orcl.us", "甲骨文"),
         ("105.CRM", "CRM", "crm.us", "赛富时"),
         ("105.ADBE", "ADBE", "adbe.us", "Adobe"),
         ("105.NOW", "NOW", "now.us", "ServiceNow"),
+        ("105.MU", "MU", "mu.us", "美光"),
+        ("105.WDC", "WDC", "wdc.us", "西部数据"),
+        ("105.SMCI", "SMCI", "smci.us", "超微电脑"),
+        ("105.DELL", "DELL", "dell.us", "戴尔"),
+        ("105.COHR", "COHR", "cohr.us", "Coherent"),
+        ("105.LITE", "LITE", "lite.us", "Lumentum"),
+        ("105.ON", "ON", "on.us", "安森美"),
+        ("105.TLT", "TLT", "tlt.us", "美债ETF"),
+        ("105.UUP", "UUP", "uup.us", "美元指数ETF"),
         ("105.KO", "KO", "ko.us", "可口可乐"),
         ("105.PG", "PG", "pg.us", "宝洁"),
         ("105.WMT", "WMT", "wmt.us", "沃尔玛"),
@@ -4339,31 +4349,40 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         return avg([x for x in [q(name) for name in names] if x is not None])
 
     us_market = avg([x for x in [q("纳指100"), q("道琼斯")] if x is not None])
-    us_tech = basket(["微软", "苹果", "谷歌", "亚马逊", "Meta"])
-    us_ai_chip = basket(["英伟达", "AMD", "博通", "台积电", "阿斯麦"])
+    # external-us-tech-focus-20260730: keep card count/layout, but make US cards
+    # reflect the AI/semiconductor chain instead of broad sector baskets.
+    us_tech = basket(["微软", "苹果"])
+    us_ai_chip = basket(["英伟达", "博通"])
     if us_ai_chip is None:
         us_ai_chip = q("费城半导体")
-    us_cloud = basket(["微软", "甲骨文", "赛富时", "Adobe", "ServiceNow"])
-    us_consumer = basket(["可口可乐", "宝洁", "沃尔玛", "麦当劳", "Costco"])
-    us_finance = basket(["摩根大通", "美国银行", "高盛", "伯克希尔", "黑石"])
-    us_energy = basket(["埃克森美孚", "雪佛龙", "康菲石油", "斯伦贝谢"])
-    us_health = basket(["强生", "礼来", "联合健康", "默沙东", "辉瑞"])
-    us_industry = basket(["卡特彼勒", "通用电气", "波音", "霍尼韦尔", "洛克希德马丁"])
-    us_defense = basket(["Verizon", "AT&T", "NextEra", "杜克能源", "Realty Income"])
+    us_cloud = basket(["甲骨文", "Adobe"])
+    us_chip_equipment = basket(["阿斯麦", "应用材料"])
+    us_memory = basket(["美光", "西部数据"])
+    us_compute_server = basket(["超微电脑", "戴尔"])
+    us_optical = basket(["Coherent", "Lumentum"])
+    us_ev_chain = basket(["特斯拉", "安森美"])
+    rate_parts = []
+    tlt = q("美债ETF")
+    uup = q("美元指数ETF")
+    if tlt is not None:
+        rate_parts.append(-tlt)
+    if uup is not None:
+        rate_parts.append(uup)
+    us_rate_pressure = avg(rate_parts)
     korea_chip_stock = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
     korea_chip = korea_chip_stock if korea_chip_stock is not None else avg([x for x in [q("韩国KOSPI"), q("费城半导体")] if x is not None])
 
     cards = [
         ("美股大盘", us_market, "纳指100 / 道指"),
-        ("科技巨头", us_tech, "微软 / 苹果 / 谷歌 / 亚马逊 / Meta"),
-        ("AI半导体", us_ai_chip, "英伟达 / AMD / 博通 / 台积电"),
-        ("云计算软件", us_cloud, "微软 / 甲骨文 / 赛富时 / Adobe"),
-        ("消费龙头", us_consumer, "可口可乐 / 宝洁 / 沃尔玛"),
-        ("金融龙头", us_finance, "摩根大通 / 高盛 / 伯克希尔"),
-        ("能源资源", us_energy, "埃克森美孚 / 雪佛龙 / 康菲"),
-        ("医药健康", us_health, "强生 / 礼来 / 联合健康"),
-        ("工业制造", us_industry, "卡特彼勒 / GE / 波音"),
-        ("防御高股息", us_defense, "Verizon / AT&T / 公用事业"),
+        ("AI半导体", us_ai_chip, "英伟达 / 博通"),
+        ("科技巨头", us_tech, "微软 / 苹果"),
+        ("云计算软件", us_cloud, "甲骨文 / Adobe"),
+        ("芯片设备", us_chip_equipment, "ASML / 应用材料"),
+        ("存储芯片", us_memory, "美光 / 西部数据"),
+        ("算力服务器", us_compute_server, "超微电脑 / 戴尔"),
+        ("光通信链", us_optical, "Coherent / Lumentum"),
+        ("电动车链", us_ev_chain, "特斯拉 / 安森美"),
+        ("利率压力", us_rate_pressure, "美债 / 美元"),
         ("韩国股市", q("韩国KOSPI"), "韩国KOSPI"),
         ("韩国半导体", korea_chip, "三星电子 / SK海力士"),
     ]
