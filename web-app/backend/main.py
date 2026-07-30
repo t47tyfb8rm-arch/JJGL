@@ -91,6 +91,7 @@ async def start_snapshot_scheduler():
     import asyncio as _asyncio
     _asyncio.create_task(snapshot_scheduler())
     _asyncio.create_task(daily_model_fitter())
+    _asyncio.create_task(background_portfolio_refresher())
     print(f"[启动] 盘中快照调度已启动，采样时点: {SNAPSHOT_TIMES}")
     # 启动时立即跑一次多因子回归（冷启动 / 重启恢复）
     import asyncio as _asyncio2
@@ -4862,6 +4863,32 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         PORTFOLIO_CACHE["saved_at"] = time.time()
 
     return lite_portfolio_response(response) if lite else response
+
+
+BACKGROUND_PORTFOLIO_REFRESHING = False
+
+
+async def background_portfolio_refresher():
+    """Keep the full portfolio cache warm without making the foreground wait."""
+    global BACKGROUND_PORTFOLIO_REFRESHING
+    await asyncio.sleep(8)
+    while True:
+        interval = 60
+        try:
+            if not BACKGROUND_PORTFOLIO_REFRESHING:
+                BACKGROUND_PORTFOLIO_REFRESHING = True
+                try:
+                    await get_portfolio(force=1, lite=0)
+                    print(f"[后台刷新] 全量数据已更新 {datetime.now().strftime('%H:%M:%S')}")
+                finally:
+                    BACKGROUND_PORTFOLIO_REFRESHING = False
+            disclosed = _is_today_disclosed()
+            interval = 30 if (is_trading_time() or not disclosed) else 300
+        except Exception as e:
+            BACKGROUND_PORTFOLIO_REFRESHING = False
+            interval = 60
+            print(f"[后台刷新] 异常: {e}")
+        await asyncio.sleep(interval)
 
 
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
