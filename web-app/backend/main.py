@@ -2660,7 +2660,7 @@ def generate_ai_prediction_simple(fund_type: str, fund_name: str, daily_change: 
                 )
 
 
-async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexInfo] = None, bond_index: Optional[IndexInfo] = None, hs300_index: Optional[IndexInfo] = None, force: int = 0) -> Optional[FundInfo]:
+async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexInfo] = None, bond_index: Optional[IndexInfo] = None, hs300_index: Optional[IndexInfo] = None, force: int = 0, lite: int = 0) -> Optional[FundInfo]:
     """
     从天天基金网 (fund.eastmoney.com) 获取基金净值数据
     同时从 fundgz API 获取当日估算净值
@@ -2866,14 +2866,18 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                         corrected_est_change = est_change
 
         # === 三个独立 API 并行（period_returns / history / holdings 都不依赖彼此） ===
-        # force 透传：force=1 时 period_returns / history 绕过 60s 子缓存
-        period_returns_task = fetch_fund_period_returns(fund_code, force=force)
-        # history 拉 30 天（4 页 → 1 页，从 ~2s → ~0.5s/基金；实际只用到 30 天）
-        history_task = fetch_fund_history(fund_code, days=30, force=force)
-        holdings_task = fetch_fund_holdings(fund_code)
-        period_returns, history, holdings = await asyncio.gather(
-            period_returns_task, history_task, holdings_task
-        )
+        # lite=1 为首页首包：跳过基金详情页才需要的周期、历史、持仓明细。
+        if lite:
+            period_returns, history, holdings = {}, latest_history if "latest_history" in locals() else [], []
+        else:
+            # force 透传：force=1 时 period_returns / history 绕过 60s 子缓存
+            period_returns_task = fetch_fund_period_returns(fund_code, force=force)
+            # history 拉 30 天（4 页 → 1 页，从 ~2s → ~0.5s/基金；实际只用到 30 天）
+            history_task = fetch_fund_history(fund_code, days=30, force=force)
+            holdings_task = fetch_fund_holdings(fund_code)
+            period_returns, history, holdings = await asyncio.gather(
+                period_returns_task, history_task, holdings_task
+            )
 
         # === 成本净值与收益计算 ===
         # 规则1: 用户已通过"确定买入"接口标记持仓 -> 用买入当日净值+日期作为成本
@@ -4636,11 +4640,31 @@ async def fetch_index_history(days: int = 7) -> List[IndexHistoryItem]:
 
 # ============= API 接口 =============
 
+def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
+    """首页首包瘦身：只保留首页必要数据，市场/资讯/弹窗详情进入页面后再加载。"""
+    lite_response = response.copy(deep=True)
+    lite_response.news = []
+    lite_response.theme_sectors = []
+    lite_response.external_markets = []
+    for attr in ("index", "bond_index", "k50_index", "hsi_index", "hs300_index", "sz_index"):
+        item = getattr(lite_response, attr, None)
+        if item and getattr(item, "history", None):
+            item.history = item.history[:12] if attr == "index" else []
+    if getattr(lite_response, "funds", None):
+        for fund in lite_response.funds:
+            fund.history = []
+            fund.holdings = []
+            if fund.buy_point and getattr(fund.buy_point, "yield_history", None):
+                fund.buy_point.yield_history = []
+    return lite_response
+
+
 @app.get("/api/portfolio", response_model=PortfolioResponse)
-async def get_portfolio(force: int = 0):
+async def get_portfolio(force: int = 0, lite: int = 0):
     """
     获取持仓概览（包括上证指数、国债指数、关注基金含7天净值、买点判断、AI预判）
     force=1 强制刷新（绕过 30s 整页缓存）
+    lite=1 首页首包轻量模式：市场/资讯/弹窗数据懒加载
     """
     # === 整页缓存：业务状态判定（去 TTL 概念） ===
     # 用户场景：日涨跌没更新前一直拉，更新到了才停
@@ -4656,7 +4680,10 @@ async def get_portfolio(force: int = 0):
     if PORTFOLIO_CACHE["data"] is not None:
         if disclosed and force == 0:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
-            cached_response = PORTFOLIO_CACHE["data"]
+            cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
+            if lite:
+                cached_response.time = now.strftime("%H:%M:%S")
+                return lite_portfolio_response(cached_response)
             news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
                 schedule_news_refresh()
@@ -4677,22 +4704,24 @@ async def get_portfolio(force: int = 0):
             return cached_response
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
-            return PORTFOLIO_CACHE["data"]
+            cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
+            cached_response.time = now.strftime("%H:%M:%S")
+            return lite_portfolio_response(cached_response) if lite else cached_response
 
     # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 沪深300 + 深证成指 + 上证50
     index_task = fetch_sh_index()
-    index_history_task = fetch_index_history(190)
+    index_history_task = fetch_index_history(30 if lite else 190)
     k50_task = fetch_generic_index("sh000688", "科创50")
-    k50_history_task = fetch_index_history_for_code("sh000688", 190)
+    k50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000688", 190)
     hsi_task = fetch_generic_index("hkHSI", "恒生指数")
     bond_index_task = fetch_generic_index("sh000012", "国债指数")
-    bond_history_task = fetch_index_history_for_code("sh000113", 190)
+    bond_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000113", 190)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
-    hs300_history_task = fetch_index_history_for_code("sh000300", 190)
+    hs300_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000300", 190)
     sz_index_task = fetch_generic_index("sz399001", "深证指数")
-    sz_history_task = fetch_index_history_for_code("sz399001", 190)
+    sz_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sz399001", 190)
     sh50_task = fetch_generic_index("sh000016", "上证50")
-    sh50_history_task = fetch_index_history_for_code("sh000016", 190)
+    sh50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000016", 190)
 
     (
         index_base, index_history, k50_base, k50_history, hsi_base, bond_index_base, bond_history,
@@ -4769,11 +4798,15 @@ async def get_portfolio(force: int = 0):
 
     # 并行获取所有基金数据（含实时净值 + 历史净值 + AI预判）
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
-    fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
-    theme_market_task = fetch_theme_market_sectors()
-    external_market_task = get_external_market_temperature()
+    fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force, lite=lite) for code in WATCHED_FUNDS]
+    if not lite:
+        theme_market_task = fetch_theme_market_sectors()
+        external_market_task = get_external_market_temperature()
     fund_results = await asyncio.gather(*fund_tasks, return_exceptions=True)
-    theme_market_sectors, external_markets = await asyncio.gather(theme_market_task, external_market_task)
+    if lite:
+        theme_market_sectors, external_markets = [], []
+    else:
+        theme_market_sectors, external_markets = await asyncio.gather(theme_market_task, external_market_task)
 
     funds: List[FundInfo] = []
     for result in fund_results:
@@ -4783,20 +4816,20 @@ async def get_portfolio(force: int = 0):
             print(f"基金获取异常: {result}")
 
     news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
-    if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL or force:
+    if not lite and (NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL or force):
         schedule_news_refresh(force=bool(force))
-    news = current_news_or_placeholder()
-    theme_sectors = build_theme_sectors(
-        funds,
-        index_info,
-        bond_index_info,
-        hs300_info,
-        sz_index_info,
-        news,
-        theme_market_sectors,
-        k50_index_info,
-        sh50_info,
-    )
+    news = [] if lite else current_news_or_placeholder()
+    theme_sectors = [] if lite else build_theme_sectors(
+            funds,
+            index_info,
+            bond_index_info,
+            hs300_info,
+            sz_index_info,
+            news,
+            theme_market_sectors,
+            k50_index_info,
+            sh50_info,
+        )
 
     # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
@@ -4823,10 +4856,12 @@ async def get_portfolio(force: int = 0):
     )
 
     # === 写入整页缓存（30s 内复用） ===
-    PORTFOLIO_CACHE["data"] = response
-    PORTFOLIO_CACHE["saved_at"] = time.time()
+    # lite 首页首包不能写入完整缓存，否则后续基金/AI/市场页会拿到被瘦身的数据。
+    if not lite:
+        PORTFOLIO_CACHE["data"] = response
+        PORTFOLIO_CACHE["saved_at"] = time.time()
 
-    return response
+    return lite_portfolio_response(response) if lite else response
 
 
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
