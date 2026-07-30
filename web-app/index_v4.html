@@ -1684,19 +1684,22 @@ body.dark #tprofile .profile-tabs:before{
   background:#222222!important;
   box-shadow:none!important;
 }
-/* news-refresh-pill-20260730: keep update time away from the main news title. */
-#tprofile #profile-pane-news .profile-panel{
-  position:relative!important;
-}
-#tprofile #profile-pane-news .panel-title{
-  display:block!important;
-  padding-right:62px!important;
+/* news-refresh-pill-20260730b: keep update time away from the main news title. */
+#tprofile .news-panel-head{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:12px!important;
   margin-bottom:8px!important;
 }
-#tprofile #profile-pane-news #news-refresh-time{
-  position:absolute!important;
-  right:14px!important;
-  top:14px!important;
+#tprofile .news-panel-head .panel-title{
+  margin-bottom:0!important;
+}
+#tprofile .profile-panel{
+  position:relative!important;
+}
+#tprofile #news-refresh-time{
+  flex:0 0 auto!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -1716,7 +1719,7 @@ body.dark #tprofile .profile-tabs:before{
   overflow:visible!important;
   text-overflow:clip!important;
 }
-body.dark #tprofile #profile-pane-news #news-refresh-time{
+body.dark #tprofile #news-refresh-time{
   color:#AEB8C8!important;
   background:rgba(255,255,255,.055)!important;
   border-color:rgba(255,255,255,.045)!important;
@@ -2561,7 +2564,7 @@ body.dark #tmarket .profile-tabs:before{background:#222222!important;box-shadow:
 <div id="tprofile" class="tab-c">
   <div class="app-top sub-top"><div class="app-top-row"><div><div class="home-title">市场简报</div><div class="app-subtitle">10分钟更新 · 最新20条</div></div><div class="app-actions"><span class="top-pill">资讯</span></div></div></div>
   <div class="card px tight-card profile-panel">
-    <div class="panel-kicker">Market Brief</div><div class="panel-title"><span>持仓资讯与操作参考</span><span class="muted" id="news-refresh-time">--</span></div>
+    <div class="news-panel-head"><div><div class="panel-kicker">Market Brief</div><div class="panel-title">持仓资讯与操作参考</div></div><span class="muted" id="news-refresh-time">--</span></div>
     <div id="news-list"><div class="t2 pb">加载中...</div></div>
   </div>
 </div>
