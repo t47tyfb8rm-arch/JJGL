@@ -1471,6 +1471,12 @@ class ThemeSectorInfo(BaseModel):
     tone: str = "neutral"  # good | bad | neutral
     source: str = ""
     updated_at: str = ""
+    history: List[IndexHistoryItem] = []
+    return_7d: Optional[float] = None
+    return_1m: Optional[float] = None
+    return_6m: Optional[float] = None
+    detail: str = ""
+    detail_type: str = "index"
 
 
 THEME_MARKET_INDEXES = [
@@ -3708,6 +3714,109 @@ def _find_theme_fund(funds: List[FundInfo], *patterns: str) -> Optional[FundInfo
     return None
 
 
+def _history_rows(history: Optional[List[IndexHistoryItem]]) -> list[dict]:
+    rows = []
+    for item in history or []:
+        try:
+            rows.append({
+                "date": item.date,
+                "close": float(item.close),
+                "change": float(item.change),
+            })
+        except Exception:
+            continue
+    return sorted(rows, key=lambda x: x["date"])
+
+
+def _history_return(history: Optional[List[IndexHistoryItem]], days: int) -> Optional[float]:
+    rows = _history_rows(history)
+    if len(rows) < 2:
+        return None
+    latest = rows[-1]
+    try:
+        cutoff = datetime.strptime(latest["date"], "%Y-%m-%d") - timedelta(days=days)
+    except Exception:
+        return None
+    base = None
+    for row in rows:
+        try:
+            d = datetime.strptime(row["date"], "%Y-%m-%d")
+        except Exception:
+            continue
+        if d <= cutoff:
+            base = row
+    if base is None and days <= 7 and len(rows) >= 2:
+        base = rows[0]
+    if not base or base["close"] <= 0 or base["date"] == latest["date"]:
+        return None
+    return round((latest["close"] / base["close"] - 1) * 100, 2)
+
+
+def _theme_detail_text(name: str, value: Optional[float], note: str, source: str) -> str:
+    if value is None:
+        return f"{name}暂无完整行情，等待后台下一轮更新。"
+    direction = "偏强" if value > 0 else "偏弱" if value < 0 else "震荡"
+    if "半导体" in name or "科创" in name:
+        subject = "科创50和芯片主题"
+    elif "科技" in name:
+        subject = "深证与科创成长风格"
+    elif "宽基" in name:
+        subject = "A股主要宽基指数"
+    elif "蓝筹" in name or "上证50" in name:
+        subject = "上证50权重板块"
+    elif "债" in name or "利率" in name:
+        subject = "利率与债券资产"
+    elif name in ("医疗", "白酒", "新能源", "消费", "券商", "银行"):
+        subject = f"{name}行业指数"
+    else:
+        subject = note or source or name
+    return f"{subject}当前{direction}，用于观察主题热度和相关基金短期压力。"
+
+
+def _theme_sector_from_history(
+    name: str,
+    value: Optional[float],
+    label: str,
+    note: str,
+    source: str,
+    history: Optional[List[IndexHistoryItem]] = None,
+    detail_type: str = "index",
+) -> ThemeSectorInfo:
+    return ThemeSectorInfo(
+        name=name,
+        value=value,
+        label=label,
+        note=note,
+        tone=_theme_tone(value, label),
+        source=source,
+        updated_at=datetime.now().strftime("%H:%M"),
+        history=history or [],
+        return_7d=_history_return(history, 7),
+        return_1m=_history_return(history, 30),
+        return_6m=_history_return(history, 180),
+        detail=_theme_detail_text(name, value, note, source),
+        detail_type=detail_type,
+    )
+
+
+def _composite_history(histories: list[Optional[List[IndexHistoryItem]]]) -> List[IndexHistoryItem]:
+    by_date: dict[str, list[float]] = {}
+    for history in histories:
+        for row in _history_rows(history):
+            if row.get("change") is None:
+                continue
+            by_date.setdefault(row["date"], []).append(float(row["change"]))
+    if not by_date:
+        return []
+    value = 100.0
+    result: List[IndexHistoryItem] = []
+    for date in sorted(by_date):
+        change = round(sum(by_date[date]) / len(by_date[date]), 2)
+        value = value * (1 + change / 100)
+        result.append(IndexHistoryItem(date=date, close=round(value, 2), change=change))
+    return list(reversed(result))
+
+
 def _theme_fund_change(fund: Optional[FundInfo]) -> Optional[float]:
     if not fund:
         return None
@@ -3748,24 +3857,27 @@ def _policy_theme_label(news: List[NewsItem]) -> tuple[str, str]:
 
 async def fetch_theme_market_sectors() -> List[ThemeSectorInfo]:
     """拉取独立市场主题指数，用于我的页市场温度，不依赖当前持仓。"""
-    now_label = datetime.now().strftime("%H:%M")
-    tasks = [fetch_generic_index(code, display_name) for _, code, display_name in THEME_MARKET_INDEXES]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    quote_tasks = [fetch_generic_index(code, display_name) for _, code, display_name in THEME_MARKET_INDEXES]
+    history_tasks = [fetch_index_history_for_code(code, 190) for _, code, _display_name in THEME_MARKET_INDEXES]
+    quote_results = await asyncio.gather(*quote_tasks, return_exceptions=True)
+    history_results = await asyncio.gather(*history_tasks, return_exceptions=True)
     sectors: List[ThemeSectorInfo] = []
-    for (name, code, display_name), result in zip(THEME_MARKET_INDEXES, results):
+    for (name, code, display_name), result, history_result in zip(THEME_MARKET_INDEXES, quote_results, history_results):
         value: Optional[float] = None
         note = display_name
+        history: List[IndexHistoryItem] = []
         if isinstance(result, IndexInfo) and result.current > 0:
             value = round(float(result.daily_change), 2)
             note = f"{display_name} {result.code}"
-        sectors.append(ThemeSectorInfo(
+        if isinstance(history_result, list):
+            history = history_result
+        sectors.append(_theme_sector_from_history(
             name=name,
             value=value,
             label="观察" if value is None else "",
             note=note,
-            tone=_theme_tone(value),
             source="主题指数",
-            updated_at=now_label,
+            history=history,
         ))
     return sectors
 
@@ -3779,38 +3891,43 @@ def build_theme_sectors(
     news: List[NewsItem],
     market_theme_sectors: Optional[List[ThemeSectorInfo]] = None,
     k50_index: Optional[IndexInfo] = None,
+    sh50_index: Optional[IndexInfo] = None,
 ) -> List[ThemeSectorInfo]:
     """后台生成主题板块温度，随组合数据定时刷新。"""
     now_label = datetime.now().strftime("%H:%M")
     bond_fund = _find_theme_fund(funds, r"020741", r"债", r"国债")
-    blue = _find_theme_fund(funds, r"004746", r"上证50", r"蓝筹")
     sh_change = index_info.daily_change if index_info and index_info.current > 0 else None
     sz_change = sz_index.daily_change if sz_index and sz_index.current > 0 else None
     hs300_change = hs300_index.daily_change if hs300_index and hs300_index.current > 0 else None
     k50_change = k50_index.daily_change if k50_index and k50_index.current > 0 else None
     bond_change = bond_index.daily_change if bond_index and bond_index.current > 0 else None
+    sh50_change = sh50_index.daily_change if sh50_index and sh50_index.current > 0 else None
     policy_label, policy_note = _policy_theme_label(news)
 
     raw = [
-        ("宽基指数", _avg_numbers([sh_change, sz_change, hs300_change]), "", "上证 / 深证 / 沪深300", "指数行情"),
-        ("科技成长", _avg_numbers([sz_change, k50_change]), "", "深证 + 科创成长情绪", "指数行情"),
-        ("半导体科创", k50_change, "", "科创50 / 芯片主题", "指数行情"),
-        ("债券利率", _avg_numbers([bond_change, _theme_fund_change(bond_fund)]), "", "国债指数 + 债基净值", "指数+持仓"),
-        ("上证50蓝筹", _avg_numbers([_theme_fund_change(blue), hs300_change, sh_change]), "", "上证50 / 大盘蓝筹", "指数+持仓"),
-        ("资金政策", None, policy_label, policy_note, "资讯聚合"),
+        ("宽基指数", _avg_numbers([sh_change, sz_change, hs300_change]), "", "上证 / 深证 / 沪深300", "指数行情", _composite_history([index_info.history, sz_index.history if sz_index else [], hs300_index.history if hs300_index else []]), "index"),
+        ("科技成长", _avg_numbers([sz_change, k50_change]), "", "深证 + 科创成长情绪", "指数行情", _composite_history([sz_index.history if sz_index else [], k50_index.history if k50_index else []]), "index"),
+        ("半导体科创", k50_change, "", "科创50 / 芯片主题", "指数行情", k50_index.history if k50_index else [], "index"),
+        ("债券利率", _avg_numbers([bond_change, _theme_fund_change(bond_fund)]), "", "国债指数 + 债基净值", "指数+持仓", bond_index.history if bond_index else [], "index"),
+        ("上证50蓝筹", sh50_change, "", "上证50 / 大盘蓝筹", "指数行情", sh50_index.history if sh50_index else [], "index"),
+        ("资金政策", None, policy_label, policy_note, "资讯聚合", [], "policy"),
     ]
 
     sectors: List[ThemeSectorInfo] = []
-    for name, value, label, note, source in raw:
-        sectors.append(ThemeSectorInfo(
+    for name, value, label, note, source, history, detail_type in raw:
+        item = _theme_sector_from_history(
             name=name,
             value=value,
             label=label,
             note=note,
-            tone=_theme_tone(value, label),
             source=source,
-            updated_at=now_label,
-        ))
+            history=history,
+            detail_type=detail_type,
+        )
+        if detail_type == "policy":
+            item.detail = policy_note
+        item.updated_at = now_label
+        sectors.append(item)
     if market_theme_sectors:
         sectors.extend(market_theme_sectors)
     existing_names = {item.name for item in sectors}
@@ -4562,25 +4679,27 @@ async def get_portfolio(force: int = 0):
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             return PORTFOLIO_CACHE["data"]
 
-    # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 国债历史 + 沪深300 + 深证成指
+    # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 沪深300 + 深证成指 + 上证50
     index_task = fetch_sh_index()
-    index_history_task = fetch_index_history(14)
+    index_history_task = fetch_index_history(190)
     k50_task = fetch_generic_index("sh000688", "科创50")
-    k50_history_task = fetch_index_history_for_code("sh000688", 7)
+    k50_history_task = fetch_index_history_for_code("sh000688", 190)
     hsi_task = fetch_generic_index("hkHSI", "恒生指数")
     bond_index_task = fetch_generic_index("sh000012", "国债指数")
-    bond_history_task = fetch_index_history_for_code("sh000113", 7)
+    bond_history_task = fetch_index_history_for_code("sh000113", 190)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
-    hs300_history_task = fetch_index_history_for_code("sh000300", 7)
+    hs300_history_task = fetch_index_history_for_code("sh000300", 190)
     sz_index_task = fetch_generic_index("sz399001", "深证指数")
-    sz_history_task = fetch_index_history_for_code("sz399001", 7)
+    sz_history_task = fetch_index_history_for_code("sz399001", 190)
+    sh50_task = fetch_generic_index("sh000016", "上证50")
+    sh50_history_task = fetch_index_history_for_code("sh000016", 190)
 
     (
         index_base, index_history, k50_base, k50_history, hsi_base, bond_index_base, bond_history,
-        hs300_base, hs300_history, sz_index_base, sz_history
+        hs300_base, hs300_history, sz_index_base, sz_history, sh50_base, sh50_history
     ) = await asyncio.gather(
         index_task, index_history_task, k50_task, k50_history_task, hsi_task, bond_index_task, bond_history_task,
-        hs300_task, hs300_history_task, sz_index_task, sz_history_task
+        hs300_task, hs300_history_task, sz_index_task, sz_history_task, sh50_task, sh50_history_task
     )
 
     # 构建完整指数数据
@@ -4639,6 +4758,15 @@ async def get_portfolio(force: int = 0):
         history=sz_history
     )
 
+    sh50_info = IndexInfo(
+        code=sh50_base.code,
+        name=sh50_base.name,
+        current=sh50_base.current,
+        previous=sh50_base.previous,
+        daily_change=sh50_base.daily_change,
+        history=sh50_history
+    )
+
     # 并行获取所有基金数据（含实时净值 + 历史净值 + AI预判）
     # force=1 时透传给 fetch_fund_from_eastmoney → period_returns / history 绕过 60s 子缓存
     fund_tasks = [fetch_fund_from_eastmoney(code, stock_index=index_info, bond_index=bond_index_info, hs300_index=hs300_info, force=force) for code in WATCHED_FUNDS]
@@ -4667,6 +4795,7 @@ async def get_portfolio(force: int = 0):
         news,
         theme_market_sectors,
         k50_index_info,
+        sh50_info,
     )
 
     # 新闻后台刷新，不阻塞首页首屏
