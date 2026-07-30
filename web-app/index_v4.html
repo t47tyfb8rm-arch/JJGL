@@ -735,6 +735,34 @@ body.dark .news-opinion-card{background:linear-gradient(160deg,#1E2028 0%,#16191
 .news-market-lead{padding:10px 11px!important;margin-bottom:10px!important}
 .news-lead-rows{gap:5px!important}
 .news-lead-row{padding:6px 9px!important;font-size:11.5px!important;line-height:1.35!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important}
+/* v4-news-market-pulse-single-line-20260730: 覆盖旧的两行截断规则，脉络三行都横向单行展示。 */
+.news-market-lead .news-pulse-row{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  padding:6px 8px!important;
+  min-height:30px!important;
+  overflow:hidden!important;
+  -webkit-line-clamp:unset!important;
+  -webkit-box-orient:initial!important;
+}
+.news-market-lead .news-pulse-label{
+  min-width:auto!important;
+  flex:0 0 auto!important;
+  padding:2px 7px!important;
+  font-size:10.5px!important;
+  line-height:1.35!important;
+}
+.news-market-lead .news-pulse-row .news-lead-text{
+  flex:1 1 auto!important;
+  display:block!important;
+  min-width:0!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  line-height:1.35!important;
+  font-size:11.5px!important;
+}
 #tai #ai-signal-board.ai-date-board{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(50px,auto)!important;gap:7px!important}
 #tai .ai-date-node{min-height:50px!important;padding:7px 8px!important}
 #tai .ai-date-title{font-size:10px!important;line-height:1.18!important;-webkit-line-clamp:1!important}
