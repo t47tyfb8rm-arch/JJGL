@@ -277,6 +277,24 @@ def load_portfolio_from_db(max_age_seconds: int = 180):
         return None
 
 
+def load_portfolio_snapshot_from_db():
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT created_at, payload FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return None, None
+        created_at, payload = row
+        data = json.loads(payload)
+        response = PortfolioResponse.model_validate(data) if hasattr(PortfolioResponse, "model_validate") else PortfolioResponse.parse_obj(data)
+        return response, time.time() - float(created_at)
+    except Exception as e:
+        print(f"[DB] load snapshot failed: {e}")
+        return None, None
+
+
 def clear_portfolio_db_cache():
     try:
         init_app_db()
@@ -1670,6 +1688,34 @@ DROP_THRESHOLD = 3.0
 PORTFOLIO_CACHE: dict = {"data": None, "saved_at": 0.0, "disclosed": False}
 PORTFOLIO_CACHE_TTL = 30  # 秒（盘中 30s）
 PORTFOLIO_CACHE_TTL_OFFHOURS = 3600  # 秒（非盘中兜底 1h，但实际用"到下一交易日 9:30"的动态 TTL）
+BACKGROUND_PORTFOLIO_REFRESHING = False
+
+
+def portfolio_snapshot_max_age_seconds() -> int:
+    return 120 if is_trading_time() else 300
+
+
+def schedule_portfolio_refresh(reason: str = "stale_snapshot"):
+    global BACKGROUND_PORTFOLIO_REFRESHING
+    if BACKGROUND_PORTFOLIO_REFRESHING:
+        return
+    BACKGROUND_PORTFOLIO_REFRESHING = True
+
+    async def _refresh_once():
+        global BACKGROUND_PORTFOLIO_REFRESHING
+        try:
+            await get_portfolio(force=1, lite=0)
+            print(f"[后台刷新] {reason} 已刷新 {datetime.now().strftime('%H:%M:%S')}")
+        except Exception as e:
+            print(f"[后台刷新] {reason} 失败: {e}")
+        finally:
+            BACKGROUND_PORTFOLIO_REFRESHING = False
+
+    try:
+        asyncio.create_task(_refresh_once())
+    except RuntimeError:
+        BACKGROUND_PORTFOLIO_REFRESHING = False
+        pass
 
 
 def _latest_disclosed_date() -> str:
@@ -4805,6 +4851,24 @@ async def get_portfolio(force: int = 0, lite: int = 0):
     now = datetime.now()
     is_trading = is_trading_time()
     disclosed = _is_today_disclosed()
+    if force == 0:
+        max_age = portfolio_snapshot_max_age_seconds()
+        if PORTFOLIO_CACHE["data"] is not None:
+            cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
+            cached_response.time = now.strftime("%H:%M:%S")
+            if now_ts - PORTFOLIO_CACHE.get("saved_at", 0.0) > max_age:
+                schedule_portfolio_refresh("memory_snapshot_stale")
+            return lite_portfolio_response(cached_response) if lite else cached_response
+
+        db_response, db_age = load_portfolio_snapshot_from_db()
+        if db_response is not None:
+            db_response.time = now.strftime("%H:%M:%S")
+            PORTFOLIO_CACHE["data"] = db_response
+            PORTFOLIO_CACHE["saved_at"] = now_ts - float(db_age or 0)
+            if db_age is None or db_age > max_age:
+                schedule_portfolio_refresh("sqlite_snapshot_stale")
+            return lite_portfolio_response(db_response) if lite else db_response
+
     if force == 0 and PORTFOLIO_CACHE["data"] is None:
         db_max_age = 180 if is_trading else 900
         db_response = load_portfolio_from_db(max_age_seconds=db_max_age)
@@ -4999,9 +5063,6 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         save_portfolio_to_db(response)
 
     return lite_portfolio_response(response) if lite else response
-
-
-BACKGROUND_PORTFOLIO_REFRESHING = False
 
 
 async def background_portfolio_refresher():
