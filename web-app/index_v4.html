@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1570,7 +1570,10 @@ body.dark #tfunds .fund-mini-actions .danger-btn{
   background:linear-gradient(90deg,#F7FAFE 0%,#FFFFFF 88%);
   border:1px solid rgba(47,111,214,.06);
   overflow:hidden;
+  cursor:pointer;
+  transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
 }
+.sector-card:active{transform:scale(.985)}
 .sector-card:before{
   content:"";
   position:absolute;
@@ -1621,6 +1624,61 @@ body.dark #tprofile .sector-panel{
 body.dark .sector-card{
   background:linear-gradient(90deg,rgba(255,255,255,.045),rgba(255,255,255,.02))!important;
   border-color:rgba(255,255,255,.055)!important;
+}
+/* v4-theme-detail-modal-20260730: 市场温度 12 个卡片支持点击查看周期详情 */
+.theme-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+  margin-bottom:10px;
+}
+.theme-detail-metric{
+  padding:9px 6px;
+  border-radius:14px;
+  background:rgba(47,111,214,.07);
+  text-align:center;
+}
+.theme-detail-metric .label{
+  font-size:10px;
+  color:var(--muted);
+}
+.theme-detail-metric .value{
+  margin-top:4px;
+  font-size:14px;
+  font-weight:780;
+}
+.theme-spark-wrap{
+  height:126px;
+  border-radius:16px;
+  background:linear-gradient(180deg,rgba(47,111,214,.08),rgba(255,255,255,.55));
+  overflow:hidden;
+}
+.theme-spark-wrap svg{
+  display:block;
+  width:100%;
+  height:126px;
+}
+.theme-spark-empty{
+  height:126px;
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-size:12px;
+}
+.theme-spark-line{fill:none;stroke:var(--brand);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.theme-spark-area{fill:rgba(47,111,214,.13)}
+.theme-spark-zero{stroke:rgba(72,85,106,.2);stroke-width:1}
+.theme-detail-copy{
+  display:grid;
+  gap:8px;
+  font-size:13px;
+  line-height:1.62;
+  color:var(--text);
+}
+.theme-detail-copy b{color:var(--brand-dark)}
+body.dark .theme-detail-metric,
+body.dark .theme-spark-wrap{
+  background:rgba(125,175,245,.08);
 }
 /* v4-profile-3pane-market-20260729: 我的页三模块切换：市场温度 / 资讯 / 外部市场 */
 #tprofile .profile-switch-card{
@@ -2951,10 +3009,18 @@ function fundInlineActions(f,bp){return bp.is_holding?'<span class="fund-inline-
 function renderFunds(d){const list=document.getElementById('fund-detail-list');if(!d.funds)return;const topAction=document.getElementById('fund-top-action');if(topAction)topAction.textContent='新增';const topCount=document.getElementById('fund-top-count');if(topCount)topCount.remove();list.innerHTML=d.funds.map(f=>{const bp=f.buy_point||{},r7=periodPct(f,'Z',7),r1=periodPct(f,'Y',30),r6=periodPct(f,'6Y',180),navDate=(f.nav_date||'').slice(0,10),displayDate=fundDisplayDate(d,f),freshDate=!!navDate&&!!displayDate&&navDate===displayDate,holdVal=holdPct(f),holdBase=bp.is_holding?'<span class="fund-hold" style="color:'+pctColor(holdVal)+'">持仓 '+fp(holdVal)+'</span>':'<span class="fund-hold muted">未持仓</span>',signal=fundCardSignal(f,d),actions=fundInlineActions(f,bp);return '<div class="card px tight-card fund-pro-card" onclick="openFundDetail(\''+esc(f.code)+'\')"><div class="fund-card-head"><div class="fund-code-stack"><div class="row-title"><span>'+esc(f.code)+'</span><span>'+esc(shortName(f,10))+'</span></div><div class="fund-card-subline">'+holdBase+signal+actions+'</div></div><div class="fund-date-box"><div class="fund-date-top '+(freshDate?'is-fresh':'')+'">'+esc(ymd(displayDate)||'--')+'</div><div class="fund-date-hint">详情</div></div></div><div class="actual-row fund-period-row fund-four-row" style="grid-template-columns:repeat(3,1fr)"><div><div class="label">7天</div><div class="num" style="color:'+cc(r7||0)+'">'+(r7==null?'--':fp(r7))+'</div></div><div><div class="label">1月</div><div class="num" style="color:'+cc(r1||0)+'">'+(r1==null?'--':fp(r1))+'</div></div><div><div class="label">半年</div><div class="num" style="color:'+cc(r6||0)+'">'+(r6==null?'--':fp(r6))+'</div></div></div></div>'}).join('')}
 function avgNums(arr){const xs=arr.filter(v=>Number.isFinite(Number(v)));return xs.length?xs.reduce((a,b)=>a+Number(b),0)/xs.length:null}
 function findThemeFund(d,pattern){return (d?.funds||[]).find(f=>pattern.test([f.code,f.name,f.model_benchmark_name].join(' ')))}
-function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>({name:x.name,value:x.value==null?(x.label||'观察'):Number(x.value),note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}))}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50Idx=d.k50_index||{},bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现'},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪'},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题'},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值'},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50'},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
+function themeSectorItems(d){if(Array.isArray(d?.theme_sectors)&&d.theme_sectors.length){return d.theme_sectors.map(x=>{const n=Number(x.value),val=x.value==null?(x.label||'观察'):(Number.isFinite(n)?n:String(x.value));return {...x,name:x.name,value:val,note:x.note||x.source||'',tone:x.tone,updated_at:x.updated_at}})}const fs=d?.funds||[],idx=d.index||{},sz=d.sz_index||{},bond=d.bond_index||{},k50Idx=d.k50_index||{},bondFund=findThemeFund(d,/020741|债|国债/),blue=findThemeFund(d,/004746|上证50|蓝筹/),wide=avgNums([idx.current?Number(idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),tech=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null,sz.current?Number(sz.daily_change||0):null]),semi=avgNums([k50Idx.current?Number(k50Idx.daily_change||0):null]),bondVal=avgNums([bond.current?Number(bond.daily_change||0):null,bondFund?Number(bondFund.daily_change||0):null]),blueVal=avgNums([blue?displayChange(blue,d):null,idx.current?Number(idx.daily_change||0):null]),policy=themeNewsBias(d,/央行|逆回购|流动性|资金面|LPR|MLF|降准|降息|加息|美联储|利率/),policyText=policy.total?policy.score>0?'偏暖':policy.score<0?'偏紧':'中性':'观察';return [{name:'宽基指数',value:wide,note:'上证 / 深证整体表现',history:idx.history},{name:'科技成长',value:tech,note:'深证 + 科创成长情绪',history:(k50Idx.history||sz.history)},{name:'半导体科创',value:semi,note:'科创50 / 芯片主题',history:k50Idx.history},{name:'债券利率',value:bondVal,note:'国债指数 + 债基净值',history:bond.history},{name:'上证50蓝筹',value:blueVal,note:'大盘蓝筹与上证50',fundCode:blue?.code,history:blue?.history||idx.history},{name:'资金政策',value:policyText,note:policy.total?('政策新闻 '+policy.total+' 条'):'等待政策资讯'}]}
 function sectorValueHtml(v){if(typeof v==='string')return '<span style="color:var(--t2)">'+esc(v)+'</span>';return v==null?'<span style="color:var(--muted)">--</span>':'<span style="color:'+cc(v)+'">'+fp(v)+'</span>'}
 function ensureThemeSector12(items){const out=items.slice(),names=new Set(out.map(x=>x.name)),extra=[['医疗','中证医疗'],['白酒','中证白酒'],['新能源','中证新能源'],['消费','中证消费'],['券商','证券公司'],['银行','中证银行']];extra.forEach(([name,note])=>{if(!names.has(name))out.push({name,value:'待更新',note,tone:'neutral'})});return out}
-function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=ensureThemeSector12(themeSectorItems(d)),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral');return '<div class="sector-card '+tone+'"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
+function themeDetailSeries(item,d){const direct=Array.isArray(item?.history)?item.history:[];let hist=direct;if(!hist.length){const name=String(item?.name||''),map=[[/半导体|科创/,d?.k50_index?.history],[/科技/,d?.k50_index?.history||d?.sz_index?.history],[/宽基|上证|蓝筹/,d?.index?.history],[/债|利率/,d?.bond_index?.history]];const hit=map.find(([re,h])=>re.test(name)&&Array.isArray(h)&&h.length);if(hit)hist=hit[1]}return (hist||[]).map(x=>({date:String(x.date||''),value:Number(x.close??x.current??x.value??x.nav??0),change:Number(x.change??x.daily_change??0)})).filter(x=>x.date&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>xDate(a.date)-xDate(b.date))}
+function xDate(s){return new Date(String(s).slice(0,10).replace(/\//g,'-')+'T12:00:00').getTime()||0}
+function pctBetweenSeries(rows,days){if(!rows||rows.length<2)return null;const last=rows[rows.length-1],cut=xDate(last.date)-days*86400000;let base=rows[0];rows.forEach(r=>{if(xDate(r.date)<=cut)base=r});if(!base||base===last||!base.value)return null;return (last.value/base.value-1)*100}
+function themeStatValue(item,rows,days){const n=pctBetweenSeries(rows,days);if(n!=null)return n;return null}
+function themeSparkSvg(rows,item){if(!rows||rows.length<2)return '<div class="theme-spark-empty">后台暂未返回足够历史，先展示当前温度</div>';const vals=rows.map(x=>x.value),w=320,h=126,p=12,min=Math.min(...vals),max=Math.max(...vals),span=max-min||1,pts=vals.map((v,i)=>[p+i*(w-p*2)/(vals.length-1),h-p-(v-min)/span*(h-p*2)]),d=pts.map((pt,i)=>(i?'L':'M')+pt[0].toFixed(1)+' '+pt[1].toFixed(1)).join(' '),area=d+' L '+pts[pts.length-1][0].toFixed(1)+' '+(h-p)+' L '+pts[0][0].toFixed(1)+' '+(h-p)+' Z',last=pts[pts.length-1];return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><line class="theme-spark-zero" x1="0" y1="'+(h/2)+'" x2="'+w+'" y2="'+(h/2)+'"></line><path class="theme-spark-area" d="'+area+'"></path><path class="theme-spark-line" d="'+d+'"></path><circle cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="3.5" fill="var(--brand)"></circle></svg>'}
+function themeMetric(label,val){return '<div class="theme-detail-metric"><div class="label">'+esc(label)+'</div><div class="value num" style="color:'+(val==null?'var(--muted)':cc(val))+'">'+(val==null?'待历史':fp(val))+'</div></div>'}
+function themeDetailHtml(item,d){const rows=themeDetailSeries(item,d),cur=typeof item.value==='number'?item.value:null,w7=themeStatValue(item,rows,7),m1=themeStatValue(item,rows,30),m6=themeStatValue(item,rows,180),latest=rows.length?rows[rows.length-1]:null,note=item.note||item.source||'市场温度',txt=cur==null?'当前为观察状态，等待后台行情更新。':(cur>0?'当前温度偏强，注意是否延续到相关基金。':cur<0?'当前温度偏弱，观察是否拖累相关持仓和买点。':'当前温度中性，更多看资金和指数确认。'),hist=rows.length>=2?('走势来源：'+(latest?.date||'--')+'，近'+rows.length+'条记录。'):'走势来源：当前快照，历史曲线待后台补充。';return '<div class="theme-detail-grid">'+themeMetric('当前',cur)+themeMetric('近7天',w7)+themeMetric('近1月',m1)+themeMetric('近半年',m6)+'</div><div class="ai-chart-card"><div class="ai-chart-title">温度走势 <span>'+esc(latest?md(latest.date):'待历史')+'</span></div><div class="theme-spark-wrap">'+themeSparkSvg(rows,item)+'</div></div><div class="ai-chart-card theme-detail-copy"><div><b>模块说明</b>：'+esc(note)+'</div><div><b>最近情况</b>：'+esc(txt)+'</div><div><b>数据状态</b>：'+esc(hist)+'</div></div>'}
+function openThemeDetail(name){const d=lastData||{},items=ensureThemeSector12(themeSectorItems(d)),item=items.find(x=>String(x.name)===String(name));if(!item)return;const title=document.getElementById('ai-detail-title'),sub=document.getElementById('ai-detail-sub'),body=document.getElementById('ai-detail-body'),modal=document.getElementById('ai-detail-modal');if(title)title.textContent=item.name;if(sub)sub.textContent='市场温度 · '+(item.updated_at?('后台更新 '+item.updated_at):'点击查看最近情况');if(body)body.innerHTML=themeDetailHtml(item,d);if(modal)modal.classList.add('show')}
+function renderThemeSectors(d){const el=document.getElementById('theme-sector-list');if(!el)return;const items=ensureThemeSector12(themeSectorItems(d)),nums=items.map(x=>typeof x.value==='number'?x.value:null).filter(x=>x!==null),avg=avgNums(nums),overall=document.getElementById('sector-overall'),up=document.getElementById('sector-update'),sectorTime=(items.find(x=>x.updated_at)||{}).updated_at;if(overall){overall.textContent=avg==null?'--':(avg>0.15?'偏强':avg<-0.15?'偏弱':'均衡');overall.style.color=avg==null?'var(--muted)':cc(avg)}if(up)up.textContent='主题版 · 后台更新 '+(sectorTime||((d.date||'')+' '+(d.time||'')).trim());el.innerHTML=items.map(x=>{const tone=x.tone||(typeof x.value==='number'?(x.value>0?'good':x.value<0?'bad':'neutral'):'neutral'),key=encodeURIComponent(x.name);return '<div class="sector-card '+tone+'" onclick="openThemeDetail(decodeURIComponent(\''+key+'\'))"><div class="sector-row"><div class="sector-name">'+esc(x.name)+'</div><div class="sector-value">'+sectorValueHtml(x.value)+'</div></div><div class="sector-note">'+esc(x.note)+'</div></div>'}).join('')}
 const profilePaneOrder=['temperature','external'];
 function profilePaneIndex(name){return profilePaneOrder.indexOf(name)<0?0:profilePaneOrder.indexOf(name)}
 function profilePaneHeight(name){return 496}
