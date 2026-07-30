@@ -649,11 +649,11 @@ body.dark .news-reader-card.primary{background:linear-gradient(180deg,#171A20 0%
 body.dark .news-read-status,body.dark .fund-count-pill{background:#20242B;color:#DDE8FF;border:1px solid rgba(255,255,255,.045)}
 body.dark #tfunds #fund-top-action,body.dark #tfunds .fund-top-stat .mini-add-btn{background:#2A3039!important;color:#F5F6F8!important;border:1px solid #3A424E!important;box-shadow:0 7px 16px rgba(0,0,0,.28)!important}
 .news-dashboard{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 12px}
-.news-stat{padding:10px 8px;border-radius:14px;background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(47,111,214,.055)}
-.news-stat .k{font-size:11px;color:var(--muted);line-height:1.2}
-.news-stat .v{margin-top:4px;font-size:18px;font-weight:750;line-height:1}
+.news-stat{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:9px 10px;border-radius:14px;background:rgba(255,255,255,.62);box-shadow:inset 0 0 0 1px rgba(47,111,214,.055)}
+.news-stat .k{font-size:11px;color:var(--muted);line-height:1.2;white-space:nowrap}
+.news-stat .v{margin-top:0;font-size:18px;font-weight:750;line-height:1}
 .news-stat.good .v{color:var(--red)}.news-stat.bad .v{color:var(--green)}.news-stat.neutral .v{color:var(--brand-dark)}
-.news-board-note{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:0 0 10px;font-size:12px;color:var(--muted)}
+.news-board-note{display:none!important}
 .news-section-block{margin-top:13px}
 .news-section-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 8px;padding:0 2px}
 .news-section-head b{font-size:14px;color:var(--ink)}
