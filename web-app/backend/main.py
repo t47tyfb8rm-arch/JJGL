@@ -3624,7 +3624,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             result.append(item)
             used_titles.add(item.title)
     for _, _, item in event_news:
-        if len(result) >= 20:
+        if len(result) >= 80:
             break
         if item.title not in used_titles:
             result.append(item)
@@ -3640,7 +3640,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
                 continue
             relaxed_news.append((priority, ctime_ts, item))
             used_titles.add(item.title)
-            if len(relaxed_news) >= 20:
+            if len(relaxed_news) >= 80:
                 break
         result = [item for _, _, item in relaxed_news]
 
@@ -3668,7 +3668,7 @@ async def fetch_market_news(force: bool = False) -> List[NewsItem]:
             tags=["观点汇总", "7x24观点"]
         )
         result.append(opinion_item)
-    result = sorted(result, key=lambda item: _parse_time(item.time)[1], reverse=True)[:20]
+    result = sorted(result, key=lambda item: _parse_time(item.time)[1], reverse=True)[:80]
     NEWS_CACHE["data"] = result
     NEWS_CACHE["saved_at"] = now_ts
     return result
