@@ -3219,11 +3219,10 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 return _period_return({"Z": 7, "Y": 30, "3Y": 90, "6Y": 180, "1N": 365}.get(key, 7))
             return round(v, 2)
 
-        # ===== 收盘后锁定当日快照（gsz/model/actual）=====
-        # 目的：15:00 收盘后反复刷新页面，AI 卡片的"gsz vs 模型 vs 实际"对比保持一致；
+        # ===== 收盘后锁定当日快照（gsz/model）=====
+        # 目的：15:00 收盘后反复刷新页面，AI 卡片的估算结果保持一致；
         #      盘中 9:30-15:00 始终实时计算，避免 14:30 后估算不再更新。
-        # 关键：用 nav_date（基金真实交易日）做 key，而不是 datetime.now() 的系统日期
-        #      避免 0:00 跨日时 fetch 的实际是"昨天基金"但系统时间是"今天"，导致快照匹配错位
+        # 关键：快照只锁定估算值，实际收益永远用最新净值和上一交易日净值重新计算。
         now = datetime.now()
         # snap_key 选择规则：
         # - 交易日 9:30 之后 → 用今天系统日期（避免 nav_date 停留在上周五导致周一开盘后 snapshot 跨日不复位）
@@ -3233,7 +3232,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         fund_entry_lock = CORRECTION_CACHE.setdefault(fund_code, {"samples": []})
         snap = fund_entry_lock.get("daily_snapshot")
         if (not is_trading_time()) and snap and snap.get("date") == snap_key:
-            # 复用当日快照（gsz/model/actual）
+            # 复用当日估算快照（gsz/model），不覆盖 actual/daily_change。
             snap_gsz = snap.get("gsz")
             snap_model = snap.get("model")
             # 旧快照里经常会出现 gsz/model=0.0。0 只能表示“当时没取到有效估值”，
@@ -3242,17 +3241,15 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 est_change = snap_gsz
             if snap_model is not None and abs(float(snap_model or 0)) >= 0.005:
                 model_estimated_change = snap_model
-            daily_change = snap.get("actual", daily_change)
         elif (not is_trading_time()) and (now.hour >= 15):
-            # 收盘后第一次：写入快照（条件：actual 必须有值，否则明早 9:30 再锁）
-            if abs(daily_change) >= 0.0001:
-                fund_entry_lock["daily_snapshot"] = {
-                    "date": snap_key,
-                    "gsz": round(est_change, 3),
-                    "model": round(model_estimated_change, 3),
-                    "actual": round(daily_change, 3),
-                    "save_time": now.strftime("%H:%M")
-                }
+            # 收盘后第一次：写入估算快照。actual 不入快照，避免净值披露前把昨日实际锁成今日实际。
+            fund_entry_lock["daily_snapshot"] = {
+                "date": snap_key,
+                "gsz": round(est_change, 3),
+                "model": round(model_estimated_change, 3),
+                "nav_date": nav_date,
+                "save_time": now.strftime("%H:%M")
+            }
 
         display_estimated_change = 0.0
         if model_type == "bond_baseline":
