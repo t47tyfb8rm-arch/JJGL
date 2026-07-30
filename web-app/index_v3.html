@@ -1630,28 +1630,35 @@ body.dark .sector-card{
 }
 #external-market-list .external-session{
   flex:none;
-  padding:4px 8px;
+  padding:3px 8px;
   border-radius:999px;
   font-size:10px;
-  font-weight:760;
-  color:#64748b;
-  background:rgba(148,163,184,.14);
+  font-weight:720;
+  line-height:1;
+  color:var(--t2);
+  background:rgba(47,111,214,.08);
+  border:1px solid rgba(47,111,214,.08);
 }
 #external-market-list .external-session.open{
-  color:#1f8b67;
-  background:rgba(45,185,126,.12);
+  color:#1F6D9C;
+  background:rgba(47,111,214,.11);
 }
 #external-market-list .external-session.closed{
-  color:#8a6a2f;
-  background:rgba(245,181,74,.14);
+  color:var(--muted);
+  background:rgba(138,151,166,.08);
+  border-color:rgba(138,151,166,.08);
 }
 #external-market-list .external-session.pre{
-  color:#2b64aa;
-  background:rgba(47,111,214,.12);
+  color:#8B6B2F;
+  background:rgba(198,151,64,.11);
 }
 body.dark #external-market-list .external-session{
-  color:#d6d6d6;
-  background:rgba(255,255,255,.08);
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.05);
+}
+body.dark #external-market-list .external-session.closed{
+  color:#a8a8a8;
+  background:rgba(255,255,255,.045);
 }
 #tprofile .external-inline{
   margin-top:12px;
