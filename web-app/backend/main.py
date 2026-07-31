@@ -5334,6 +5334,30 @@ async def run_deepseek_analysis():
     return response
 
 
+@app.get("/api/portfolio/status")
+async def get_portfolio_status():
+    """Lightweight status endpoint for the frontend header timestamp."""
+    response, age = load_portfolio_snapshot_from_db()
+    if response is None and PORTFOLIO_CACHE["data"] is not None:
+        response = PORTFOLIO_CACHE["data"]
+        age = time.time() - float(PORTFOLIO_CACHE.get("saved_at") or 0.0)
+    if response is None:
+        return {
+            "ok": False,
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "market_status": "unknown",
+            "snapshot_age_seconds": None,
+        }
+    return {
+        "ok": True,
+        "date": response.date,
+        "time": response.time,
+        "market_status": response.market_status,
+        "snapshot_age_seconds": round(float(age or 0.0), 1),
+    }
+
+
 @app.get("/api/news")
 async def get_market_news(force: int = 0):
     """单独获取市场资讯。资讯页使用，不阻塞首页首屏。"""
