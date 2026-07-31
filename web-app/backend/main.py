@@ -202,6 +202,89 @@ def init_app_db():
                 PRIMARY KEY(news_key)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS cost_nav_snapshots (
+                code TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                payload TEXT NOT NULL,
+                PRIMARY KEY(code)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_nav_history (
+                code TEXT NOT NULL,
+                nav_date TEXT NOT NULL,
+                nav REAL,
+                daily_change REAL,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, nav_date)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS intraday_estimate_snapshots (
+                code TEXT NOT NULL,
+                trade_date TEXT NOT NULL,
+                estimate_time TEXT NOT NULL,
+                estimated_change REAL,
+                model_estimated_change REAL,
+                corrected_estimated_change REAL,
+                benchmark_change REAL,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, trade_date, estimate_time)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS index_snapshots (
+                index_key TEXT NOT NULL,
+                trade_date TEXT NOT NULL,
+                current REAL,
+                daily_change REAL,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(index_key, trade_date)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS theme_sector_snapshots (
+                name TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT '',
+                value REAL,
+                tone TEXT,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(name, snapshot_date, source)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS external_market_snapshots (
+                name TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT '',
+                value REAL,
+                tone TEXT,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(name, snapshot_date, source)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_strategy_snapshots (
+                code TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                risk_level TEXT,
+                trend TEXT,
+                advice TEXT,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, snapshot_date)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_nav_history_code_date ON fund_nav_history(code, nav_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_intraday_estimates_code_time ON intraday_estimate_snapshots(code, trade_date DESC, estimate_time DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_index_snapshots_key_date ON index_snapshots(index_key, trade_date DESC)")
         conn.commit()
 
 
@@ -211,10 +294,29 @@ def _model_dump(obj):
     return obj.dict()
 
 
+def _json_payload(obj):
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for code, value in (cost_navs or {}).items():
+                conn.execute(
+                    "INSERT OR REPLACE INTO cost_nav_snapshots(code, created_at, payload) VALUES(?,?,?)",
+                    (str(code), now_ts, _json_payload(value if isinstance(value, dict) else {"value": value})),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save cost navs failed: {e}")
+
+
 def save_portfolio_to_db(response):
     try:
         init_app_db()
-        payload = json.dumps(_model_dump(response), ensure_ascii=False, separators=(",", ":"))
+        payload = _json_payload(_model_dump(response))
         now_ts = time.time()
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
@@ -225,8 +327,9 @@ def save_portfolio_to_db(response):
                 "DELETE FROM portfolio_snapshots WHERE snapshot_key='latest' AND id NOT IN (SELECT id FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 24)"
             )
             for fund in response.funds or []:
-                fund_payload = json.dumps(_model_dump(fund), ensure_ascii=False, separators=(",", ":"))
-                buy_point_payload = json.dumps(_model_dump(fund.buy_point), ensure_ascii=False, separators=(",", ":")) if getattr(fund, "buy_point", None) else "{}"
+                fund_dict = _model_dump(fund)
+                fund_payload = _json_payload(fund_dict)
+                buy_point_payload = _json_payload(_model_dump(fund.buy_point)) if getattr(fund, "buy_point", None) else "{}"
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO fund_daily_snapshots
@@ -246,11 +349,131 @@ def save_portfolio_to_db(response):
                         now_ts,
                     ),
                 )
-            news_payload = json.dumps([_model_dump(n) for n in response.news or []], ensure_ascii=False, separators=(",", ":"))
+                if getattr(fund, "nav_date", ""):
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO fund_nav_history
+                        (code, nav_date, nav, daily_change, payload, updated_at)
+                        VALUES(?,?,?,?,?,?)
+                        """,
+                        (
+                            fund.code,
+                            fund.nav_date,
+                            fund.current_nav,
+                            fund.daily_change,
+                            fund_payload,
+                            now_ts,
+                        ),
+                    )
+                if getattr(fund, "estimated_time", "") or getattr(fund, "estimated_change", None) is not None:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO intraday_estimate_snapshots
+                        (code, trade_date, estimate_time, estimated_change, model_estimated_change, corrected_estimated_change, benchmark_change, payload, updated_at)
+                        VALUES(?,?,?,?,?,?,?,?,?)
+                        """,
+                        (
+                            fund.code,
+                            response.date,
+                            getattr(fund, "estimated_time", "") or datetime.now().strftime("%H:%M:%S"),
+                            getattr(fund, "estimated_change", None),
+                            getattr(fund, "model_estimated_change", None),
+                            getattr(fund, "corrected_estimated_change", None),
+                            getattr(fund, "model_benchmark_change", None),
+                            fund_payload,
+                            now_ts,
+                        ),
+                    )
+                if getattr(fund, "ai_prediction", None):
+                    ai = fund.ai_prediction
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO ai_strategy_snapshots
+                        (code, snapshot_date, risk_level, trend, advice, payload, updated_at)
+                        VALUES(?,?,?,?,?,?,?)
+                        """,
+                        (
+                            fund.code,
+                            response.date,
+                            getattr(ai, "risk_level", ""),
+                            getattr(ai, "trend", ""),
+                            getattr(ai, "advice", ""),
+                            _json_payload(_model_dump(ai)),
+                            now_ts,
+                        ),
+                    )
+            for index_key, index_obj in [
+                ("shanghai", getattr(response, "index", None)),
+                ("bond", getattr(response, "bond_index", None)),
+                ("k50", getattr(response, "k50_index", None)),
+                ("hsi", getattr(response, "hsi_index", None)),
+                ("hs300", getattr(response, "hs300_index", None)),
+                ("shenzhen", getattr(response, "sz_index", None)),
+            ]:
+                if index_obj:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO index_snapshots
+                        (index_key, trade_date, current, daily_change, payload, updated_at)
+                        VALUES(?,?,?,?,?,?)
+                        """,
+                        (
+                            index_key,
+                            response.date,
+                            getattr(index_obj, "current", None),
+                            getattr(index_obj, "daily_change", None),
+                            _json_payload(_model_dump(index_obj)),
+                            now_ts,
+                        ),
+                    )
+            for sector in response.theme_sectors or []:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO theme_sector_snapshots
+                    (name, snapshot_date, source, value, tone, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        sector.name,
+                        response.date,
+                        getattr(sector, "source", "") or "",
+                        getattr(sector, "value", None),
+                        getattr(sector, "tone", ""),
+                        _json_payload(_model_dump(sector)),
+                        now_ts,
+                    ),
+                )
+            for market in response.external_markets or []:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO external_market_snapshots
+                    (name, snapshot_date, source, value, tone, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        market.name,
+                        response.date,
+                        getattr(market, "source", "") or "",
+                        getattr(market, "value", None),
+                        getattr(market, "tone", ""),
+                        _json_payload(_model_dump(market)),
+                        now_ts,
+                    ),
+                )
+            for code, value in (COST_NAVS or {}).items():
+                conn.execute(
+                    "INSERT OR REPLACE INTO cost_nav_snapshots(code, created_at, payload) VALUES(?,?,?)",
+                    (str(code), now_ts, _json_payload(value if isinstance(value, dict) else {"value": value})),
+                )
+            news_payload = _json_payload([_model_dump(n) for n in response.news or []])
             conn.execute(
                 "INSERT OR REPLACE INTO news_snapshots(news_key, created_at, payload) VALUES(?,?,?)",
                 ("latest", now_ts, news_payload),
             )
+            conn.execute("DELETE FROM intraday_estimate_snapshots WHERE updated_at < ?", (now_ts - 86400 * 10,))
+            conn.execute("DELETE FROM index_snapshots WHERE updated_at < ?", (now_ts - 86400 * 90,))
+            conn.execute("DELETE FROM theme_sector_snapshots WHERE updated_at < ?", (now_ts - 86400 * 90,))
+            conn.execute("DELETE FROM external_market_snapshots WHERE updated_at < ?", (now_ts - 86400 * 90,))
             conn.commit()
     except Exception as e:
         print(f"[DB] save portfolio failed: {e}")
@@ -2094,6 +2317,7 @@ def ensure_added_fund_tracking_baseline(fund_code: str, current_nav: float, nav_
         save_buy_point_refs(BUY_POINT_REFS)
     if changed_costs:
         save_cost_navs_to_file(COST_NAVS)
+        save_cost_navs_to_db(COST_NAVS)
 
 
 # ============= 数据抓取函数 =============
@@ -5193,6 +5417,7 @@ async def add_watched_fund(payload: dict):
         }
         if not save_cost_navs_to_file(COST_NAVS):
             raise HTTPException(status_code=500, detail="保存历史收益失败")
+        save_cost_navs_to_db(COST_NAVS)
     ensure_added_fund_tracking_baseline(fund_code, ref_nav, ref_date)
     FUND_DETAIL_CACHE.pop(fund_code, None)
 
@@ -5233,6 +5458,7 @@ async def delete_watched_fund(fund_code: str):
     save_fund_settings(FUND_SETTINGS)
     save_buy_point_refs(BUY_POINT_REFS)
     save_cost_navs_to_file(COST_NAVS)
+    save_cost_navs_to_db(COST_NAVS)
     save_nav_history(NAV_HISTORY)
 
     PORTFOLIO_CACHE["data"] = None
@@ -5285,6 +5511,7 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
         "transactions": transactions
     }
     save_cost_navs_to_file(COST_NAVS)
+    save_cost_navs_to_db(COST_NAVS)
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
     clear_portfolio_db_cache()
@@ -5366,6 +5593,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
         save_buy_point_refs(BUY_POINT_REFS)
 
     save_cost_navs_to_file(COST_NAVS)
+    save_cost_navs_to_db(COST_NAVS)
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
     clear_portfolio_db_cache()
