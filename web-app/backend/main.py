@@ -546,10 +546,15 @@ FUND_SPECIFIC_MODELS = {
         "description": "被动跟踪科创50指数，残差 = fund_actual - 科创50_actual"
     },
     "004746": {  # 易方达上证50增强C（增强型指数）
-        "type": "index_following",
-        "benchmark_code": "sh000016",  # 上证50指数
-        "benchmark_name": "上证50",
-        "description": "增强型指数基金盘中优先跟踪上证50实时涨跌，避免多因子回归权重漂移导致估值接近0"
+        "type": "multi_factor",
+        "benchmark_name": "上证50增强代理",
+        "factors": [
+            {"code": "sh000016", "name": "上证50", "default_weight": 0.62},
+            {"code": "sh000300", "name": "沪深300", "default_weight": 0.22},
+            {"code": "sh000922", "name": "中证红利", "default_weight": 0.10},
+            {"code": "sz399986", "name": "中证银行", "default_weight": 0.06},
+        ],
+        "description": "增强型指数基金：上证50为主，叠加宽基、红利和银行风格，收盘后用历史误差校准"
     },
     "020741": {  # 华泰保兴安悦债券C（纯债基金）
         "type": "bond_baseline",
@@ -899,13 +904,46 @@ async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_d
         return est, bench_change, bench_name
 
     if model_type == "multi_factor":
-        # 优先用回归系数（如已拟合），否则用默认权重
+        # 稳定多因子：默认权重兜底；回归结果质量足够时，只做部分融合，避免权重漂移。
         factors = model_config.get("factors", [])
-        weights = MULTI_FACTOR_REGRESSION.get(fund_code, {}).get("weights") or {
-            f["code"]: f.get("default_weight", 0.0) for f in factors
-        }
-        # 并发拉取所有因子指数（避免串行等待）
-        idx_results = await _aio.gather(*[fetch_realtime_index(f["code"]) for f in factors])
+        default_weights = {f["code"]: float(f.get("default_weight", 0.0) or 0.0) for f in factors}
+        weights = dict(default_weights)
+        alpha = 0.0
+        fit = MULTI_FACTOR_REGRESSION.get(fund_code, {}) or {}
+        fit_weights = fit.get("weights") or {}
+        fit_ok = (
+            fit_weights
+            and int(fit.get("sample_days", 0) or 0) >= 10
+            and float(fit.get("r_squared", 0.0) or 0.0) >= 0.25
+        )
+        if fit_ok:
+            positive = {}
+            for code, default_w in default_weights.items():
+                try:
+                    raw_w = float(fit_weights.get(code, 0.0) or 0.0)
+                except Exception:
+                    raw_w = 0.0
+                if raw_w > 0:
+                    positive[code] = min(raw_w, max(default_w * 2.2, 0.18))
+            pos_sum = sum(positive.values())
+            default_sum = sum(default_weights.values()) or 1.0
+            if pos_sum > 0:
+                normalized = {code: positive.get(code, 0.0) / pos_sum * default_sum for code in default_weights}
+                weights = {
+                    code: round(default_weights.get(code, 0.0) * 0.55 + normalized.get(code, 0.0) * 0.45, 4)
+                    for code in default_weights
+                }
+                try:
+                    alpha = max(-0.12, min(0.12, float(fit.get("alpha", 0.0) or 0.0)))
+                except Exception:
+                    alpha = 0.0
+
+        async def _fetch_factor_index(factor: dict):
+            rt = await fetch_eastmoney_realtime_index(factor["code"], factor.get("name", ""))
+            return rt or await fetch_realtime_index(factor["code"])
+
+        # 并发拉取所有因子指数（避免串行等待），东方财富优先，腾讯兜底。
+        idx_results = await _aio.gather(*[_fetch_factor_index(f) for f in factors])
         weighted_change = 0.0
         total_weight = 0.0
         names = []
@@ -918,14 +956,15 @@ async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_d
                 names.append(f.get("name", ""))
         if total_weight == 0:
             return None, None, ""
-        bench_change = round(weighted_change / total_weight, 3)
+        bench_change = round(weighted_change / total_weight + alpha, 3)
         bench_name = "+".join(names)
         # 20:00+ 记录指数残差
         if daily_change != 0 and datetime.now().hour >= 20:
             record_index_residual(fund_code, bench_change, daily_change, nav_date)
         model_stats = get_index_model_estimate(fund_code)
         if model_stats["enabled"]:
-            est = round(bench_change + model_stats["offset"], 3)
+            offset = max(-0.25, min(0.25, float(model_stats["offset"] or 0.0)))
+            est = round(bench_change + offset, 3)
         else:
             est = bench_change
         return est, bench_change, bench_name
