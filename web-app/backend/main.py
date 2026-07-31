@@ -1677,6 +1677,9 @@ class BuyPointInfo(BaseModel):
     buy_point_yield: float = 0.0  # 买点阈值收益率（hist_yield - 3%）
     target_nav: float = 0.0   # 买点对应的净值（即达到买点阈值时的净值）
     progress_pct: float = 0.0  # 买点进度百分比（0-100）
+    drop_threshold: float = 0.0  # 买点下跌阈值 %
+    ref_date: str = ""           # 买点判断开始日期
+    ref_nav: float = 0.0         # 买点参考净值
     shares: float = 0.0        # 份额权重（用于补仓加权成本）
     realized_yield_pct: float = 0.0  # 最近一次卖出实现收益率 %
     transactions: List[dict] = []    # 买入/卖出流水
@@ -3499,6 +3502,9 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             buy_point_yield=buy_point_yield if not is_user_holding else 0.0,
             target_nav=target_nav if not is_user_holding else 0.0,
             progress_pct=progress_pct if not is_user_holding else 0,
+            drop_threshold=float(BUY_POINT_CONFIG.get(fund_code, {}).get("drop_threshold", 0.0) or 0.0),
+            ref_date=str(BUY_POINT_REFS.get(fund_code, {}).get("ref_date", "")),
+            ref_nav=float(BUY_POINT_REFS.get(fund_code, {}).get("ref_nav", 0.0) or 0.0),
             shares=holding_shares if is_user_holding else 0.0,
             realized_yield_pct=realized_yield_pct,
             transactions=transactions
@@ -5533,6 +5539,97 @@ async def add_watched_fund(payload: dict):
         "follow_date": follow_date,
         "drop_threshold": round(drop_threshold, 2),
         "historical_yield": round(historical_yield, 2)
+    }
+
+
+@app.patch("/api/funds/watch/{fund_code}")
+async def update_watched_fund(fund_code: str, payload: dict):
+    """修改基金买点配置：下跌阈值和买点判断开始日期。"""
+    fund_code = str(fund_code or "").strip()
+    if not fund_code or len(fund_code) != 6 or not fund_code.isdigit():
+        raise HTTPException(status_code=400, detail="基金代码必须是6位数字")
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+
+    try:
+        drop_threshold = round(float(payload.get("drop_threshold", 5.0) or 5.0), 2)
+    except Exception:
+        raise HTTPException(status_code=400, detail="买点下跌阈值必须是数字")
+    if drop_threshold <= 0 or drop_threshold > 80:
+        raise HTTPException(status_code=400, detail="买点下跌阈值需在 0-80 之间")
+
+    start_date = str(
+        payload.get("ref_date")
+        or payload.get("start_date")
+        or payload.get("follow_date")
+        or datetime.now().strftime("%Y-%m-%d")
+    )[:10]
+    if len(start_date) != 10:
+        raise HTTPException(status_code=400, detail="买点判断开始日期格式不正确")
+
+    fund = await fetch_fund_from_eastmoney(fund_code, force=1, lite=1)
+    if not fund:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 未找到")
+
+    history = await fetch_fund_history(fund_code, days=180, force=1)
+    history_sorted = sorted(history or [], key=lambda x: x.date)
+    ref_item = None
+    for item in history_sorted:
+        if item.date <= start_date:
+            ref_item = item
+        else:
+            break
+    if ref_item is None and history_sorted:
+        ref_item = history_sorted[0]
+
+    ref_nav = round(float(ref_item.nav if ref_item else fund.current_nav or 0.0), 4)
+    ref_date = str(ref_item.date if ref_item else (fund.nav_date or start_date))[:10]
+    if ref_nav <= 0:
+        raise HTTPException(status_code=502, detail="未获取到有效参考净值")
+
+    cfg = FUND_SETTINGS.get(fund_code, {}) if isinstance(FUND_SETTINGS.get(fund_code), dict) else {}
+    cfg.update({
+        "code": fund_code,
+        "name": getattr(fund, "name", cfg.get("name", "")),
+        "follow_date": start_date,
+        "historical_date": start_date,
+        "drop_threshold": drop_threshold,
+        "historical_yield": round(float(cfg.get("historical_yield", HISTORICAL_YIELDS.get(fund_code, {}).get("yield", 0.0) if isinstance(HISTORICAL_YIELDS.get(fund_code), dict) else 0.0) or 0.0), 2)
+    })
+    FUND_SETTINGS[fund_code] = cfg
+    if not save_fund_settings(FUND_SETTINGS):
+        raise HTTPException(status_code=500, detail="保存基金配置失败")
+
+    BUY_POINT_CONFIG[fund_code] = {"drop_threshold": drop_threshold}
+    BUY_POINT_REFS[fund_code] = {"ref_nav": ref_nav, "ref_date": ref_date}
+    if isinstance(HISTORICAL_YIELDS.get(fund_code), dict):
+        HISTORICAL_YIELDS[fund_code]["date"] = start_date
+    if not save_buy_point_refs(BUY_POINT_REFS):
+        raise HTTPException(status_code=500, detail="保存买点参考失败")
+
+    cost_data = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
+    if cost_data and not cost_data.get("is_holding", False):
+        cost_data.update({
+            "buy_nav": ref_nav,
+            "buy_date": start_date,
+            "buy_price": ref_nav,
+            "yield_pct": float(cfg.get("historical_yield", 0.0) or 0.0),
+            "total_return": float(cfg.get("historical_yield", 0.0) or 0.0),
+        })
+        COST_NAVS[fund_code] = cost_data
+        save_cost_navs_to_file(COST_NAVS)
+        save_cost_navs_to_db(COST_NAVS)
+
+    FUND_DETAIL_CACHE.pop(fund_code, None)
+    PORTFOLIO_CACHE["data"] = None
+    PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
+    return {
+        "ok": True,
+        "code": fund_code,
+        "drop_threshold": drop_threshold,
+        "ref_date": ref_date,
+        "ref_nav": ref_nav,
     }
 
 
