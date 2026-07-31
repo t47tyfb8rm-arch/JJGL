@@ -1912,6 +1912,13 @@ PORTFOLIO_CACHE: dict = {"data": None, "saved_at": 0.0, "disclosed": False}
 PORTFOLIO_CACHE_TTL = 30  # 秒（盘中 30s）
 PORTFOLIO_CACHE_TTL_OFFHOURS = 3600  # 秒（非盘中兜底 1h，但实际用"到下一交易日 9:30"的动态 TTL）
 BACKGROUND_PORTFOLIO_REFRESHING = False
+BACKGROUND_PORTFOLIO_STATUS = {
+    "last_started_at": "",
+    "last_finished_at": "",
+    "last_error": "",
+    "last_duration_seconds": None,
+    "next_interval_seconds": None,
+}
 
 
 def portfolio_snapshot_max_age_seconds() -> int:
@@ -5298,8 +5305,13 @@ async def background_portfolio_refresher():
         try:
             if not BACKGROUND_PORTFOLIO_REFRESHING:
                 BACKGROUND_PORTFOLIO_REFRESHING = True
+                started = time.time()
+                BACKGROUND_PORTFOLIO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                BACKGROUND_PORTFOLIO_STATUS["last_error"] = ""
                 try:
                     await get_portfolio(force=1, lite=0)
+                    BACKGROUND_PORTFOLIO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    BACKGROUND_PORTFOLIO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
                     print(f"[后台刷新] 全量数据已更新 {datetime.now().strftime('%H:%M:%S')}")
                 finally:
                     BACKGROUND_PORTFOLIO_REFRESHING = False
@@ -5307,9 +5319,12 @@ async def background_portfolio_refresher():
             # Trading hours need a fresh DB snapshot for the 30s frontend header/status poll.
             # After close we only need to check NAV disclosure periodically.
             interval = 30 if is_trading_time() else (300 if not disclosed else 600)
+            BACKGROUND_PORTFOLIO_STATUS["next_interval_seconds"] = interval
         except Exception as e:
             BACKGROUND_PORTFOLIO_REFRESHING = False
             interval = 60
+            BACKGROUND_PORTFOLIO_STATUS["last_error"] = str(e)
+            BACKGROUND_PORTFOLIO_STATUS["next_interval_seconds"] = interval
             print(f"[后台刷新] 异常: {e}")
         await asyncio.sleep(interval)
 
@@ -5357,6 +5372,28 @@ async def get_portfolio_status():
         "time": response.time,
         "market_status": response.market_status,
         "snapshot_age_seconds": round(float(age or 0.0), 1),
+    }
+
+
+@app.get("/api/refresh/status")
+async def get_refresh_status():
+    """Show backend refresh freshness for debugging foreground update speed."""
+    now_ts = time.time()
+    portfolio_age = None
+    if PORTFOLIO_CACHE.get("saved_at"):
+        portfolio_age = round(now_ts - float(PORTFOLIO_CACHE.get("saved_at") or 0.0), 1)
+    db_response, db_age = load_portfolio_snapshot_from_db()
+    return {
+        "ok": True,
+        "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "market_status": market_status(),
+        "is_trading_time": is_trading_time(),
+        "portfolio_cache_age_seconds": portfolio_age,
+        "db_snapshot_age_seconds": round(float(db_age), 1) if db_age is not None else None,
+        "db_snapshot_time": f"{db_response.date} {db_response.time}" if db_response is not None else "",
+        "news_age_seconds": round(now_ts - float(NEWS_CACHE.get("saved_at") or 0.0), 1) if NEWS_CACHE.get("saved_at") else None,
+        "external_market_age_seconds": round(now_ts - float(EXTERNAL_MARKET_CACHE.get("saved_at") or 0.0), 1) if EXTERNAL_MARKET_CACHE.get("saved_at") else None,
+        "background": BACKGROUND_PORTFOLIO_STATUS,
     }
 
 
