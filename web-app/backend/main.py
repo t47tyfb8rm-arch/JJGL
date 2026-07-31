@@ -5304,7 +5304,9 @@ async def background_portfolio_refresher():
                 finally:
                     BACKGROUND_PORTFOLIO_REFRESHING = False
             disclosed = _is_today_disclosed()
-            interval = 120 if (is_trading_time() or not disclosed) else 300
+            # Trading hours need a fresh DB snapshot for the 30s frontend header/status poll.
+            # After close we only need to check NAV disclosure periodically.
+            interval = 30 if is_trading_time() else (300 if not disclosed else 600)
         except Exception as e:
             BACKGROUND_PORTFOLIO_REFRESHING = False
             interval = 60
