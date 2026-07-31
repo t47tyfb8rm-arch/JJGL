@@ -5672,6 +5672,68 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
         "buy_point_ref_nav": round((sell_nav if not is_holding else current_nav), 4)
     }
 
+
+@app.post("/api/position/{fund_code}/cost")
+async def correct_position_cost(fund_code: str, payload: Optional[dict] = None):
+    """
+    修正持仓成交价/成本价。
+    只修正当前持仓成本，不新增买入流水；会追加一条 correction 记录方便回看。
+    """
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+
+    payload = payload if isinstance(payload, dict) else {}
+    old = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
+    if not old.get("is_holding", False):
+        raise HTTPException(status_code=400, detail=f"基金 {fund_code} 当前不是持仓中，不能修正成交价")
+
+    try:
+        cost_nav = float(payload.get("cost_nav") or payload.get("buy_price") or payload.get("nav"))
+        shares = payload.get("shares")
+        shares = float(shares) if shares not in (None, "") else float(old.get("shares", 1.0) or 1.0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="cost_nav 和 shares 必须是有效数字")
+    if cost_nav <= 0 or shares <= 0:
+        raise HTTPException(status_code=400, detail="cost_nav 和 shares 必须大于0")
+
+    correct_date = str(payload.get("date") or payload.get("buy_date") or old.get("buy_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+    old_cost = float(old.get("buy_nav", 0.0) or 0.0)
+    transactions = list(old.get("transactions", []))
+    transactions.append({
+        "type": "correct_cost",
+        "date": correct_date,
+        "old_nav": round(old_cost, 4),
+        "nav": round(cost_nav, 4),
+        "shares": round(shares, 4)
+    })
+
+    updated = dict(old)
+    updated.update({
+        "buy_nav": round(cost_nav, 4),
+        "buy_price": round(cost_nav, 4),
+        "buy_date": correct_date,
+        "shares": round(shares, 4),
+        "is_holding": True,
+        "transactions": transactions
+    })
+    COST_NAVS[fund_code] = updated
+    save_cost_navs_to_file(COST_NAVS)
+    save_cost_navs_to_db(COST_NAVS)
+    PORTFOLIO_CACHE["data"] = None
+    PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
+
+    return {
+        "ok": True,
+        "code": fund_code,
+        "cost_nav": round(cost_nav, 4),
+        "old_cost_nav": round(old_cost, 4),
+        "shares": round(shares, 4),
+        "buy_date": correct_date,
+        "is_holding": True
+    }
+
+
 @app.get("/api/funds/{fund_code}", response_model=FundInfo)
 async def get_fund(fund_code: str):
     """获取单个基金信息（含7天历史与买点）"""
