@@ -518,6 +518,46 @@ def load_portfolio_snapshot_from_db():
         return None, None
 
 
+def load_index_history_from_db(index_key: str, limit: int = 12) -> List["IndexHistoryItem"]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                """
+                SELECT trade_date, current, daily_change, payload
+                FROM index_snapshots
+                WHERE index_key=?
+                ORDER BY trade_date DESC
+                LIMIT ?
+                """,
+                (index_key, max(1, int(limit))),
+            ).fetchall()
+        history: List[IndexHistoryItem] = []
+        for trade_date, current, daily_change, payload in rows:
+            close = current
+            change = daily_change
+            try:
+                data = json.loads(payload or "{}")
+                close = data.get("current", close)
+                change = data.get("daily_change", change)
+            except Exception:
+                pass
+            try:
+                if close is None or float(close) <= 0:
+                    continue
+                history.append(IndexHistoryItem(
+                    date=str(trade_date)[:10],
+                    close=round(float(close), 2),
+                    change=round(float(change or 0.0), 2),
+                ))
+            except Exception:
+                continue
+        return normalize_index_history(history, limit=limit)
+    except Exception as e:
+        print(f"[DB] load index history failed: {index_key} {e}")
+        return []
+
+
 def clear_portfolio_db_cache():
     try:
         init_app_db()
@@ -5258,7 +5298,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
 
     # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 沪深300 + 深证成指 + 上证50
     index_task = fetch_sh_index()
-    index_history_task = fetch_index_history(30 if lite else 190)
+    index_history_task = asyncio.sleep(0, result=load_index_history_from_db("shanghai", 12)) if lite else fetch_index_history(190)
     k50_task = fetch_generic_index("sh000688", "科创50")
     k50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000688", 190)
     hsi_task = fetch_generic_index("hkHSI", "恒生指数")
@@ -5278,6 +5318,8 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         index_task, index_history_task, k50_task, k50_history_task, hsi_task, bond_index_task, bond_history_task,
         hs300_task, hs300_history_task, sz_index_task, sz_history_task, sh50_task, sh50_history_task
     )
+    if lite and len(index_history or []) < 2:
+        index_history = await fetch_index_history(12)
 
     # 构建完整指数数据
     index_info = IndexInfo(
