@@ -5088,6 +5088,37 @@ async def fetch_index_history(days: int = 7) -> List[IndexHistoryItem]:
     return result
 
 
+def normalize_index_history(history: Optional[List[IndexHistoryItem]], limit: Optional[int] = None) -> List[IndexHistoryItem]:
+    """Return stable index history: one row per date, ascending, latest kept on duplicate dates."""
+    by_date: dict[str, IndexHistoryItem] = {}
+    for item in history or []:
+        if not item or not getattr(item, "date", ""):
+            continue
+        try:
+            close = float(getattr(item, "close", 0) or 0)
+            change = float(getattr(item, "change", 0) or 0)
+        except Exception:
+            continue
+        if close <= 0:
+            continue
+        by_date[str(item.date)[:10]] = IndexHistoryItem(
+            date=str(item.date)[:10],
+            close=round(close, 2),
+            change=round(change, 2),
+        )
+    rows = [by_date[date] for date in sorted(by_date)]
+    if limit and limit > 0:
+        rows = rows[-limit:]
+    return rows
+
+
+def normalize_index_info_history(index_info: Optional[IndexInfo], limit: Optional[int] = None) -> Optional[IndexInfo]:
+    if index_info is None:
+        return None
+    index_info.history = normalize_index_history(getattr(index_info, "history", None), limit=limit)
+    return index_info
+
+
 # ============= API 接口 =============
 
 def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
@@ -5098,8 +5129,8 @@ def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
     lite_response.external_markets = []
     for attr in ("index", "bond_index", "k50_index", "hsi_index", "hs300_index", "sz_index"):
         item = getattr(lite_response, attr, None)
-        if item and getattr(item, "history", None):
-            item.history = item.history[:12] if attr == "index" else []
+        if item:
+            item.history = normalize_index_history(getattr(item, "history", None), limit=12)
     if getattr(lite_response, "funds", None):
         for fund in lite_response.funds:
             fund.history = []
@@ -5306,6 +5337,9 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             k50_index_info,
             sh50_info,
         )
+
+    for idx in (index_info, bond_index_info, k50_index_info, hsi_index_info, hs300_info, sz_index_info):
+        normalize_index_info_history(idx, limit=190)
 
     # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
