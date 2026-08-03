@@ -1,4 +1,4 @@
-"""
+﻿"""
 基金管理系统 - FastAPI 后端
 从天天基金网和新浪财经获取实时数据
 """
@@ -5119,6 +5119,45 @@ def normalize_index_info_history(index_info: Optional[IndexInfo], limit: Optiona
     return index_info
 
 
+def home_index_visual_history(index_info: Optional[IndexInfo], limit: int = 12) -> List[IndexHistoryItem]:
+    """Synthetic history for the home Shanghai sparkline: emphasize daily change without changing displayed index value."""
+    if index_info is None:
+        return []
+    rows = normalize_index_history(getattr(index_info, "history", None), limit=limit)
+    try:
+        current = float(getattr(index_info, "current", 0) or 0)
+    except Exception:
+        current = 0.0
+    if current <= 0 or len(rows) < 2:
+        return rows
+
+    scale = max(current * 0.012, 36.0)
+    result: List[IndexHistoryItem] = []
+    for i, row in enumerate(rows):
+        next_change = rows[i + 1].change if i + 1 < len(rows) else getattr(index_info, "daily_change", row.change)
+        try:
+            change = max(-1.6, min(1.6, float(next_change or 0.0)))
+        except Exception:
+            change = 0.0
+        # drawSpark appends current as the final point. This makes the last segment show today's rise/fall direction.
+        result.append(IndexHistoryItem(
+            date=row.date,
+            close=round(current - change * scale, 2),
+            change=round(float(row.change or 0.0), 2),
+        ))
+    return result
+
+
+def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0) -> PortfolioResponse:
+    """Return a client copy; keep cached/raw response untouched."""
+    if lite:
+        return lite_portfolio_response(response)
+    client = response.copy(deep=True)
+    if client.index:
+        client.index.history = home_index_visual_history(client.index, limit=12)
+    return client
+
+
 # ============= API 接口 =============
 
 def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
@@ -5131,6 +5170,8 @@ def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
         item = getattr(lite_response, attr, None)
         if item:
             item.history = normalize_index_history(getattr(item, "history", None), limit=12)
+            if attr == "index":
+                item.history = home_index_visual_history(item, limit=12)
     if getattr(lite_response, "funds", None):
         for fund in lite_response.funds:
             fund.history = []
@@ -5165,7 +5206,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             cached_response.time = now.strftime("%H:%M:%S")
             if now_ts - PORTFOLIO_CACHE.get("saved_at", 0.0) > max_age:
                 schedule_portfolio_refresh("memory_snapshot_stale")
-            return lite_portfolio_response(cached_response) if lite else cached_response
+            return portfolio_response_for_client(cached_response, lite)
 
         db_response, db_age = load_portfolio_snapshot_from_db()
         if db_response is not None:
@@ -5174,7 +5215,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             PORTFOLIO_CACHE["saved_at"] = now_ts - float(db_age or 0)
             if db_age is None or db_age > max_age:
                 schedule_portfolio_refresh("sqlite_snapshot_stale")
-            return lite_portfolio_response(db_response) if lite else db_response
+            return portfolio_response_for_client(db_response, lite)
 
     if force == 0 and PORTFOLIO_CACHE["data"] is None:
         db_max_age = 180 if is_trading else 900
@@ -5183,14 +5224,14 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             db_response.time = now.strftime("%H:%M:%S")
             PORTFOLIO_CACHE["data"] = db_response
             PORTFOLIO_CACHE["saved_at"] = now_ts
-            return lite_portfolio_response(db_response) if lite else db_response
+            return portfolio_response_for_client(db_response, lite)
     if PORTFOLIO_CACHE["data"] is not None:
         if disclosed and force == 0:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
             cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
             if lite:
                 cached_response.time = now.strftime("%H:%M:%S")
-                return lite_portfolio_response(cached_response)
+                return portfolio_response_for_client(cached_response, lite)
             news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
                 schedule_news_refresh()
@@ -5208,12 +5249,12 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             )
             cached_response.external_markets = await get_external_market_temperature()
             cached_response.time = now.strftime("%H:%M:%S")
-            return cached_response
+            return portfolio_response_for_client(cached_response, lite)
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
             cached_response.time = now.strftime("%H:%M:%S")
-            return lite_portfolio_response(cached_response) if lite else cached_response
+            return portfolio_response_for_client(cached_response, lite)
 
     # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 沪深300 + 深证成指 + 上证50
     index_task = fetch_sh_index()
@@ -5372,7 +5413,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         PORTFOLIO_CACHE["saved_at"] = time.time()
         save_portfolio_to_db(response)
 
-    return lite_portfolio_response(response) if lite else response
+    return portfolio_response_for_client(response, lite)
 
 
 async def background_portfolio_refresher():
@@ -6432,3 +6473,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000
     )
+
