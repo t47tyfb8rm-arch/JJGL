@@ -984,6 +984,72 @@ def build_bond_range_estimate(
     }
 
 
+def _weighted_average_quote(items: list[tuple[Optional["IndexInfo"], float]]) -> tuple[Optional[float], Optional[float]]:
+    total_weight = 0.0
+    weighted_change = 0.0
+    weighted_current = 0.0
+    for item, weight in items:
+        if item is None or weight <= 0:
+            continue
+        try:
+            current = float(getattr(item, "current", 0.0) or 0.0)
+            change = float(getattr(item, "daily_change", 0.0) or 0.0)
+        except Exception:
+            continue
+        if current <= 0:
+            continue
+        total_weight += weight
+        weighted_change += change * weight
+        weighted_current += current * weight
+    if total_weight <= 0:
+        return None, None
+    return round(weighted_current / total_weight, 2), round(weighted_change / total_weight, 3)
+
+
+async def fetch_bond_market_proxy_index() -> "IndexInfo":
+    """债基估算专用债券代理篮子。
+
+    020741 是利率债/中短债属性更强的债券基金。单看一个国债指数容易太钝，
+    这里用国内可访问行情拼一个轻量代理：国债指数为主，辅以企债指数和
+    场内债券 ETF。前台仍显示为“债券利率”，不把它当成股票指数。
+    """
+    specs = [
+        ("sh000012", "国债指数", 0.48),
+        ("sh000013", "企债指数", 0.22),
+        ("sh511010", "国债ETF", 0.18),
+        ("sh511260", "十年国债ETF", 0.12),
+    ]
+    results = await asyncio.gather(
+        *(fetch_generic_index(code, name) for code, name, _weight in specs),
+        return_exceptions=True
+    )
+    weighted_items: list[tuple[Optional[IndexInfo], float]] = []
+    main: Optional[IndexInfo] = None
+    for (code, _name, weight), result in zip(specs, results):
+        item = result if isinstance(result, IndexInfo) else None
+        if code == "sh000012" and item and item.current > 0:
+            main = item
+        weighted_items.append((item, weight))
+
+    current, change = _weighted_average_quote(weighted_items)
+    if main is None:
+        main = next((item for item, _weight in weighted_items if item and item.current > 0), None)
+    if main is None:
+        return IndexInfo(code="bond_proxy", name="债券利率", current=0.0, previous=0.0, daily_change=0.0, history=[])
+
+    display_current = float(getattr(main, "current", 0.0) or 0.0)
+    display_change = change if change is not None else float(getattr(main, "daily_change", 0.0) or 0.0)
+    previous = display_current / (1 + display_change / 100) if display_current > 0 and display_change != -100 else float(getattr(main, "previous", 0.0) or 0.0)
+    return IndexInfo(
+        code="bond_proxy",
+        name="债券利率",
+        current=round(display_current, 2),
+        previous=round(previous, 2),
+        daily_change=round(display_change, 3),
+        history=[]
+    )
+
+
 async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_date: str):
     """统一的基金专用模型计算入口
     1. index_following: 实时指数 + 残差修正
@@ -5246,32 +5312,16 @@ def normalize_index_info_history(index_info: Optional[IndexInfo], limit: Optiona
 
 
 def home_index_visual_history(index_info: Optional[IndexInfo], limit: int = 12) -> List[IndexHistoryItem]:
-    """Synthetic history for the home Shanghai sparkline: emphasize daily change without changing displayed index value."""
+    """Stable history for the home Shanghai sparkline.
+
+    The previous synthetic version reshaped historical closes around the
+    current point. That made the sparkline visibly change on refresh even when
+    the displayed index value barely moved. Keep the real normalized closes and
+    let the frontend append today's live point when needed.
+    """
     if index_info is None:
         return []
-    rows = normalize_index_history(getattr(index_info, "history", None), limit=limit)
-    try:
-        current = float(getattr(index_info, "current", 0) or 0)
-    except Exception:
-        current = 0.0
-    if current <= 0 or len(rows) < 2:
-        return rows
-
-    scale = max(current * 0.012, 36.0)
-    result: List[IndexHistoryItem] = []
-    for i, row in enumerate(rows):
-        next_change = rows[i + 1].change if i + 1 < len(rows) else getattr(index_info, "daily_change", row.change)
-        try:
-            change = max(-1.6, min(1.6, float(next_change or 0.0)))
-        except Exception:
-            change = 0.0
-        # drawSpark appends current as the final point. This makes the last segment show today's rise/fall direction.
-        result.append(IndexHistoryItem(
-            date=row.date,
-            close=round(current - change * scale, 2),
-            change=round(float(row.change or 0.0), 2),
-        ))
-    return result
+    return normalize_index_history(getattr(index_info, "history", None), limit=limit)
 
 
 def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0) -> PortfolioResponse:
@@ -5388,8 +5438,8 @@ async def get_portfolio(force: int = 0, lite: int = 0):
     k50_task = fetch_generic_index("sh000688", "科创50")
     k50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000688", 190)
     hsi_task = fetch_generic_index("hkHSI", "恒生指数")
-    bond_index_task = fetch_generic_index("sh000012", "国债指数")
-    bond_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000113", 190)
+    bond_index_task = fetch_bond_market_proxy_index()
+    bond_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000012", 190)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
     hs300_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000300", 190)
     sz_index_task = fetch_generic_index("sz399001", "深证指数")
