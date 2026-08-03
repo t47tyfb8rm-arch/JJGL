@@ -910,6 +910,80 @@ def bond_curve_proxy_signal(bond_index: Optional["IndexInfo"]) -> dict:
     }
 
 
+def build_bond_range_estimate(
+    fund_code: str,
+    model_estimated_change: float,
+    bond_index: Optional["IndexInfo"],
+    curve_proxy: Optional[dict],
+    beta: float,
+    r_squared: float,
+) -> dict:
+    """Build a conservative display model for pure bond funds.
+
+    Bond fund daily moves are often only a few bps, so a single precise number
+    is misleading. The UI uses this range plus signal wording before NAV is
+    disclosed, while actual NAV still wins after disclosure.
+    """
+    if fund_code != "020741":
+        return {}
+
+    base = float(model_estimated_change or 0.0)
+    idx_change = float(getattr(bond_index, "daily_change", 0.0) or 0.0) if bond_index else 0.0
+    curve = curve_proxy or bond_curve_proxy_signal(bond_index)
+    curve_signal = float(curve.get("signal", 0.0) or 0.0)
+    momentum = float(curve.get("momentum", 0.0) or 0.0)
+    quality = str(curve.get("quality", "弱") or "弱")
+
+    # Keep the direction conservative: the fund's own recent NAV trend is the
+    # anchor, long-bond proxy only nudges the signal.
+    center = round(base * 0.76 + curve_signal * float(beta or 0.5) * 0.18 + idx_change * 0.06, 3)
+    center = max(-0.16, min(0.16, center))
+
+    spread = 0.025
+    if quality == "弱":
+        spread += 0.015
+    if r_squared < 0.25:
+        spread += 0.010
+    spread += min(0.025, abs(momentum) * 0.18)
+
+    low = round(max(-0.18, center - spread), 3)
+    high = round(min(0.18, center + spread), 3)
+    if low > high:
+        low, high = high, low
+
+    if center >= 0.035:
+        signal, tone = "偏暖", "good"
+    elif center <= -0.035:
+        signal, tone = "偏弱", "bad"
+    else:
+        signal, tone = "偏稳", "neutral"
+
+    if idx_change > 0.03:
+        reason = "国债指数偏强，利率债情绪较暖"
+    elif idx_change < -0.03:
+        reason = "国债指数回落，长债估值承压"
+    elif abs(base) >= 0.015:
+        reason = "自身净值趋势主导，国债指数小幅修正"
+    else:
+        reason = "票息收益为主，利率波动有限"
+
+    confidence = "中" if r_squared >= 0.3 and quality in ("中", "强") else "低"
+    return {
+        "type": "rate_bond",
+        "signal": signal,
+        "tone": tone,
+        "range_low": low,
+        "range_high": high,
+        "center": center,
+        "reason": reason,
+        "confidence": confidence,
+        "benchmark": "利率债/国债曲线",
+        "source": "自身净值趋势+国债曲线代理",
+        "beta": round(float(beta or 0.0), 3),
+        "r_squared": round(float(r_squared or 0.0), 3),
+    }
+
+
 async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_date: str):
     """统一的基金专用模型计算入口
     1. index_following: 实时指数 + 残差修正
@@ -1789,6 +1863,7 @@ class FundInfo(BaseModel):
     model_confidence: str = "none"
     model_sample_count: int = 0
     model_enabled: bool = False               # 样本 ≥ 3 时启用
+    bond_estimate: Dict[str, object] = {}      # 债基专属估算：方向、区间、原因、置信度
     # === 阶段性收益率（顶层汇总，从天天基金手机 API 抓取） ===
     return_7d: float = 0.0       # 近7日累计收益率（%）
     return_1m: float = 0.0       # 近1月累计收益率（%）
@@ -3557,9 +3632,11 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
 
         # 债券基金估算优化：基于历史相关性动态计算推算系数
         bond_analysis_extra = None
+        bond_display_estimate = {}
         if is_bond_fund:
             bond_beta = 0.5  # 默认系数
             bond_r_squared = 0.0  # 相关性强度
+            curve_proxy = None
 
             # 从缓存获取已计算的Beta系数
             beta_cache_key = f"bond_beta_{fund_code}"
@@ -3664,6 +3741,14 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 "r_squared": bond_r_squared,
                 "correlation_quality": "强相关" if bond_r_squared > 0.6 else ("中等相关" if bond_r_squared > 0.3 else "弱相关")
             }
+            bond_display_estimate = build_bond_range_estimate(
+                fund_code=fund_code,
+                model_estimated_change=model_estimated_change,
+                bond_index=bond_index,
+                curve_proxy=curve_proxy,
+                beta=bond_beta,
+                r_squared=bond_r_squared,
+            )
 
         # period_returns / history / holdings 已在上面一次性并行拉取（line ~2234）
 
@@ -3807,6 +3892,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             model_confidence=get_index_model_estimate(fund_code)["confidence"],
             model_sample_count=get_index_model_estimate(fund_code)["sample_count"],
             model_enabled=get_index_model_estimate(fund_code)["enabled"],
+            bond_estimate=bond_display_estimate,
             # 区间收益（从天天基金 API 抓取，无数据时兜底用 history 计算）
             return_7d=_r("Z"),
             return_1m=_r("Y"),
