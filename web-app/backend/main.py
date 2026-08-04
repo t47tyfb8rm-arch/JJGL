@@ -5002,17 +5002,23 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
-async def fetch_korea_quote(secid: str, name: str) -> Optional[IndexInfo]:
-    """Korea market quote via domestic Eastmoney endpoints only."""
+async def fetch_korea_quote(secid: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
+    """Korea market quote. Eastmoney first, delayed global fallback when domestic source is empty."""
     raw = (secid or "").strip()
-    if not raw:
-        return None
     candidates = []
     for value in (raw, raw.lower(), raw.upper()):
         if value and value not in candidates:
             candidates.append(value)
     for candidate in candidates:
         item = await fetch_eastmoney_global_index(candidate, name)
+        if item is not None:
+            return item
+    if yahoo_symbol:
+        item = await fetch_yahoo_index(yahoo_symbol, name)
+        if item is not None:
+            return item
+    if stooq_symbol:
+        item = await fetch_stooq_index(stooq_symbol, name)
         if item is not None:
             return item
     return None
@@ -5108,7 +5114,7 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     ]
     results = await asyncio.gather(
         *(
-            fetch_korea_quote(em_secid, name) if market == "kr"
+            fetch_korea_quote(em_secid, yahoo_symbol, stooq_symbol, name) if market == "kr"
             else fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name)
             for market, em_secid, yahoo_symbol, stooq_symbol, name in specs
         ),
