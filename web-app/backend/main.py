@@ -5152,11 +5152,8 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     us_rate_pressure = avg(rate_parts)
     korea_chip_stock = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
     korea_chip = korea_chip_stock if korea_chip_stock is not None else avg([x for x in [q("韩国KOSPI"), q("费城半导体")] if x is not None])
-    korea_market = q("韩国KOSPI")
-    korea_market_note = "韩国KOSPI"
-    if korea_market is None and korea_chip_stock is not None:
-        korea_market = korea_chip_stock
-        korea_market_note = "三星电子 / SK海力士参考"
+    korea_market = korea_chip_stock if korea_chip_stock is not None else q("韩国KOSPI")
+    korea_market_note = "三星电子 / SK海力士"
 
     cards = [
         ("美股大盘", us_market, "纳指100 / 道指"),
