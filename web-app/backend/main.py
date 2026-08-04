@@ -5003,7 +5003,7 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
 
 
 async def fetch_korea_quote(secid: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
-    """Korea market quote. Eastmoney first, delayed global fallback when domestic source is empty."""
+    """Korea market quote via domestic Eastmoney sources only."""
     raw = (secid or "").strip()
     candidates = []
     for value in (raw, raw.lower(), raw.upper()):
@@ -5011,14 +5011,6 @@ async def fetch_korea_quote(secid: str, yahoo_symbol: str, stooq_symbol: str, na
             candidates.append(value)
     for candidate in candidates:
         item = await fetch_eastmoney_global_index(candidate, name)
-        if item is not None:
-            return item
-    if yahoo_symbol:
-        item = await fetch_yahoo_index(yahoo_symbol, name)
-        if item is not None:
-            return item
-    if stooq_symbol:
-        item = await fetch_stooq_index(stooq_symbol, name)
         if item is not None:
             return item
     return None
