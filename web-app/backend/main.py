@@ -604,6 +604,19 @@ FUND_SPECIFIC_MODELS = {
     }
 }
 
+# 债券基金结构化估算配置。持仓披露有滞后，先用偏保守的资产结构代理。
+BOND_FUND_HOLDING_PROFILES = {
+    "020741": {
+        "name": "华泰保兴安悦债券C",
+        "rate_bond_weight": 0.60,
+        "credit_bond_weight": 0.28,
+        "convertible_weight": 0.07,
+        "equity_weight": 0.03,
+        "cash_weight": 0.02,
+        "description": "利率债/信用债为主，少量转债与权益风险暴露"
+    }
+}
+
 # 实时指数缓存 {code: (timestamp, data)}，60 秒复用
 REALTIME_INDEX_CACHE = {}
 REALTIME_INDEX_TTL = 60  # 秒
@@ -917,6 +930,7 @@ def build_bond_range_estimate(
     curve_proxy: Optional[dict],
     beta: float,
     r_squared: float,
+    structured: Optional[dict] = None,
 ) -> dict:
     """Build a conservative display model for pure bond funds.
 
@@ -935,8 +949,12 @@ def build_bond_range_estimate(
     quality = str(curve.get("quality", "弱") or "弱")
 
     # Keep the direction conservative: the fund's own recent NAV trend is the
-    # anchor, long-bond proxy only nudges the signal.
-    center = round(base * 0.76 + curve_signal * float(beta or 0.5) * 0.18 + idx_change * 0.06, 3)
+    # anchor; when a holding-structure proxy exists, use it as the intraday
+    # direction instead of a single bond index.
+    if structured and structured.get("center") is not None:
+        center = float(structured.get("center") or 0.0)
+    else:
+        center = round(base * 0.76 + curve_signal * float(beta or 0.5) * 0.18 + idx_change * 0.06, 3)
     center = max(-0.16, min(0.16, center))
 
     spread = 0.025
@@ -958,7 +976,9 @@ def build_bond_range_estimate(
     else:
         signal, tone = "偏稳", "neutral"
 
-    if idx_change > 0.03:
+    if structured and structured.get("reason"):
+        reason = str(structured.get("reason"))
+    elif idx_change > 0.03:
         reason = "国债指数偏强，利率债情绪较暖"
     elif idx_change < -0.03:
         reason = "国债指数回落，长债估值承压"
@@ -968,6 +988,8 @@ def build_bond_range_estimate(
         reason = "票息收益为主，利率波动有限"
 
     confidence = "中" if r_squared >= 0.3 and quality in ("中", "强") else "低"
+    if structured and structured.get("confidence"):
+        confidence = str(structured.get("confidence"))
     return {
         "type": "rate_bond",
         "signal": signal,
@@ -977,10 +999,11 @@ def build_bond_range_estimate(
         "center": center,
         "reason": reason,
         "confidence": confidence,
-        "benchmark": "利率债/国债曲线",
-        "source": "自身净值趋势+国债曲线代理",
+        "benchmark": structured.get("benchmark", "利率债/国债曲线") if structured else "利率债/国债曲线",
+        "source": structured.get("source", "自身净值趋势+国债曲线代理") if structured else "自身净值趋势+国债曲线代理",
         "beta": round(float(beta or 0.0), 3),
         "r_squared": round(float(r_squared or 0.0), 3),
+        "factors": structured.get("factors", []) if structured else [],
     }
 
 
@@ -1004,6 +1027,79 @@ def _weighted_average_quote(items: list[tuple[Optional["IndexInfo"], float]]) ->
     if total_weight <= 0:
         return None, None
     return round(weighted_current / total_weight, 2), round(weighted_change / total_weight, 3)
+
+
+async def build_bond_holding_structured_estimate(
+    fund_code: str,
+    baseline_signal: float,
+    bond_index: Optional["IndexInfo"],
+    hs300_index: Optional["IndexInfo"],
+    curve_proxy: Optional[dict],
+) -> dict:
+    """Estimate a bond fund by its conservative asset structure.
+
+    Fund holdings are disclosed with delay, so this uses a configurable
+    allocation profile and domestic proxy indices instead of pretending to know
+    exact intraday holdings.
+    """
+    profile = BOND_FUND_HOLDING_PROFILES.get(str(fund_code))
+    if not profile:
+        return {}
+
+    credit_task = fetch_generic_index("sh000013", "企债指数")
+    convertible_task = fetch_generic_index("sh000832", "中证转债")
+    credit_index, convertible_index = await asyncio.gather(credit_task, convertible_task)
+
+    def change(item) -> Optional[float]:
+        if item and float(getattr(item, "current", 0.0) or 0.0) > 0:
+            return float(getattr(item, "daily_change", 0.0) or 0.0)
+        return None
+
+    curve_signal = float((curve_proxy or {}).get("signal", 0.0) or 0.0)
+    rate_change = change(bond_index)
+    credit_change = change(credit_index)
+    convertible_change = change(convertible_index)
+    equity_change = change(hs300_index)
+
+    factors = [
+        ("利率债", rate_change if rate_change is not None else curve_signal, float(profile.get("rate_bond_weight", 0.0) or 0.0)),
+        ("信用债", credit_change, float(profile.get("credit_bond_weight", 0.0) or 0.0)),
+        ("转债", convertible_change, float(profile.get("convertible_weight", 0.0) or 0.0)),
+        ("权益", equity_change, float(profile.get("equity_weight", 0.0) or 0.0)),
+        ("现金", 0.0, float(profile.get("cash_weight", 0.0) or 0.0)),
+    ]
+    usable = [(name, val, weight) for name, val, weight in factors if val is not None and weight > 0]
+    total_weight = sum(weight for _name, _val, weight in usable)
+    if total_weight <= 0:
+        return {}
+
+    structure_signal = sum(val * weight for _name, val, weight in usable) / total_weight
+    center = round(float(baseline_signal or 0.0) * 0.52 + structure_signal * 0.48, 3)
+    center = max(-0.18, min(0.18, center))
+
+    factor_payload = [
+        {"name": name, "change": round(float(val), 3), "weight": round(float(weight), 3)}
+        for name, val, weight in usable
+    ]
+    strongest = max(usable, key=lambda x: abs(x[1] * x[2]))
+    if center >= 0.035:
+        signal = "偏暖"
+    elif center <= -0.035:
+        signal = "偏弱"
+    else:
+        signal = "偏稳"
+    reason = f"{strongest[0]}因子{strongest[1]:+.2f}%，按持仓结构估算"
+    confidence = "中" if len(usable) >= 3 else "低"
+    return {
+        "center": center,
+        "signal": signal,
+        "reason": reason,
+        "confidence": confidence,
+        "benchmark": "债基持仓结构代理",
+        "source": "自身趋势+持仓结构代理",
+        "factors": factor_payload,
+        "structure_signal": round(structure_signal, 3),
+    }
 
 
 async def fetch_bond_market_proxy_index() -> "IndexInfo":
@@ -3703,6 +3799,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             bond_beta = 0.5  # 默认系数
             bond_r_squared = 0.0  # 相关性强度
             curve_proxy = None
+            structured_bond_estimate = {}
 
             # 从缓存获取已计算的Beta系数
             beta_cache_key = f"bond_beta_{fund_code}"
@@ -3771,7 +3868,17 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 if curve_proxy.get("quality") == "弱":
                     bond_weight = min(bond_weight, 0.08)
                 hybrid_change = round(baseline_signal * (1 - bond_weight) + bond_signal * bond_weight, 3)
-                if abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
+                structured_bond_estimate = await build_bond_holding_structured_estimate(
+                    fund_code=fund_code,
+                    baseline_signal=baseline_signal,
+                    bond_index=bond_index,
+                    hs300_index=hs300_index,
+                    curve_proxy=curve_proxy,
+                )
+                has_structured_center = structured_bond_estimate.get("center") is not None
+                if has_structured_center:
+                    hybrid_change = float(structured_bond_estimate.get("center") or hybrid_change)
+                if not has_structured_center and abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
                     hybrid_change = round(bond_signal * bond_weight, 3)
                 hybrid_change = max(-0.18, min(0.18, hybrid_change))
                 # 如果估算净值有数据但涨跌为0，用混合估算补齐
@@ -3782,7 +3889,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                         est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
@@ -3792,14 +3899,14 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                     est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 elif abs(float(est_change or 0.0)) >= 0.005:
                     # 天天基金给出有效非零估值时，展示仍优先用它；模型字段保留混合估算作对照。
                     model_estimated_change = hybrid_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
 
             # 将Beta系数传递给AI预判（用于置信度判断）
             bond_analysis_extra = {
@@ -3814,6 +3921,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 curve_proxy=curve_proxy,
                 beta=bond_beta,
                 r_squared=bond_r_squared,
+                structured=structured_bond_estimate,
             )
 
         # period_returns / history / holdings 已在上面一次性并行拉取（line ~2234）
