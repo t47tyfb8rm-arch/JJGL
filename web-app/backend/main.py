@@ -160,6 +160,7 @@ def should_fetch_estimation() -> bool:
 
 # 获取当前目录（backend）
 current_dir = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = current_dir
 DB_PATH = os.path.join(current_dir, "fund_manager.db")
 
 
@@ -2238,6 +2239,15 @@ BACKGROUND_PORTFOLIO_STATUS = {
     "last_duration_seconds": None,
     "next_interval_seconds": None,
 }
+DEEPSEEK_AUTO_INTERVAL_SECONDS = 600
+DEEPSEEK_AUTO_STATUS = {
+    "last_started_at": "",
+    "last_finished_at": "",
+    "last_error": "",
+    "last_duration_seconds": None,
+    "next_interval_seconds": DEEPSEEK_AUTO_INTERVAL_SECONDS,
+    "enhanced_count": 0,
+}
 
 
 def portfolio_snapshot_max_age_seconds() -> int:
@@ -3149,6 +3159,21 @@ def generate_ai_prediction_simple(fund_type: str, fund_name: str, daily_change: 
 
     # === 指数型 ===
     if is_index:
+        if fund.code == "011609":
+            return AIPrediction(
+                trend="科创联动", trend_emoji="📈",
+                advice="科创50受科技成长情绪影响，盘中重点看半导体/AI、科创50指数和上方压力位",
+                confidence="中性",
+                est_nav=est_nav, est_change=est_change, est_time="",
+                est_vs_last=0.0, today_verdict=today_verdict,
+                valuation_position=valuation_position,
+                cost_performance=cost_performance,
+                key_levels=key_levels,
+                risk_level=risk_level,
+                return_7d=return_7d,
+                return_1m=return_1m,
+                return_6m=return_6m
+            )
         if today_change > 1.5:
             return AIPrediction(
                 trend="强势上涨", trend_emoji="🚀",
@@ -4723,6 +4748,117 @@ async def enhance_funds_with_deepseek(
                 continue
         return default
 
+    def _fund_strategy_profile(f: FundInfo) -> Dict[str, Any]:
+        code = str(f.code)
+        name = str(f.name or "")
+        fund_type = str(f.type or "")
+        if code == "011609" or "科创" in name:
+            return {
+                "style": "科创成长指数",
+                "drivers": ["科创50", "半导体", "AI科技", "成长风格", "风险偏好"],
+                "focus": "看半导体/AI情绪、科创50趋势修复和成交量确认",
+            }
+        if code == "004746" or "上证50" in name:
+            return {
+                "style": "大盘蓝筹指数",
+                "drivers": ["上证50", "沪深300", "金融权重", "消费权重", "大盘风格"],
+                "focus": "看权重板块强弱、金融消费修复和指数支撑位",
+            }
+        if code == "020741" or "债" in name or "债" in fund_type:
+            return {
+                "style": "利率债/债券基金",
+                "drivers": ["国债指数", "利率方向", "资金面", "票息收益", "债市波动"],
+                "focus": "看利率变化、票息贡献和净值波动是否放大",
+            }
+        return {
+            "style": fund_type or "主动/主题基金",
+            "drivers": ["市场风格", "主题行情", "净值趋势", "买点距离"],
+            "focus": "看主题持续性、净值趋势和买点位置",
+        }
+
+    def _fund_signal_pack(f: FundInfo) -> Dict[str, Any]:
+        est_change = _first_number(
+            f.corrected_estimated_change,
+            f.model_estimated_change,
+            f.estimated_change,
+            f.ai_prediction.est_change if f.ai_prediction else None,
+        )
+        bp = f.buy_point
+        is_holding = bool(bp and bp.is_holding)
+        progress = float(bp.progress_pct if bp else 0)
+        hold_yield = float(bp.yield_pct if bp else 0)
+        if is_holding:
+            buy_signal = "持仓中，买点不作为新增判断"
+            action_candidate = "持有观察" if est_change > -1 else "控制补仓节奏"
+        elif progress >= 80:
+            buy_signal = "接近买点"
+            action_candidate = "分批观察买入"
+        elif progress >= 45:
+            buy_signal = "距离买点中等"
+            action_candidate = "等待确认"
+        else:
+            buy_signal = "未接近买点"
+            action_candidate = "暂不追入"
+
+        r7 = _first_number(f.return_7d, default=0)
+        r1 = _first_number(f.return_1m, default=0)
+        r6 = _first_number(f.return_6m, default=0)
+        if r7 > 2 and r1 > 0:
+            trend_signal = "短线偏强"
+        elif r7 < -2 and r1 < 0:
+            trend_signal = "短线承压"
+        elif abs(r7) < 1 and abs(r1) < 2:
+            trend_signal = "震荡整理"
+        elif r7 > 0:
+            trend_signal = "短线修复"
+        else:
+            trend_signal = "短线偏弱"
+
+        if est_change <= -1.5:
+            today_signal = "盘中明显承压"
+        elif est_change <= -0.4:
+            today_signal = "盘中偏弱"
+        elif est_change >= 1.5:
+            today_signal = "盘中明显走强"
+        elif est_change >= 0.4:
+            today_signal = "盘中偏强"
+        else:
+            today_signal = "盘中震荡"
+
+        return {
+            "estimated_change": est_change,
+            "daily_change": f.daily_change,
+            "return_7d": r7,
+            "return_1m": r1,
+            "return_6m": r6,
+            "trend_signal": trend_signal,
+            "today_signal": today_signal,
+            "buy_signal": buy_signal,
+            "action_candidate": action_candidate,
+            "is_holding": is_holding,
+            "holding_yield_pct": hold_yield,
+            "buy_progress_pct": progress,
+        }
+
+    fund_payload = []
+    for f in funds:
+        profile = _fund_strategy_profile(f)
+        signals = _fund_signal_pack(f)
+        fund_payload.append({
+            "code": f.code,
+            "name": f.name,
+            "type": f.type,
+            "nav_date": f.nav_date,
+            "profile": profile,
+            "signals": signals,
+            "local_ai": {
+                "trend": f.ai_prediction.trend if f.ai_prediction else "",
+                "advice": f.ai_prediction.advice if f.ai_prediction else "",
+                "risk_level": f.ai_prediction.risk_level if f.ai_prediction else "",
+                "key_levels": f.ai_prediction.key_levels if f.ai_prediction else "",
+            },
+        })
+
     payload = {
         "market": {
             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -4739,44 +4875,19 @@ async def enhance_funds_with_deepseek(
             }
             for n in (news or [])[:12]
         ],
-        "funds": [
-            {
-                "code": f.code,
-                "name": f.name,
-                "type": f.type,
-                "nav_date": f.nav_date,
-                "daily_change": f.daily_change,
-                "estimated_change": _first_number(
-                    f.corrected_estimated_change,
-                    f.model_estimated_change,
-                    f.estimated_change,
-                    f.ai_prediction.est_change if f.ai_prediction else None,
-                ),
-                "return_7d": f.return_7d,
-                "return_1m": f.return_1m,
-                "return_6m": f.return_6m,
-                "buy_point": {
-                    "is_holding": bool(f.buy_point and f.buy_point.is_holding),
-                    "yield_pct": f.buy_point.yield_pct if f.buy_point else 0,
-                    "drop_pct": f.buy_point.drop_pct if f.buy_point else 0,
-                    "progress_pct": f.buy_point.progress_pct if f.buy_point else 0,
-                },
-                "local_ai": {
-                    "trend": f.ai_prediction.trend if f.ai_prediction else "",
-                    "advice": f.ai_prediction.advice if f.ai_prediction else "",
-                    "risk_level": f.ai_prediction.risk_level if f.ai_prediction else "",
-                    "key_levels": f.ai_prediction.key_levels if f.ai_prediction else "",
-                },
-            }
-            for f in funds
-        ],
+        "funds": fund_payload,
     }
     prompt = (
-        "你是基金组合策略分析助手。请基于给定JSON生成更有用的中文策略分析。"
-        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句话核心结论，必须和本地规则不同，不超过42字\","
-        "\"market_env\":\"市场/新闻影响，不超过60字\", \"position_advice\":\"当前动作建议，只能是观察/持有/等待买点/谨慎补仓/止盈观察之一，并补一句理由\", "
-        "\"risk_tips\":\"最主要风险，不超过50字\", \"risk_level\":\"低/中/高\", \"trend\":\"趋势标签，不超过6字\"}}}。"
-        "必须结合预估收益、买点距离、持仓状态、未来一周重要事件。不要给金额建议，不要夸大确定性。"
+        "你是基金组合投研助理，只负责把结构化信号改写成专业、克制、可执行的中文策略摘要。"
+        "不要重新计算收益，不要编造数据，不要复述全部数字，不要出现互相矛盾的判断。"
+        "每只基金必须按 profile.style 和 profile.drivers 分析：科创成长看半导体/AI和成长风格；"
+        "上证50看权重蓝筹、金融消费和大盘风格；债券基金看利率、资金面、票息和波动。"
+        "advice 必须是一句话，38到70个汉字，格式为：市场/基金状态 + 动作建议 + 主要风险或确认条件。"
+        "position_advice 只写一个动作短语加简短理由，动作只能从：持有观察、等待买点、分批观察、谨慎补仓、止盈观察、中性配置 中选择。"
+        "trend 是2到6个字的专业标签；risk_level 只能为低/中/高。"
+        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句专业结论\","
+        "\"market_env\":\"核心市场依据，不超过70字\", \"position_advice\":\"动作+理由，不超过45字\", "
+        "\"risk_tips\":\"主要风险或确认条件，不超过55字\", \"risk_level\":\"低/中/高\", \"trend\":\"趋势标签\"}}}。"
     )
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
@@ -4831,7 +4942,10 @@ async def enhance_funds_with_deepseek(
             f.ai_prediction.risk_level,
             f.ai_prediction.trend,
         )
-        f.ai_prediction.advice = str(item.get("advice") or f.ai_prediction.advice)[:120]
+        advice = re.sub(r"\s+", " ", str(item.get("advice") or f.ai_prediction.advice)).strip()
+        if len(advice) < 18:
+            advice = f.ai_prediction.advice
+        f.ai_prediction.advice = advice[:120]
         f.ai_prediction.market_env = str(item.get("market_env") or f.ai_prediction.market_env)[:240]
         f.ai_prediction.position_advice = str(item.get("position_advice") or f.ai_prediction.position_advice)[:240]
         f.ai_prediction.risk_tips = str(item.get("risk_tips") or f.ai_prediction.risk_tips)[:240]
@@ -4854,6 +4968,69 @@ async def enhance_funds_with_deepseek(
     if strict and changed_count == 0:
         raise HTTPException(status_code=502, detail="DeepSeek 已返回，但没有产生可展示的新分析")
     return funds
+
+
+async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None) -> None:
+    """后台定时增强 AI 建议：前端只读缓存，不直接触发 DeepSeek。"""
+    if not get_deepseek_api_key():
+        DEEPSEEK_AUTO_STATUS["last_error"] = "未配置 DEEPSEEK_API_KEY"
+        return
+    now_ts = time.time()
+    last_done = float(DEEPSEEK_AUTO_STATUS.get("last_done_ts") or 0.0)
+    remain = DEEPSEEK_AUTO_INTERVAL_SECONDS - (now_ts - last_done)
+    if remain > 0:
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = round(remain, 1)
+        return
+    target = response or PORTFOLIO_CACHE.get("data")
+    if target is None or not getattr(target, "funds", None):
+        DEEPSEEK_AUTO_STATUS["last_error"] = "暂无完整组合缓存"
+        return
+    started = time.time()
+    DEEPSEEK_AUTO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    DEEPSEEK_AUTO_STATUS["last_error"] = ""
+    try:
+        before = {
+            f.code: (
+                f.ai_prediction.advice if f.ai_prediction else "",
+                f.ai_prediction.position_advice if f.ai_prediction else "",
+                f.ai_prediction.market_env if f.ai_prediction else "",
+                f.ai_prediction.trend if f.ai_prediction else "",
+            )
+            for f in target.funds
+        }
+        target.funds = await enhance_funds_with_deepseek(
+            target.funds,
+            target.index,
+            target.bond_index,
+            target.news,
+            strict=False,
+        )
+        enhanced = 0
+        for f in target.funds:
+            if not f.ai_prediction:
+                continue
+            after = (
+                f.ai_prediction.advice,
+                f.ai_prediction.position_advice,
+                f.ai_prediction.market_env,
+                f.ai_prediction.trend,
+            )
+            if str(f.ai_prediction.confidence).lower().find("deepseek") >= 0 or after != before.get(f.code):
+                enhanced += 1
+        PORTFOLIO_CACHE["data"] = target
+        PORTFOLIO_CACHE["saved_at"] = time.time()
+        save_portfolio_to_db(target)
+        DEEPSEEK_AUTO_STATUS["last_done_ts"] = time.time()
+        DEEPSEEK_AUTO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
+        DEEPSEEK_AUTO_STATUS["enhanced_count"] = enhanced
+        print(f"[DeepSeek自动] 已增强 {enhanced} 只基金 {datetime.now().strftime('%H:%M:%S')}")
+    except Exception as e:
+        DEEPSEEK_AUTO_STATUS["last_error"] = str(e)
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+        print(f"[DeepSeek自动] 失败: {e}")
 
 
 def _parse_tencent_kline(text: str, stock_code: str = "sh000001") -> List[tuple]:
@@ -5735,7 +5912,8 @@ async def background_portfolio_refresher():
                 BACKGROUND_PORTFOLIO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 BACKGROUND_PORTFOLIO_STATUS["last_error"] = ""
                 try:
-                    await get_portfolio(force=1, lite=0)
+                    response = await get_portfolio(force=1, lite=0)
+                    await _run_deepseek_auto_if_due(response)
                     BACKGROUND_PORTFOLIO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     BACKGROUND_PORTFOLIO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
                     print(f"[后台刷新] 全量数据已更新 {datetime.now().strftime('%H:%M:%S')}")
@@ -5820,6 +5998,7 @@ async def get_refresh_status():
         "news_age_seconds": round(now_ts - float(NEWS_CACHE.get("saved_at") or 0.0), 1) if NEWS_CACHE.get("saved_at") else None,
         "external_market_age_seconds": round(now_ts - float(EXTERNAL_MARKET_CACHE.get("saved_at") or 0.0), 1) if EXTERNAL_MARKET_CACHE.get("saved_at") else None,
         "background": BACKGROUND_PORTFOLIO_STATUS,
+        "deepseek_auto": DEEPSEEK_AUTO_STATUS,
     }
 
 
