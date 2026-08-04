@@ -5002,6 +5002,22 @@ async def fetch_stooq_index(symbol: str, name: str) -> Optional[IndexInfo]:
         return None
 
 
+async def fetch_korea_quote(secid: str, name: str) -> Optional[IndexInfo]:
+    """Korea market quote via domestic Eastmoney endpoints only."""
+    raw = (secid or "").strip()
+    if not raw:
+        return None
+    candidates = []
+    for value in (raw, raw.lower(), raw.upper()):
+        if value and value not in candidates:
+            candidates.append(value)
+    for candidate in candidates:
+        item = await fetch_eastmoney_global_index(candidate, name)
+        if item is not None:
+            return item
+    return None
+
+
 async def fetch_external_index(em_secid: str, yahoo_symbol: str, stooq_symbol: str, name: str) -> Optional[IndexInfo]:
     """Domestic sources only: Eastmoney exact secid first, Sina US quote second."""
     item = await fetch_eastmoney_global_index(em_secid, name)
@@ -5029,73 +5045,77 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     # us-stock-groups-cn-source-20260730: external market cards use domestic-accessible
     # quotes for US stock groups only; Korea cards keep the existing shape.
     specs = [
-        ("100.NDX", "^NDX", "^ndx", "纳指100"),
-        ("100.DJIA", "^DJI", "^dji", "道琼斯"),
-        ("251.SOX", "^SOX", "^sox", "费城半导体"),
-        ("100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
-        ("177.005930", "005930.KS", "005930.kr", "三星电子"),
-        ("177.000660", "000660.KS", "000660.kr", "SK海力士"),
-        ("105.NVDA", "NVDA", "nvda.us", "英伟达"),
-        ("105.AMD", "AMD", "amd.us", "AMD"),
-        ("105.AVGO", "AVGO", "avgo.us", "博通"),
-        ("105.MSFT", "MSFT", "msft.us", "微软"),
-        ("105.AAPL", "AAPL", "aapl.us", "苹果"),
-        ("105.GOOGL", "GOOGL", "googl.us", "谷歌"),
-        ("105.AMZN", "AMZN", "amzn.us", "亚马逊"),
-        ("105.META", "META", "meta.us", "Meta"),
-        ("105.TSLA", "TSLA", "tsla.us", "特斯拉"),
-        ("105.TSM", "TSM", "tsm.us", "台积电"),
-        ("105.ASML", "ASML", "asml.us", "阿斯麦"),
-        ("105.AMAT", "AMAT", "amat.us", "应用材料"),
-        ("105.ORCL", "ORCL", "orcl.us", "甲骨文"),
-        ("105.CRM", "CRM", "crm.us", "赛富时"),
-        ("105.ADBE", "ADBE", "adbe.us", "Adobe"),
-        ("105.NOW", "NOW", "now.us", "ServiceNow"),
-        ("105.MU", "MU", "mu.us", "美光"),
-        ("105.WDC", "WDC", "wdc.us", "西部数据"),
-        ("105.SMCI", "SMCI", "smci.us", "超微电脑"),
-        ("105.DELL", "DELL", "dell.us", "戴尔"),
-        ("105.COHR", "COHR", "cohr.us", "Coherent"),
-        ("105.LITE", "LITE", "lite.us", "Lumentum"),
-        ("105.ON", "ON", "on.us", "安森美"),
-        ("105.TLT", "TLT", "tlt.us", "美债ETF"),
-        ("105.UUP", "UUP", "uup.us", "美元指数ETF"),
-        ("105.KO", "KO", "ko.us", "可口可乐"),
-        ("105.PG", "PG", "pg.us", "宝洁"),
-        ("105.WMT", "WMT", "wmt.us", "沃尔玛"),
-        ("105.MCD", "MCD", "mcd.us", "麦当劳"),
-        ("105.COST", "COST", "cost.us", "Costco"),
-        ("105.JPM", "JPM", "jpm.us", "摩根大通"),
-        ("105.BAC", "BAC", "bac.us", "美国银行"),
-        ("105.GS", "GS", "gs.us", "高盛"),
-        ("105.BRK.B", "BRK.B", "brkb.us", "伯克希尔"),
-        ("105.BLK", "BLK", "blk.us", "黑石"),
-        ("105.XOM", "XOM", "xom.us", "埃克森美孚"),
-        ("105.CVX", "CVX", "cvx.us", "雪佛龙"),
-        ("105.COP", "COP", "cop.us", "康菲石油"),
-        ("105.SLB", "SLB", "slb.us", "斯伦贝谢"),
-        ("105.JNJ", "JNJ", "jnj.us", "强生"),
-        ("105.LLY", "LLY", "lly.us", "礼来"),
-        ("105.UNH", "UNH", "unh.us", "联合健康"),
-        ("105.MRK", "MRK", "mrk.us", "默沙东"),
-        ("105.PFE", "PFE", "pfe.us", "辉瑞"),
-        ("105.CAT", "CAT", "cat.us", "卡特彼勒"),
-        ("105.GE", "GE", "ge.us", "通用电气"),
-        ("105.BA", "BA", "ba.us", "波音"),
-        ("105.HON", "HON", "hon.us", "霍尼韦尔"),
-        ("105.LMT", "LMT", "lmt.us", "洛克希德马丁"),
-        ("105.VZ", "VZ", "vz.us", "Verizon"),
-        ("105.T", "T", "t.us", "AT&T"),
-        ("105.NEE", "NEE", "nee.us", "NextEra"),
-        ("105.DUK", "DUK", "duk.us", "杜克能源"),
-        ("105.O", "O", "o.us", "Realty Income"),
+        ("us", "100.NDX", "^NDX", "^ndx", "纳指100"),
+        ("us", "100.DJIA", "^DJI", "^dji", "道琼斯"),
+        ("us", "251.SOX", "^SOX", "^sox", "费城半导体"),
+        ("kr", "100.KS11", "^KS11", "^ks11", "韩国KOSPI"),
+        ("kr", "177.005930", "005930.KS", "005930.kr", "三星电子"),
+        ("kr", "177.000660", "000660.KS", "000660.kr", "SK海力士"),
+        ("us", "105.NVDA", "NVDA", "nvda.us", "英伟达"),
+        ("us", "105.AMD", "AMD", "amd.us", "AMD"),
+        ("us", "105.AVGO", "AVGO", "avgo.us", "博通"),
+        ("us", "105.MSFT", "MSFT", "msft.us", "微软"),
+        ("us", "105.AAPL", "AAPL", "aapl.us", "苹果"),
+        ("us", "105.GOOGL", "GOOGL", "googl.us", "谷歌"),
+        ("us", "105.AMZN", "AMZN", "amzn.us", "亚马逊"),
+        ("us", "105.META", "META", "meta.us", "Meta"),
+        ("us", "105.TSLA", "TSLA", "tsla.us", "特斯拉"),
+        ("us", "105.TSM", "TSM", "tsm.us", "台积电"),
+        ("us", "105.ASML", "ASML", "asml.us", "阿斯麦"),
+        ("us", "105.AMAT", "AMAT", "amat.us", "应用材料"),
+        ("us", "105.ORCL", "ORCL", "orcl.us", "甲骨文"),
+        ("us", "105.CRM", "CRM", "crm.us", "赛富时"),
+        ("us", "105.ADBE", "ADBE", "adbe.us", "Adobe"),
+        ("us", "105.NOW", "NOW", "now.us", "ServiceNow"),
+        ("us", "105.MU", "MU", "mu.us", "美光"),
+        ("us", "105.WDC", "WDC", "wdc.us", "西部数据"),
+        ("us", "105.SMCI", "SMCI", "smci.us", "超微电脑"),
+        ("us", "105.DELL", "DELL", "dell.us", "戴尔"),
+        ("us", "105.COHR", "COHR", "cohr.us", "Coherent"),
+        ("us", "105.LITE", "LITE", "lite.us", "Lumentum"),
+        ("us", "105.ON", "ON", "on.us", "安森美"),
+        ("us", "105.TLT", "TLT", "tlt.us", "美债ETF"),
+        ("us", "105.UUP", "UUP", "uup.us", "美元指数ETF"),
+        ("us", "105.KO", "KO", "ko.us", "可口可乐"),
+        ("us", "105.PG", "PG", "pg.us", "宝洁"),
+        ("us", "105.WMT", "WMT", "wmt.us", "沃尔玛"),
+        ("us", "105.MCD", "MCD", "mcd.us", "麦当劳"),
+        ("us", "105.COST", "COST", "cost.us", "Costco"),
+        ("us", "105.JPM", "JPM", "jpm.us", "摩根大通"),
+        ("us", "105.BAC", "BAC", "bac.us", "美国银行"),
+        ("us", "105.GS", "GS", "gs.us", "高盛"),
+        ("us", "105.BRK.B", "BRK.B", "brkb.us", "伯克希尔"),
+        ("us", "105.BLK", "BLK", "blk.us", "黑石"),
+        ("us", "105.XOM", "XOM", "xom.us", "埃克森美孚"),
+        ("us", "105.CVX", "CVX", "cvx.us", "雪佛龙"),
+        ("us", "105.COP", "COP", "cop.us", "康菲石油"),
+        ("us", "105.SLB", "SLB", "slb.us", "斯伦贝谢"),
+        ("us", "105.JNJ", "JNJ", "jnj.us", "强生"),
+        ("us", "105.LLY", "LLY", "lly.us", "礼来"),
+        ("us", "105.UNH", "UNH", "unh.us", "联合健康"),
+        ("us", "105.MRK", "MRK", "mrk.us", "默沙东"),
+        ("us", "105.PFE", "PFE", "pfe.us", "辉瑞"),
+        ("us", "105.CAT", "CAT", "cat.us", "卡特彼勒"),
+        ("us", "105.GE", "GE", "ge.us", "通用电气"),
+        ("us", "105.BA", "BA", "ba.us", "波音"),
+        ("us", "105.HON", "HON", "hon.us", "霍尼韦尔"),
+        ("us", "105.LMT", "LMT", "lmt.us", "洛克希德马丁"),
+        ("us", "105.VZ", "VZ", "vz.us", "Verizon"),
+        ("us", "105.T", "T", "t.us", "AT&T"),
+        ("us", "105.NEE", "NEE", "nee.us", "NextEra"),
+        ("us", "105.DUK", "DUK", "duk.us", "杜克能源"),
+        ("us", "105.O", "O", "o.us", "Realty Income"),
     ]
     results = await asyncio.gather(
-        *(fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name) for em_secid, yahoo_symbol, stooq_symbol, name in specs),
+        *(
+            fetch_korea_quote(em_secid, name) if market == "kr"
+            else fetch_external_index(em_secid, yahoo_symbol, stooq_symbol, name)
+            for market, em_secid, yahoo_symbol, stooq_symbol, name in specs
+        ),
         return_exceptions=True
     )
     quotes: Dict[str, IndexInfo] = {}
-    for (_em_secid, _yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
+    for (_market, _em_secid, _yahoo_symbol, _stooq_symbol, name), result in zip(specs, results):
         if isinstance(result, IndexInfo):
             quotes[name] = result
         elif isinstance(result, Exception):
@@ -5134,6 +5154,11 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     us_rate_pressure = avg(rate_parts)
     korea_chip_stock = avg([x for x in [q("三星电子"), q("SK海力士")] if x is not None])
     korea_chip = korea_chip_stock if korea_chip_stock is not None else avg([x for x in [q("韩国KOSPI"), q("费城半导体")] if x is not None])
+    korea_market = q("韩国KOSPI")
+    korea_market_note = "韩国KOSPI"
+    if korea_market is None and korea_chip_stock is not None:
+        korea_market = korea_chip_stock
+        korea_market_note = "三星电子 / SK海力士参考"
 
     cards = [
         ("美股大盘", us_market, "纳指100 / 道指"),
@@ -5146,7 +5171,7 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("光通信链", us_optical, "Coherent / Lumentum"),
         ("电动车链", us_ev_chain, "特斯拉 / 安森美"),
         ("利率压力", us_rate_pressure, "美债 / 美元"),
-        ("韩国股市", q("韩国KOSPI"), "韩国KOSPI"),
+        ("韩国股市", korea_market, korea_market_note),
         ("韩国半导体", korea_chip, "三星电子 / SK海力士"),
     ]
     return [
