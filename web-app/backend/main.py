@@ -5767,11 +5767,23 @@ def fix_fund_daily_change_from_latest_history(funds: List[FundInfo]) -> None:
             continue
         fund.current_nav = round(latest_nav, 4)
         fund.previous_nav = round(prev_nav, 4)
-        history_change = getattr(latest, "change", None)
-        if history_change is not None:
-            fund.daily_change = round(float(history_change or 0.0), 3)
-        else:
-            fund.daily_change = round((latest_nav - prev_nav) / prev_nav * 100, 3)
+        fund.daily_change = round((latest_nav - prev_nav) / prev_nav * 100, 3)
+
+        buy_point = getattr(fund, "buy_point", None)
+        if buy_point:
+            buy_point.current_nav = round(latest_nav, 4)
+            cost_nav = float(getattr(buy_point, "cost_nav", 0.0) or 0.0)
+            is_holding = bool(getattr(buy_point, "is_holding", False))
+            if is_holding and cost_nav > 0:
+                holding_yield = round((latest_nav - cost_nav) / cost_nav * 100, 2)
+                buy_point.yield_pct = holding_yield
+                buy_point.total_return = holding_yield
+                try:
+                    if str(fund.code) in COST_NAVS and isinstance(COST_NAVS.get(str(fund.code)), dict):
+                        COST_NAVS[str(fund.code)]["yield_pct"] = holding_yield
+                        COST_NAVS[str(fund.code)]["total_return"] = holding_yield
+                except Exception:
+                    pass
 
 
 def _deepseek_text_cache() -> Dict[str, dict]:
