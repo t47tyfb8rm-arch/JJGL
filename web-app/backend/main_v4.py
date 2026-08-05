@@ -607,14 +607,17 @@ def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
     holding_yield = _db_float(getattr(bp, "yield_pct", 0.0) if bp else 0.0)
     realized_yield = _db_float(getattr(bp, "realized_yield_pct", 0.0) if bp else 0.0)
     total_return = _db_float(getattr(bp, "total_return", holding_yield) if bp else holding_yield)
-    ready = bool(getattr(fund, "latest_nav_ready", False))
-    stale = bool(getattr(fund, "nav_stale", False))
+    expected_date = str(getattr(fund, "expected_nav_date", "") or expected_actual_nav_date())[:10]
+    nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+    ready = bool(getattr(fund, "latest_nav_ready", False)) or bool(nav_date and expected_date and nav_date >= expected_date)
+    stale = not ready
     source = "actual_nav" if ready else "intraday_estimate"
     payload = {
         "code": getattr(fund, "code", ""),
         "name": getattr(fund, "name", ""),
         "trade_date": trade_date,
         "nav_date": getattr(fund, "nav_date", ""),
+        "expected_nav_date": expected_date,
         "latest_nav_ready": ready,
         "nav_stale": stale,
         "source": source,
@@ -2279,6 +2282,10 @@ class FundInfo(BaseModel):
     return_1m: float = 0.0       # 近1月累计收益率（%）
     return_3m: float = 0.0       # 近3月累计收益率（%）
     return_6m: float = 0.0       # 近6月累计收益率（%）
+    # === 净值披露状态（前端决定显示实际还是盘中预估） ===
+    expected_nav_date: str = ""
+    latest_nav_ready: bool = False
+    nav_stale: bool = False
 
 
 class NewsItem(BaseModel):
@@ -2557,6 +2564,31 @@ def _is_today_disclosed() -> bool:
         return False
     latest = _latest_disclosed_date()
     return all(f.nav_date == latest for f in funds)
+
+
+def expected_actual_nav_date(now: Optional[datetime] = None) -> str:
+    """
+    Date whose actual NAV can replace intraday estimates.
+    - Before 09:30: use the latest disclosed NAV date, usually yesterday.
+    - From 09:30 onward on a trading day: expect today's NAV; until each fund
+      reaches it, the frontend should treat yesterday's NAV as stale.
+    """
+    now = now or datetime.now()
+    if now.weekday() < 5:
+        market_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        if now >= market_start:
+            return now.strftime("%Y-%m-%d")
+    return _latest_disclosed_date()
+
+
+def mark_fund_nav_readiness(funds: List[FundInfo], expected_date: str = "") -> None:
+    """Mark each fund's actual NAV as ready/stale against the display expectation."""
+    expected = expected_date or expected_actual_nav_date()
+    for fund in funds or []:
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        fund.expected_nav_date = expected
+        fund.latest_nav_ready = bool(nav_date and nav_date >= expected)
+        fund.nav_stale = not fund.latest_nav_ready
 
 
 def _next_market_open_ts(now: datetime) -> float:
@@ -5756,6 +5788,7 @@ def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioRes
         fund.return_1m = _db_float(row.get("return_1m"), fund.return_1m)
         fund.return_6m = _db_float(row.get("return_6m"), fund.return_6m)
         try:
+            fund.expected_nav_date = str(row.get("trade_date") or getattr(response, "date", "") or "")
             fund.latest_nav_ready = bool(row.get("latest_nav_ready"))
             fund.nav_stale = bool(row.get("nav_stale"))
         except Exception:
@@ -6010,6 +6043,10 @@ async def get_portfolio(force: int = 0, lite: int = 0):
     for idx in (index_info, bond_index_info, k50_index_info, hsi_index_info, hs300_info, sz_index_info):
         normalize_index_info_history(idx, limit=190)
 
+    display_date = _display_trade_date(now)
+    expected_nav_date = expected_actual_nav_date(now)
+    mark_fund_nav_readiness(funds, expected_nav_date)
+
     # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
     # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
@@ -6018,7 +6055,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         date=now.strftime("%Y-%m-%d"),
         time=now.strftime("%H:%M:%S"),
         is_trading_day=is_trading_day(now),
-        display_trade_date=_display_trade_date(now),
+        display_trade_date=display_date,
         latest_disclosed_date=_latest_disclosed_date(),
         market_status=market_status(),
         index=index_info,
