@@ -364,11 +364,21 @@ def init_app_db():
                 PRIMARY KEY(code, snapshot_date)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS deepseek_strategy_snapshots (
+                code TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, snapshot_date)
+            )
+        """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_nav_history_code_date ON fund_nav_history(code, nav_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_return_ledger_code_date ON fund_return_ledger(code, trade_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_transactions_code_date ON fund_transactions(code, trade_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_intraday_estimates_code_time ON intraday_estimate_snapshots(code, trade_date DESC, estimate_time DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_index_snapshots_key_date ON index_snapshots(index_key, trade_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_deepseek_strategy_date ON deepseek_strategy_snapshots(snapshot_date DESC, code)")
         conn.commit()
 
 
@@ -2493,6 +2503,16 @@ BACKGROUND_PORTFOLIO_STATUS = {
     "last_duration_seconds": None,
     "next_interval_seconds": None,
 }
+DEEPSEEK_AUTO_INTERVAL_SECONDS = 3600
+DEEPSEEK_AUTO_STATUS = {
+    "last_started_at": "",
+    "last_finished_at": "",
+    "last_error": "",
+    "last_duration_seconds": None,
+    "next_interval_seconds": DEEPSEEK_AUTO_INTERVAL_SECONDS,
+    "enhanced_count": 0,
+    "last_done_ts": 0.0,
+}
 
 
 def portfolio_snapshot_max_age_seconds() -> int:
@@ -2508,7 +2528,8 @@ def schedule_portfolio_refresh(reason: str = "stale_snapshot"):
     async def _refresh_once():
         global BACKGROUND_PORTFOLIO_REFRESHING
         try:
-            await get_portfolio(force=1, lite=0)
+            response = await get_portfolio(force=1, lite=0)
+            await _run_deepseek_auto_if_due(response)
             print(f"[后台刷新] {reason} 已刷新 {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             print(f"[后台刷新] {reason} 失败: {e}")
@@ -5806,9 +5827,101 @@ def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioRes
     return response
 
 
-def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0) -> PortfolioResponse:
+def save_deepseek_strategy_to_db(funds: List[FundInfo], snapshot_date: str) -> None:
+    """Persist only DeepSeek-enhanced AI text, separated from normal local AI."""
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for fund in funds or []:
+                ai = getattr(fund, "ai_prediction", None)
+                if not ai or "deepseek" not in str(getattr(ai, "confidence", "")).lower():
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO deepseek_strategy_snapshots
+                    (code, snapshot_date, payload, updated_at)
+                    VALUES(?,?,?,?)
+                    """,
+                    (fund.code, snapshot_date, _json_payload(_model_dump(ai)), now_ts),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save DeepSeek strategy failed: {e}")
+
+
+def load_deepseek_strategy_from_db(snapshot_date: str = "") -> Dict[str, dict]:
+    """Load latest DeepSeek AI text by fund code."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            if snapshot_date:
+                rows = conn.execute(
+                    """
+                    SELECT code, payload, updated_at
+                    FROM deepseek_strategy_snapshots
+                    WHERE snapshot_date=?
+                    ORDER BY code ASC
+                    """,
+                    (snapshot_date,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT d.code, d.payload, d.updated_at
+                    FROM deepseek_strategy_snapshots d
+                    JOIN (
+                      SELECT code, MAX(snapshot_date) AS snapshot_date
+                      FROM deepseek_strategy_snapshots
+                      GROUP BY code
+                    ) latest
+                    ON d.code=latest.code AND d.snapshot_date=latest.snapshot_date
+                    ORDER BY d.code ASC
+                    """
+                ).fetchall()
+        result: Dict[str, dict] = {}
+        for row in rows:
+            try:
+                payload = json.loads(row["payload"] or "{}")
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                payload["_updated_at"] = row["updated_at"]
+                result[str(row["code"])] = payload
+        return result
+    except Exception as e:
+        print(f"[DB] load DeepSeek strategy failed: {e}")
+        return {}
+
+
+def apply_deepseek_strategy_to_response(response: PortfolioResponse) -> PortfolioResponse:
+    """Overlay cached DeepSeek text without changing fund count or order."""
+    cache = load_deepseek_strategy_from_db(getattr(response, "date", "")) or load_deepseek_strategy_from_db()
+    if not cache:
+        return response
+    for fund in getattr(response, "funds", []) or []:
+        data = cache.get(str(getattr(fund, "code", "")))
+        if not data or not getattr(fund, "ai_prediction", None):
+            continue
+        ai = fund.ai_prediction
+        for field in ("advice", "market_env", "position_advice", "risk_tips", "key_metrics", "key_levels"):
+            val = data.get(field)
+            if val:
+                setattr(ai, field, str(val))
+        if data.get("risk_level") in ["低", "中", "高"]:
+            ai.risk_level = data["risk_level"]
+        if data.get("trend"):
+            ai.trend = str(data["trend"])[:12]
+        ai.confidence = "DeepSeek"
+    return response
+
+
+def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, deepseek: int = 0) -> PortfolioResponse:
     """Return a client copy; keep cached/raw response untouched."""
     response = apply_return_ledger_to_response(response.copy(deep=True))
+    if deepseek:
+        response = apply_deepseek_strategy_to_response(response)
     if lite:
         return lite_portfolio_response(response)
     client = response
@@ -5841,7 +5954,7 @@ def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
 
 
 @app.get("/api/portfolio", response_model=PortfolioResponse)
-async def get_portfolio(force: int = 0, lite: int = 0):
+async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
     """
     获取持仓概览（包括上证指数、国债指数、关注基金含7天净值、买点判断、AI预判）
     force=1 强制刷新（绕过 30s 整页缓存）
@@ -5865,7 +5978,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             cached_response.time = now.strftime("%H:%M:%S")
             if now_ts - PORTFOLIO_CACHE.get("saved_at", 0.0) > max_age:
                 schedule_portfolio_refresh("memory_snapshot_stale")
-            return portfolio_response_for_client(cached_response, lite)
+            return portfolio_response_for_client(cached_response, lite, deepseek)
 
         db_response, db_age = load_portfolio_snapshot_from_db()
         if db_response is not None:
@@ -5874,7 +5987,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             PORTFOLIO_CACHE["saved_at"] = now_ts - float(db_age or 0)
             if db_age is None or db_age > max_age:
                 schedule_portfolio_refresh("sqlite_snapshot_stale")
-            return portfolio_response_for_client(db_response, lite)
+            return portfolio_response_for_client(db_response, lite, deepseek)
 
     if force == 0 and PORTFOLIO_CACHE["data"] is None:
         db_max_age = 180 if is_trading else 900
@@ -5883,14 +5996,14 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             db_response.time = now.strftime("%H:%M:%S")
             PORTFOLIO_CACHE["data"] = db_response
             PORTFOLIO_CACHE["saved_at"] = now_ts
-            return portfolio_response_for_client(db_response, lite)
+            return portfolio_response_for_client(db_response, lite, deepseek)
     if PORTFOLIO_CACHE["data"] is not None:
         if disclosed and force == 0:
             # 日涨跌已披露（当日 15:00 后 / 周末 = 上周五已披露）→ 缓存命中即可
             cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
             if lite:
                 cached_response.time = now.strftime("%H:%M:%S")
-                return portfolio_response_for_client(cached_response, lite)
+                return portfolio_response_for_client(cached_response, lite, deepseek)
             news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
             if NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL:
                 schedule_news_refresh()
@@ -5908,12 +6021,12 @@ async def get_portfolio(force: int = 0, lite: int = 0):
             )
             cached_response.external_markets = await get_external_market_temperature()
             cached_response.time = now.strftime("%H:%M:%S")
-            return portfolio_response_for_client(cached_response, lite)
+            return portfolio_response_for_client(cached_response, lite, deepseek)
         # 未披露：盘中 30s 内 force=0 命中（盘中估值微动不必要求 30s 一拉）
         if force == 0 and is_trading and (now_ts - PORTFOLIO_CACHE["saved_at"]) < PORTFOLIO_CACHE_TTL:
             cached_response = PORTFOLIO_CACHE["data"].copy(deep=True)
             cached_response.time = now.strftime("%H:%M:%S")
-            return portfolio_response_for_client(cached_response, lite)
+            return portfolio_response_for_client(cached_response, lite, deepseek)
 
     # 并行获取市场指数：上证指数 + 上证历史 + 科创50 + 恒生指数 + 国债指数 + 沪深300 + 深证成指 + 上证50
     index_task = fetch_sh_index()
@@ -6078,7 +6191,7 @@ async def get_portfolio(force: int = 0, lite: int = 0):
         PORTFOLIO_CACHE["saved_at"] = time.time()
         save_portfolio_to_db(response)
 
-    return portfolio_response_for_client(response, lite)
+    return portfolio_response_for_client(response, lite, deepseek)
 
 
 async def background_portfolio_refresher():
@@ -6094,7 +6207,8 @@ async def background_portfolio_refresher():
                 BACKGROUND_PORTFOLIO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 BACKGROUND_PORTFOLIO_STATUS["last_error"] = ""
                 try:
-                    await get_portfolio(force=1, lite=0)
+                    response = await get_portfolio(force=1, lite=0)
+                    await _run_deepseek_auto_if_due(response)
                     BACKGROUND_PORTFOLIO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     BACKGROUND_PORTFOLIO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
                     print(f"[后台刷新] 全量数据已更新 {datetime.now().strftime('%H:%M:%S')}")
@@ -6114,26 +6228,85 @@ async def background_portfolio_refresher():
         await asyncio.sleep(interval)
 
 
+async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None) -> None:
+    """Refresh DeepSeek advice cache during trading hours without blocking the foreground."""
+    if not is_trading_time():
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
+        return
+    if not get_deepseek_api_key():
+        DEEPSEEK_AUTO_STATUS["last_error"] = "未配置 DEEPSEEK_API_KEY"
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+        return
+    now_ts = time.time()
+    last_done = float(DEEPSEEK_AUTO_STATUS.get("last_done_ts") or 0.0)
+    remain = DEEPSEEK_AUTO_INTERVAL_SECONDS - (now_ts - last_done)
+    if remain > 0:
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = round(remain, 1)
+        return
+    if response is None:
+        response = PORTFOLIO_CACHE.get("data")
+    if response is None:
+        response = await get_portfolio(force=1, lite=0)
+    started = time.time()
+    DEEPSEEK_AUTO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    DEEPSEEK_AUTO_STATUS["last_finished_at"] = ""
+    DEEPSEEK_AUTO_STATUS["last_error"] = ""
+    try:
+        target = response.copy(deep=True)
+        target.funds = await enhance_funds_with_deepseek(
+            target.funds,
+            target.index,
+            target.bond_index,
+            target.news,
+            strict=False,
+        )
+        save_deepseek_strategy_to_db(target.funds, target.date)
+        enhanced = sum(1 for f in target.funds if "deepseek" in str(getattr(f.ai_prediction, "confidence", "")).lower())
+        DEEPSEEK_AUTO_STATUS["last_done_ts"] = time.time()
+        DEEPSEEK_AUTO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
+        DEEPSEEK_AUTO_STATUS["enhanced_count"] = enhanced
+    except Exception as e:
+        DEEPSEEK_AUTO_STATUS["last_error"] = str(e)
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+
+
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
 async def run_deepseek_analysis():
-    """DeepSeek 分析暂时关闭，避免影响首屏速度和误触发。"""
-    raise HTTPException(status_code=410, detail="DeepSeek 分析已暂时关闭")
+    """Manually refresh DeepSeek advice cache; normal portfolio data remains untouched."""
     if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
     if PORTFOLIO_CACHE["data"] is None:
-        await get_portfolio(force=1)
+        await get_portfolio(force=1, lite=0)
     response = PORTFOLIO_CACHE["data"]
-    response.funds = await enhance_funds_with_deepseek(
-        response.funds,
-        response.index,
-        response.bond_index,
-        response.news,
+    if response is None:
+        raise HTTPException(status_code=503, detail="暂无完整组合缓存")
+
+    target = response.copy(deep=True)
+    target.funds = await enhance_funds_with_deepseek(
+        target.funds,
+        target.index,
+        target.bond_index,
+        target.news,
         strict=True,
     )
-    PORTFOLIO_CACHE["data"] = response
-    PORTFOLIO_CACHE["saved_at"] = time.time()
-    return response
+    save_deepseek_strategy_to_db(target.funds, target.date)
+    return portfolio_response_for_client(target, 0, 1)
+
+
+@app.get("/api/deepseek/status")
+async def get_deepseek_status():
+    """Debug DeepSeek cache freshness without triggering model calls."""
+    cache = load_deepseek_strategy_from_db()
+    return {
+        "ok": True,
+        "is_trading_time": is_trading_time(),
+        "status": DEEPSEEK_AUTO_STATUS,
+        "cache_codes": sorted(cache.keys()),
+    }
 
 
 @app.get("/api/portfolio/status")
@@ -6179,6 +6352,7 @@ async def get_refresh_status():
         "news_age_seconds": round(now_ts - float(NEWS_CACHE.get("saved_at") or 0.0), 1) if NEWS_CACHE.get("saved_at") else None,
         "external_market_age_seconds": round(now_ts - float(EXTERNAL_MARKET_CACHE.get("saved_at") or 0.0), 1) if EXTERNAL_MARKET_CACHE.get("saved_at") else None,
         "background": BACKGROUND_PORTFOLIO_STATUS,
+        "deepseek_auto": DEEPSEEK_AUTO_STATUS,
     }
 
 
