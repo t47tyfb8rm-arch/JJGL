@@ -1361,11 +1361,16 @@ async def compute_fund_specific_model(fund_code: str, daily_change: float, nav_d
         # 20:00+ 实际净值已出，记录指数残差（仅当基准变化够大）
         if daily_change != 0 and datetime.now().hour >= 20 and abs(bench_change) > 0.01:
             record_index_residual(fund_code, bench_change, daily_change, nav_date)
-        model_stats = get_index_model_estimate(fund_code)
-        if model_stats["enabled"]:
-            est = round(bench_change + model_stats["offset"], 3)
+        # 011609 是科创50联接基金。盘中展示按科创50实时涨跌直连，
+        # 残差只用于晚间审计，不再叠加到展示预估，避免历史误差把盘中方向带偏。
+        if fund_code == "011609":
+            est = round(bench_change, 3)
         else:
-            est = bench_change
+            model_stats = get_index_model_estimate(fund_code)
+            if model_stats["enabled"]:
+                est = round(bench_change + model_stats["offset"], 3)
+            else:
+                est = bench_change
         return est, bench_change, bench_name
 
     if model_type == "multi_factor":
