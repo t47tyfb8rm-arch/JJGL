@@ -5822,6 +5822,7 @@ def apply_deepseek_ai_cache(response: PortfolioResponse) -> PortfolioResponse:
 def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, deepseek: int = 0) -> PortfolioResponse:
     """Return a client copy; keep cached/raw response untouched."""
     client = apply_deepseek_ai_cache(response) if deepseek else response.copy(deep=True)
+    fix_fund_daily_change_from_latest_history(getattr(client, "funds", None) or [])
     if lite:
         return lite_portfolio_response(client)
     if client.index:
