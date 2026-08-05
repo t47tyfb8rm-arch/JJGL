@@ -6194,6 +6194,26 @@ def apply_deepseek_ai_cache(response: PortfolioResponse) -> PortfolioResponse:
     return client
 
 
+def align_k50_estimate_for_client(response: PortfolioResponse) -> PortfolioResponse:
+    """Keep 011609 intraday display locked to realtime K50 before latest NAV is ready."""
+    try:
+        k50_change = float(getattr(getattr(response, "k50_index", None), "daily_change", 0.0) or 0.0)
+    except Exception:
+        return response
+    for fund in getattr(response, "funds", []) or []:
+        if str(getattr(fund, "code", "")) != "011609":
+            continue
+        if bool(getattr(fund, "latest_nav_ready", False)):
+            continue
+        value = round(k50_change, 3)
+        fund.estimated_change = value
+        fund.model_estimated_change = value
+        fund.corrected_estimated_change = value
+        fund.model_benchmark_change = value
+        fund.model_benchmark_name = "科创50"
+    return response
+
+
 def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, deepseek: int = 0) -> PortfolioResponse:
     """Return a client copy; keep cached/raw response untouched."""
     client = apply_deepseek_ai_cache(response) if deepseek else response.copy(deep=True)
@@ -6202,6 +6222,7 @@ def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, de
         getattr(client, "funds", None) or [],
         getattr(client, "latest_disclosed_date", "") or _latest_disclosed_date(),
     )
+    client = align_k50_estimate_for_client(client)
     if lite:
         return lite_portfolio_response(client)
     if client.index:
