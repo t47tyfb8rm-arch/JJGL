@@ -621,6 +621,102 @@ def load_index_history_from_db(index_key: str, limit: int = 12) -> List["IndexHi
         return []
 
 
+def load_fund_nav_history_from_db(code: str, limit: int = 190) -> List[dict]:
+    """Load persisted fund NAV rows for reconciliation.
+
+    The live fund page and F10 endpoints may lag or fail independently. If a
+    newer NAV row was already captured in SQLite, merge it back into the
+    in-memory/json history before deciding the fund is stale.
+    """
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute(
+                """
+                SELECT nav_date, nav, daily_change, payload
+                FROM fund_nav_history
+                WHERE code=?
+                ORDER BY nav_date DESC
+                LIMIT ?
+                """,
+                (str(code), max(1, int(limit))),
+            ).fetchall()
+        items = []
+        for nav_date, nav, daily_change, payload in rows:
+            try:
+                payload_data = json.loads(payload or "{}")
+            except Exception:
+                payload_data = {}
+            try:
+                date_str = str(nav_date or payload_data.get("nav_date") or "")[:10]
+                nav_value = float(nav if nav is not None else payload_data.get("current_nav") or 0.0)
+                change_value = float(daily_change if daily_change is not None else payload_data.get("daily_change") or 0.0)
+                if not date_str or nav_value <= 0:
+                    continue
+                items.append({
+                    "date": date_str,
+                    "nav": round(nav_value, 4),
+                    "acc_nav": round(float(payload_data.get("acc_nav") or nav_value), 4),
+                    "change": round(change_value, 3),
+                })
+            except Exception:
+                continue
+        items.sort(key=lambda x: x["date"])
+        return items
+    except Exception as e:
+        print(f"[DB] load fund nav history failed: {code} {e}")
+        return []
+
+
+def save_fund_nav_history_rows_to_db(code: str, rows: List[dict]) -> None:
+    """Persist normalized fund NAV rows immediately.
+
+    Fund NAV history is the source of truth for daily return calculation. Any
+    upstream row we trust enough to merge into history should be written to DB
+    before the portfolio response is rendered.
+    """
+    if not rows:
+        return
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for row in rows:
+                try:
+                    date_str = str(row.get("date", "") or "")[:10]
+                    nav_value = float(row.get("nav") or 0.0)
+                    change_value = float(row.get("change") or 0.0)
+                    if not date_str or nav_value <= 0:
+                        continue
+                    payload = _json_payload({
+                        "code": str(code),
+                        "nav_date": date_str,
+                        "current_nav": round(nav_value, 4),
+                        "daily_change": round(change_value, 3),
+                        "acc_nav": row.get("acc_nav", nav_value),
+                    })
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO fund_nav_history
+                        (code, nav_date, nav, daily_change, payload, updated_at)
+                        VALUES(?,?,?,?,?,?)
+                        """,
+                        (
+                            str(code),
+                            date_str,
+                            round(nav_value, 4),
+                            round(change_value, 3),
+                            payload,
+                            now_ts,
+                        ),
+                    )
+                except Exception:
+                    continue
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save fund nav history failed: {code} {e}")
+
+
 def load_latest_fund_from_db(code: str) -> Optional["FundInfo"]:
     """Load the latest persisted fund row as a per-fund fallback.
 
@@ -2815,6 +2911,18 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
 
     # === 持久化增量：算 last_date，决定只拉哪段 ===
     persisted = NAV_HISTORY.get(fund_code, [])
+    db_history_rows = load_fund_nav_history_from_db(fund_code, limit=max(days + 30, 190))
+    if db_history_rows:
+        by_date = {str(r.get("date", ""))[:10]: dict(r) for r in persisted if r.get("date")}
+        for row in db_history_rows:
+            date_key = str(row.get("date", ""))[:10]
+            if date_key:
+                by_date[date_key] = row
+        merged_persisted = sorted(by_date.values(), key=lambda x: x.get("date", ""))
+        if merged_persisted != persisted:
+            persisted = merged_persisted
+            NAV_HISTORY[fund_code] = persisted
+            save_nav_history(NAV_HISTORY)
     today_str = datetime.now().strftime("%Y-%m-%d")
     if persisted:
         last_date = persisted[-1].get("date", "")
@@ -2985,6 +3093,7 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
             persisted.sort(key=lambda x: x["date"])
             NAV_HISTORY[fund_code] = persisted
             save_nav_history(NAV_HISTORY)
+            save_fund_nav_history_rows_to_db(fund_code, new_records)
 
         # 取最近 days 条
         recent = persisted[-days:] if len(persisted) >= days else persisted
@@ -3012,6 +3121,7 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
                 merged = sorted(by_date.values(), key=lambda x: x.get("date", ""))
                 NAV_HISTORY[fund_code] = merged
                 save_nav_history(NAV_HISTORY)
+                save_fund_nav_history_rows_to_db(fund_code, fallback_rows)
                 recent = merged[-days:] if len(merged) >= days else merged
                 history = [NavHistoryItem(**r) for r in recent]
                 if fund_code not in FUND_DETAIL_CACHE:
