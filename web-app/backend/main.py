@@ -2950,6 +2950,26 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
 
     except Exception as e:
         print(f"获取基金 {fund_code} 历史数据失败: {e}")
+        # F10DataApi 异常时也必须尝试 JSON LSJZ，否则会一直回退到旧持久化数据。
+        try:
+            json_rows = await _fetch_lsjz_json()
+            if json_rows:
+                by_date = {r.get("date", ""): dict(r) for r in persisted if r.get("date")}
+                for row in json_rows:
+                    if row.get("date"):
+                        by_date[row["date"]] = row
+                merged = sorted(by_date.values(), key=lambda x: x.get("date", ""))
+                NAV_HISTORY[fund_code] = merged
+                save_nav_history(NAV_HISTORY)
+                recent = merged[-days:] if len(merged) >= days else merged
+                history = [NavHistoryItem(**r) for r in recent]
+                if fund_code not in FUND_DETAIL_CACHE:
+                    FUND_DETAIL_CACHE[fund_code] = {}
+                FUND_DETAIL_CACHE[fund_code][cache_key_days] = history
+                FUND_DETAIL_CACHE[fund_code]["_saved_at"] = time.time()
+                return history
+        except Exception as json_error:
+            print(f"基金 {fund_code} JSON历史兜底失败: {json_error}")
         # 失败时回退到持久化数据（如果有）
         if persisted:
             return [NavHistoryItem(**r) for r in persisted[-days:]]
