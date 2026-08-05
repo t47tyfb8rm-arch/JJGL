@@ -6245,8 +6245,13 @@ async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None
         return
     if response is None:
         response = PORTFOLIO_CACHE.get("data")
-    if response is None:
-        response = await get_portfolio(force=1, lite=0)
+    if response is None or not getattr(response, "funds", None):
+        await get_portfolio(force=1, lite=0)
+        response = PORTFOLIO_CACHE.get("data")
+    if response is None or not getattr(response, "funds", None):
+        DEEPSEEK_AUTO_STATUS["last_error"] = "暂无完整基金列表"
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+        return
     started = time.time()
     DEEPSEEK_AUTO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     DEEPSEEK_AUTO_STATUS["last_finished_at"] = ""
@@ -6279,11 +6284,11 @@ async def run_deepseek_analysis():
     if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
-    if PORTFOLIO_CACHE["data"] is None:
+    if PORTFOLIO_CACHE["data"] is None or not getattr(PORTFOLIO_CACHE["data"], "funds", None):
         await get_portfolio(force=1, lite=0)
     response = PORTFOLIO_CACHE["data"]
-    if response is None:
-        raise HTTPException(status_code=503, detail="暂无完整组合缓存")
+    if response is None or not getattr(response, "funds", None):
+        raise HTTPException(status_code=503, detail="暂无完整基金列表，请先刷新组合数据")
 
     target = response.copy(deep=True)
     target.funds = await enhance_funds_with_deepseek(
