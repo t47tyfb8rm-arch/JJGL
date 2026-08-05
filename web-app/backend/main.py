@@ -2846,6 +2846,52 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
     }
 
     all_rows = []
+
+    async def _fetch_lsjz_json() -> List[dict]:
+        """Stable fallback: Eastmoney JSON LSJZ endpoint, newest first."""
+        url = "http://api.fund.eastmoney.com/f10/lsjz"
+        params = {
+            "fundCode": fund_code,
+            "pageIndex": 1,
+            "pageSize": max(days, 40),
+            "mode": "1",
+            "_": int(datetime.now().timestamp() * 1000),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                response = await client.get(
+                    url,
+                    params=params,
+                    headers={
+                        "User-Agent": "Mozilla/5.0",
+                        "Referer": f"http://fundf10.eastmoney.com/jjjz_{fund_code}.html",
+                    },
+                )
+                response.raise_for_status()
+            data = response.json()
+            rows = []
+            for item in data.get("Data", {}).get("LSJZList", []) or []:
+                try:
+                    date_str = str(item.get("FSRQ", "") or "")[:10]
+                    nav = float(item.get("DWJZ") or item.get("NAV") or 0.0)
+                    acc_nav = float(item.get("LJJZ") or item.get("ACC_NAV") or nav)
+                    change_text = str(item.get("JZZZL") or item.get("ZZL") or "0").replace("%", "")
+                    if not date_str or nav <= 0:
+                        continue
+                    rows.append({
+                        "date": date_str,
+                        "nav": nav,
+                        "acc_nav": acc_nav,
+                        "change": float(change_text or 0.0),
+                    })
+                except Exception:
+                    continue
+            rows.sort(key=lambda x: x["date"])
+            return rows
+        except Exception as e:
+            print(f"获取基金 {fund_code} JSON历史数据失败: {e}")
+            return []
+
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             for page in range(1, total_pages + 1):
@@ -2879,6 +2925,12 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
                 "acc_nav": float(acc_nav_str),
                 "change": float(change_str),
             })
+        # F10DataApi 偶发返回空 HTML 或旧数据，用 JSON LSJZ 再补一次。
+        json_rows = await _fetch_lsjz_json()
+        for row in json_rows:
+            if row.get("date", "") in existing_dates or any(r.get("date") == row.get("date") for r in new_records):
+                continue
+            new_records.append(row)
         if new_records:
             persisted.extend(new_records)
             persisted.sort(key=lambda x: x["date"])
@@ -3570,6 +3622,17 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             latest_history = await fetch_fund_history(fund_code, days=3, force=force)
             if latest_history and len(latest_history) >= 2:
                 latest_history = sorted(latest_history, key=lambda x: x.date)
+                newest_item = latest_history[-1]
+                # The fund detail page can lag behind the NAV history endpoint.
+                # Once history has a newer disclosed NAV, treat it as the source
+                # of truth for nav_date/current_nav/daily_change.
+                if newest_item.date and nav_date and newest_item.date > nav_date:
+                    nav_date = newest_item.date
+                    current_nav = round(float(newest_item.nav), 4)
+                    daily_change = round(float(getattr(newest_item, "change", 0.0) or 0.0), 3)
+                    if len(latest_history) >= 2 and latest_history[-2].nav > 0:
+                        previous_nav = round(float(latest_history[-2].nav), 4)
+                        daily_change = round((current_nav - previous_nav) / previous_nav * 100, 3)
                 match_idx = next((i for i, item in enumerate(latest_history) if item.date == nav_date), -1)
                 if match_idx > 0:
                     prev_item = latest_history[match_idx - 1]
