@@ -2092,6 +2092,9 @@ class FundInfo(BaseModel):
     previous_nav: float
     nav_date: str
     daily_change: float
+    latest_nav_ready: bool = False       # 当前基金净值是否已更新到最新应披露日
+    expected_nav_date: str = ""          # 当前应等待/展示的净值日期
+    nav_stale: bool = False              # 当前基金净值落后于应披露日
     estimated: bool = False
     estimated_nav: float = 0.0    # 今日估算净值
     estimated_change: float = 0.0  # 估算日涨跌 %
@@ -5786,6 +5789,17 @@ def fix_fund_daily_change_from_latest_history(funds: List[FundInfo]) -> None:
                     pass
 
 
+def mark_fund_nav_readiness(funds: List[FundInfo], expected_date: str = "") -> None:
+    """Mark each fund independently so stale NAV data is not shown as latest."""
+    expected = str(expected_date or "")[:10]
+    for fund in funds or []:
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        fund.expected_nav_date = expected
+        ready = bool(expected and nav_date and nav_date == expected)
+        fund.latest_nav_ready = ready
+        fund.nav_stale = bool(expected and nav_date and nav_date != expected)
+
+
 def _deepseek_text_cache() -> Dict[str, dict]:
     global DEEPSEEK_AI_CACHE
     if not DEEPSEEK_AI_CACHE:
@@ -5835,6 +5849,10 @@ def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, de
     """Return a client copy; keep cached/raw response untouched."""
     client = apply_deepseek_ai_cache(response) if deepseek else response.copy(deep=True)
     fix_fund_daily_change_from_latest_history(getattr(client, "funds", None) or [])
+    mark_fund_nav_readiness(
+        getattr(client, "funds", None) or [],
+        getattr(client, "latest_disclosed_date", "") or _latest_disclosed_date(),
+    )
     if lite:
         return lite_portfolio_response(client)
     if client.index:
@@ -6112,6 +6130,7 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         external_markets=external_markets,
         historical_yields=HISTORICAL_YIELDS
     )
+    mark_fund_nav_readiness(response.funds, response.latest_disclosed_date)
 
     # === 写入整页缓存（30s 内复用） ===
     # lite 首页首包不能写入完整缓存，否则后续基金/AI/市场页会拿到被瘦身的数据。
