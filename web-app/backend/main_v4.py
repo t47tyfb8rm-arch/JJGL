@@ -223,6 +223,34 @@ def init_app_db():
             )
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_return_ledger (
+                code TEXT NOT NULL,
+                trade_date TEXT NOT NULL,
+                nav_date TEXT,
+                latest_nav_ready INTEGER NOT NULL DEFAULT 0,
+                nav_stale INTEGER NOT NULL DEFAULT 0,
+                current_nav REAL,
+                previous_nav REAL,
+                actual_daily_change REAL,
+                estimated_change REAL,
+                model_estimated_change REAL,
+                corrected_estimated_change REAL,
+                holding_yield_pct REAL,
+                realized_yield_pct REAL,
+                total_return_pct REAL,
+                return_7d REAL,
+                return_1m REAL,
+                return_6m REAL,
+                cost_nav REAL,
+                shares REAL,
+                is_holding INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT '',
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, trade_date)
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS intraday_estimate_snapshots (
                 code TEXT NOT NULL,
                 trade_date TEXT NOT NULL,
@@ -284,6 +312,7 @@ def init_app_db():
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_nav_history_code_date ON fund_nav_history(code, nav_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_return_ledger_code_date ON fund_return_ledger(code, trade_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_intraday_estimates_code_time ON intraday_estimate_snapshots(code, trade_date DESC, estimate_time DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_index_snapshots_key_date ON index_snapshots(index_key, trade_date DESC)")
         conn.commit()
@@ -312,6 +341,62 @@ def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
             conn.commit()
     except Exception as e:
         print(f"[DB] save cost navs failed: {e}")
+
+
+def _db_float(value, default: float = 0.0) -> float:
+    try:
+        if value in (None, "", "--"):
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
+    bp = getattr(fund, "buy_point", None)
+    cost_nav = _db_float(getattr(bp, "cost_nav", 0.0) if bp else 0.0)
+    shares = _db_float(getattr(bp, "shares", 0.0) if bp and hasattr(bp, "shares") else 0.0)
+    is_holding = bool(getattr(bp, "is_holding", False)) if bp else False
+    holding_yield = _db_float(getattr(bp, "yield_pct", 0.0) if bp else 0.0)
+    realized_yield = _db_float(getattr(bp, "realized_yield_pct", 0.0) if bp else 0.0)
+    total_return = _db_float(getattr(bp, "total_return", holding_yield) if bp else holding_yield)
+    ready = bool(getattr(fund, "latest_nav_ready", False))
+    stale = bool(getattr(fund, "nav_stale", False))
+    source = "actual_nav" if ready else "intraday_estimate"
+    payload = {
+        "code": getattr(fund, "code", ""),
+        "name": getattr(fund, "name", ""),
+        "trade_date": trade_date,
+        "nav_date": getattr(fund, "nav_date", ""),
+        "latest_nav_ready": ready,
+        "nav_stale": stale,
+        "source": source,
+    }
+    return (
+        getattr(fund, "code", ""),
+        trade_date,
+        getattr(fund, "nav_date", ""),
+        1 if ready else 0,
+        1 if stale else 0,
+        _db_float(getattr(fund, "current_nav", 0.0)),
+        _db_float(getattr(fund, "previous_nav", 0.0)),
+        _db_float(getattr(fund, "daily_change", 0.0)),
+        _db_float(getattr(fund, "estimated_change", 0.0)),
+        _db_float(getattr(fund, "model_estimated_change", 0.0)),
+        _db_float(getattr(fund, "corrected_estimated_change", 0.0)),
+        holding_yield,
+        realized_yield,
+        total_return,
+        _db_float(getattr(fund, "return_7d", 0.0)),
+        _db_float(getattr(fund, "return_1m", 0.0)),
+        _db_float(getattr(fund, "return_6m", 0.0)),
+        cost_nav,
+        shares,
+        1 if is_holding else 0,
+        source,
+        _json_payload(payload),
+        now_ts,
+    )
 
 
 def save_portfolio_to_db(response):
@@ -349,6 +434,17 @@ def save_portfolio_to_db(response):
                         fund_payload,
                         now_ts,
                     ),
+                )
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO fund_return_ledger
+                    (code, trade_date, nav_date, latest_nav_ready, nav_stale, current_nav, previous_nav,
+                     actual_daily_change, estimated_change, model_estimated_change, corrected_estimated_change,
+                     holding_yield_pct, realized_yield_pct, total_return_pct, return_7d, return_1m, return_6m,
+                     cost_nav, shares, is_holding, source, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    _fund_return_ledger_row(fund, response.date, now_ts),
                 )
                 if getattr(fund, "nav_date", ""):
                     conn.execute(
@@ -5714,6 +5810,40 @@ async def get_refresh_status():
         "external_market_age_seconds": round(now_ts - float(EXTERNAL_MARKET_CACHE.get("saved_at") or 0.0), 1) if EXTERNAL_MARKET_CACHE.get("saved_at") else None,
         "background": BACKGROUND_PORTFOLIO_STATUS,
     }
+
+
+@app.get("/api/debug/return-ledger")
+async def debug_return_ledger(limit: int = 20):
+    """Read the persisted return ledger for actual/estimate/holding return audits."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT code, trade_date, nav_date, latest_nav_ready, nav_stale, current_nav, previous_nav,
+                       actual_daily_change, estimated_change, holding_yield_pct, realized_yield_pct,
+                       total_return_pct, return_7d, return_1m, return_6m, cost_nav, shares, is_holding,
+                       source, updated_at
+                FROM fund_return_ledger
+                ORDER BY trade_date DESC, code ASC
+                LIMIT ?
+                """,
+                (max(1, min(int(limit or 20), 200)),),
+            ).fetchall()
+        return {
+            "ok": True,
+            "db_path": DB_PATH,
+            "rows": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in rows
+            ],
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "db_path": DB_PATH}
 
 
 @app.get("/api/news")
