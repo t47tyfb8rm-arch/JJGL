@@ -212,6 +212,59 @@ def init_app_db():
             )
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS watched_funds (
+                code TEXT PRIMARY KEY,
+                name TEXT,
+                is_core INTEGER NOT NULL DEFAULT 0,
+                follow_date TEXT,
+                historical_yield REAL NOT NULL DEFAULT 0,
+                historical_date TEXT,
+                drop_threshold REAL NOT NULL DEFAULT 5,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS buy_point_settings (
+                code TEXT PRIMARY KEY,
+                ref_nav REAL,
+                ref_date TEXT,
+                drop_threshold REAL NOT NULL DEFAULT 5,
+                historical_yield REAL NOT NULL DEFAULT 0,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_positions (
+                code TEXT PRIMARY KEY,
+                is_holding INTEGER NOT NULL DEFAULT 0,
+                cost_nav REAL NOT NULL DEFAULT 0,
+                buy_date TEXT,
+                shares REAL NOT NULL DEFAULT 0,
+                realized_yield_pct REAL NOT NULL DEFAULT 0,
+                holding_yield_pct REAL NOT NULL DEFAULT 0,
+                total_return_pct REAL NOT NULL DEFAULT 0,
+                sell_date TEXT,
+                sell_price REAL NOT NULL DEFAULT 0,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL,
+                type TEXT NOT NULL,
+                trade_date TEXT,
+                nav REAL,
+                shares REAL,
+                yield_pct REAL,
+                payload TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS fund_nav_history (
                 code TEXT NOT NULL,
                 nav_date TEXT NOT NULL,
@@ -313,6 +366,7 @@ def init_app_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_nav_history_code_date ON fund_nav_history(code, nav_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_return_ledger_code_date ON fund_return_ledger(code, trade_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_transactions_code_date ON fund_transactions(code, trade_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_intraday_estimates_code_time ON intraday_estimate_snapshots(code, trade_date DESC, estimate_time DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_index_snapshots_key_date ON index_snapshots(index_key, trade_date DESC)")
         conn.commit()
@@ -334,10 +388,56 @@ def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
         now_ts = time.time()
         with sqlite3.connect(DB_PATH) as conn:
             for code, value in (cost_navs or {}).items():
+                code = str(code)
+                payload = value if isinstance(value, dict) else {"value": value}
                 conn.execute(
                     "INSERT OR REPLACE INTO cost_nav_snapshots(code, created_at, payload) VALUES(?,?,?)",
-                    (str(code), now_ts, _json_payload(value if isinstance(value, dict) else {"value": value})),
+                    (code, now_ts, _json_payload(payload)),
                 )
+                if isinstance(payload, dict):
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO fund_positions
+                        (code, is_holding, cost_nav, buy_date, shares, realized_yield_pct, holding_yield_pct,
+                         total_return_pct, sell_date, sell_price, payload, updated_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (
+                            code,
+                            1 if payload.get("is_holding", False) else 0,
+                            _db_float(payload.get("buy_nav", payload.get("cost_nav", payload.get("buy_price", 0.0)))),
+                            str(payload.get("buy_date", "")),
+                            _db_float(payload.get("shares", 0.0)),
+                            _db_float(payload.get("realized_yield_pct", 0.0)),
+                            _db_float(payload.get("yield_pct", payload.get("holding_yield_pct", 0.0))),
+                            _db_float(payload.get("total_return", payload.get("yield_pct", 0.0))),
+                            str(payload.get("sell_date", "")),
+                            _db_float(payload.get("sell_price", 0.0)),
+                            _json_payload(payload),
+                            now_ts,
+                        ),
+                    )
+                    conn.execute("DELETE FROM fund_transactions WHERE code=?", (code,))
+                    for txn in payload.get("transactions", []) or []:
+                        if not isinstance(txn, dict):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT INTO fund_transactions
+                            (code, type, trade_date, nav, shares, yield_pct, payload, created_at)
+                            VALUES(?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                code,
+                                str(txn.get("type", "")),
+                                str(txn.get("date", txn.get("trade_date", ""))),
+                                _db_float(txn.get("nav", txn.get("price", 0.0))),
+                                _db_float(txn.get("shares", 0.0)),
+                                _db_float(txn.get("yield_pct", 0.0)),
+                                _json_payload(txn),
+                                now_ts,
+                            ),
+                        )
             conn.commit()
     except Exception as e:
         print(f"[DB] save cost navs failed: {e}")
@@ -350,6 +450,153 @@ def _db_float(value, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
+
+
+def load_cost_navs_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, payload FROM fund_positions ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, payload in rows:
+            try:
+                data = json.loads(payload or "{}")
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if data:
+                result[str(code)] = data
+        return result
+    except Exception as e:
+        print(f"[DB] load cost navs failed: {e}")
+        return {}
+
+
+def save_fund_settings_to_db(settings: Dict[str, dict]) -> None:
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for code in CORE_FUNDS:
+                if code not in settings:
+                    hist = HISTORICAL_YIELDS.get(code, {}) if isinstance(HISTORICAL_YIELDS.get(code), dict) else {}
+                    bp = BUY_POINT_CONFIG.get(code, {}) if isinstance(BUY_POINT_CONFIG.get(code), dict) else {}
+                    settings[code] = {
+                        "code": code,
+                        "name": "",
+                        "follow_date": hist.get("date", ""),
+                        "historical_yield": hist.get("yield", 0.0),
+                        "historical_date": hist.get("date", ""),
+                        "drop_threshold": bp.get("drop_threshold", 5.0),
+                        "is_core": True,
+                    }
+            for code, cfg in (settings or {}).items():
+                if not isinstance(cfg, dict):
+                    continue
+                code = str(code)
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO watched_funds
+                    (code, name, is_core, follow_date, historical_yield, historical_date, drop_threshold, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        code,
+                        str(cfg.get("name", "")),
+                        1 if code in CORE_FUNDS or cfg.get("is_core", False) else 0,
+                        str(cfg.get("follow_date", "")),
+                        _db_float(cfg.get("historical_yield", 0.0)),
+                        str(cfg.get("historical_date", cfg.get("follow_date", ""))),
+                        _db_float(cfg.get("drop_threshold", 5.0), 5.0),
+                        _json_payload(cfg),
+                        now_ts,
+                    ),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save fund settings failed: {e}")
+
+
+def load_fund_settings_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, payload, follow_date, historical_yield, historical_date, drop_threshold, name, is_core FROM watched_funds ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, payload, follow_date, historical_yield, historical_date, drop_threshold, name, is_core in rows:
+            try:
+                cfg = json.loads(payload or "{}")
+            except Exception:
+                cfg = {}
+            if not isinstance(cfg, dict):
+                cfg = {}
+            cfg.update({
+                "code": str(code),
+                "name": cfg.get("name") or name or "",
+                "follow_date": cfg.get("follow_date") or follow_date or historical_date or "",
+                "historical_yield": _db_float(cfg.get("historical_yield", historical_yield)),
+                "historical_date": cfg.get("historical_date") or historical_date or follow_date or "",
+                "drop_threshold": _db_float(cfg.get("drop_threshold", drop_threshold), 5.0),
+                "is_core": bool(is_core),
+            })
+            result[str(code)] = cfg
+        return result
+    except Exception as e:
+        print(f"[DB] load fund settings failed: {e}")
+        return {}
+
+
+def save_buy_point_refs_to_db(refs: Dict[str, dict]) -> None:
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for code, ref in (refs or {}).items():
+                if not isinstance(ref, dict):
+                    continue
+                cfg = FUND_SETTINGS.get(str(code), {}) if isinstance(FUND_SETTINGS.get(str(code)), dict) else {}
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO buy_point_settings
+                    (code, ref_nav, ref_date, drop_threshold, historical_yield, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        str(code),
+                        _db_float(ref.get("ref_nav", 0.0)),
+                        str(ref.get("ref_date", "")),
+                        _db_float(cfg.get("drop_threshold", BUY_POINT_CONFIG.get(str(code), {}).get("drop_threshold", 5.0)), 5.0),
+                        _db_float(cfg.get("historical_yield", HISTORICAL_YIELDS.get(str(code), {}).get("yield", 0.0) if isinstance(HISTORICAL_YIELDS.get(str(code)), dict) else 0.0)),
+                        _json_payload(ref),
+                        now_ts,
+                    ),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save buy point refs failed: {e}")
+
+
+def load_buy_point_refs_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, ref_nav, ref_date, payload FROM buy_point_settings ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, ref_nav, ref_date, payload in rows:
+            try:
+                ref = json.loads(payload or "{}")
+            except Exception:
+                ref = {}
+            if not isinstance(ref, dict):
+                ref = {}
+            ref["ref_nav"] = _db_float(ref.get("ref_nav", ref_nav))
+            ref["ref_date"] = str(ref.get("ref_date") or ref_date or "")
+            result[str(code)] = ref
+        return result
+    except Exception as e:
+        print(f"[DB] load buy point refs failed: {e}")
+        return {}
 
 
 def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
@@ -2426,11 +2673,16 @@ fund_settings_file = os.path.join(current_dir, "fund_settings.json")
 
 
 def load_fund_settings() -> Dict[str, dict]:
+    db_data = load_fund_settings_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(fund_settings_file):
             with open(fund_settings_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data if isinstance(data, dict) else {}
+                if isinstance(data, dict):
+                    save_fund_settings_to_db(data)
+                    return data
     except Exception as e:
         print(f"加载基金关注配置失败: {e}")
     return {}
@@ -2440,6 +2692,7 @@ def save_fund_settings(settings: Dict[str, dict]) -> bool:
     try:
         with open(fund_settings_file, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
+        save_fund_settings_to_db(settings)
         return True
     except Exception as e:
         print(f"保存基金关注配置失败: {e}")
@@ -2476,14 +2729,19 @@ BUY_POINT_REFS: Dict[str, dict] = {}
 
 def load_buy_point_refs() -> Dict[str, dict]:
     """从本地文件加载买点参考价（仅含 ref_nav/ref_date）"""
+    db_data = load_buy_point_refs_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(buy_point_refs_file):
             with open(buy_point_refs_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    return {k: {"ref_nav": float(v.get("ref_nav", 0)),
-                                "ref_date": str(v.get("ref_date", ""))}
-                            for k, v in data.items() if isinstance(v, dict)}
+                    result = {k: {"ref_nav": float(v.get("ref_nav", 0)),
+                                  "ref_date": str(v.get("ref_date", ""))}
+                              for k, v in data.items() if isinstance(v, dict)}
+                    save_buy_point_refs_to_db(result)
+                    return result
     except Exception as e:
         print(f"加载买点参考价失败: {e}")
     return {}
@@ -2494,6 +2752,7 @@ def save_buy_point_refs(refs: Dict[str, dict]) -> bool:
     try:
         with open(buy_point_refs_file, "w", encoding="utf-8") as f:
             json.dump(refs, f, ensure_ascii=False, indent=2)
+        save_buy_point_refs_to_db(refs)
         return True
     except Exception as e:
         print(f"保存买点参考价失败: {e}")
@@ -2510,6 +2769,9 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
     """从本地文件加载成本净值 —— 只保留用户真正确认买入的记录（is_holding=True）
     其他未确认的虚拟成本一律忽略，保证 buy_points.json 是用户操作的纯净记录。
     """
+    db_data = load_cost_navs_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(buy_points_file):
             with open(buy_points_file, "r", encoding="utf-8") as f:
@@ -2559,6 +2821,7 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
                                 "sell_date": str(v.get("sell_date", "")),
                                 "sell_price": float(v.get("sell_price", 0.0) or 0.0)
                             }
+                    save_cost_navs_to_db(result)
                     return result
     except Exception as e:
         print(f"加载成本净值失败: {e}")
@@ -2570,6 +2833,7 @@ def save_cost_navs_to_file(cost_navs: Dict[str, dict]) -> bool:
     try:
         with open(buy_points_file, "w", encoding="utf-8") as f:
             json.dump(cost_navs, f, ensure_ascii=False, indent=2)
+        save_cost_navs_to_db(cost_navs)
         return True
     except Exception as e:
         print(f"保存成本净值失败: {e}")
@@ -5441,11 +5705,80 @@ def home_index_visual_history(index_info: Optional[IndexInfo], limit: int = 12) 
     return normalize_index_history(getattr(index_info, "history", None), limit=limit)
 
 
+def load_return_ledger_map(trade_date: str = "") -> Dict[str, dict]:
+    """Load persisted fund return facts for the requested trade date."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            if trade_date:
+                rows = conn.execute(
+                    "SELECT * FROM fund_return_ledger WHERE trade_date=? ORDER BY code ASC",
+                    (trade_date,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT l.*
+                    FROM fund_return_ledger l
+                    JOIN (
+                      SELECT code, MAX(trade_date) AS trade_date
+                      FROM fund_return_ledger
+                      GROUP BY code
+                    ) latest
+                    ON l.code=latest.code AND l.trade_date=latest.trade_date
+                    ORDER BY l.code ASC
+                    """
+                ).fetchall()
+        return {str(row["code"]): dict(row) for row in rows}
+    except Exception as e:
+        print(f"[DB] load return ledger failed: {e}")
+        return {}
+
+
+def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioResponse:
+    """Make client-visible fund returns come from the DB ledger when available."""
+    ledger = load_return_ledger_map(getattr(response, "date", ""))
+    if not ledger:
+        return response
+    for fund in getattr(response, "funds", []) or []:
+        row = ledger.get(str(getattr(fund, "code", "")))
+        if not row:
+            continue
+        fund.nav_date = str(row.get("nav_date") or fund.nav_date or "")
+        fund.current_nav = _db_float(row.get("current_nav"), fund.current_nav)
+        fund.previous_nav = _db_float(row.get("previous_nav"), fund.previous_nav)
+        fund.daily_change = _db_float(row.get("actual_daily_change"), fund.daily_change)
+        fund.estimated_change = _db_float(row.get("estimated_change"), fund.estimated_change)
+        fund.model_estimated_change = _db_float(row.get("model_estimated_change"), fund.model_estimated_change)
+        fund.corrected_estimated_change = _db_float(row.get("corrected_estimated_change"), fund.corrected_estimated_change)
+        fund.return_7d = _db_float(row.get("return_7d"), fund.return_7d)
+        fund.return_1m = _db_float(row.get("return_1m"), fund.return_1m)
+        fund.return_6m = _db_float(row.get("return_6m"), fund.return_6m)
+        try:
+            fund.latest_nav_ready = bool(row.get("latest_nav_ready"))
+            fund.nav_stale = bool(row.get("nav_stale"))
+        except Exception:
+            pass
+        if getattr(fund, "buy_point", None):
+            bp = fund.buy_point
+            bp.current_nav = fund.current_nav
+            bp.cost_nav = _db_float(row.get("cost_nav"), bp.cost_nav)
+            bp.buy_price = bp.cost_nav
+            bp.yield_pct = _db_float(row.get("holding_yield_pct"), bp.yield_pct)
+            bp.realized_yield_pct = _db_float(row.get("realized_yield_pct"), bp.realized_yield_pct)
+            bp.total_return = _db_float(row.get("total_return_pct"), bp.total_return)
+            bp.shares = _db_float(row.get("shares"), getattr(bp, "shares", 0.0))
+            bp.is_holding = bool(row.get("is_holding"))
+    return response
+
+
 def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0) -> PortfolioResponse:
     """Return a client copy; keep cached/raw response untouched."""
+    response = apply_return_ledger_to_response(response.copy(deep=True))
     if lite:
         return lite_portfolio_response(response)
-    client = response.copy(deep=True)
+    client = response
     if client.index:
         client.index.history = home_index_visual_history(client.index, limit=12)
     return client
@@ -5840,6 +6173,66 @@ async def debug_return_ledger(limit: int = 20):
                     "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
                 }
                 for row in rows
+            ],
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "db_path": DB_PATH}
+
+
+@app.get("/api/debug/db-health")
+async def debug_db_health():
+    """Summarize the DB-backed state used by V4."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            tables = {}
+            for table in [
+                "watched_funds",
+                "buy_point_settings",
+                "fund_positions",
+                "fund_transactions",
+                "fund_return_ledger",
+                "portfolio_snapshots",
+                "fund_nav_history",
+                "intraday_estimate_snapshots",
+            ]:
+                tables[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            latest_ledger = conn.execute(
+                """
+                SELECT code, trade_date, nav_date, latest_nav_ready, nav_stale,
+                       actual_daily_change, estimated_change, holding_yield_pct,
+                       source, updated_at
+                FROM fund_return_ledger
+                WHERE trade_date=(SELECT MAX(trade_date) FROM fund_return_ledger)
+                ORDER BY code ASC
+                """
+            ).fetchall()
+            positions = conn.execute(
+                """
+                SELECT code, is_holding, cost_nav, shares, holding_yield_pct,
+                       realized_yield_pct, total_return_pct, updated_at
+                FROM fund_positions
+                ORDER BY code ASC
+                """
+            ).fetchall()
+        return {
+            "ok": True,
+            "db_path": DB_PATH,
+            "tables": tables,
+            "latest_ledger": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in latest_ledger
+            ],
+            "positions": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in positions
             ],
         }
     except Exception as e:
