@@ -2892,6 +2892,53 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
             print(f"获取基金 {fund_code} JSON历史数据失败: {e}")
             return []
 
+    async def _fetch_pingzhong_history() -> List[dict]:
+        """Fallback from pingzhongdata Data_netWorthTrend."""
+        url = f"https://fund.eastmoney.com/pingzhongdata/{fund_code}.js?v={int(datetime.now().timestamp() * 1000)}"
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                response = await client.get(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0",
+                        "Referer": f"https://fund.eastmoney.com/{fund_code}.html",
+                    },
+                )
+                response.raise_for_status()
+            text = response.text
+            match = re.search(r"Data_netWorthTrend\s*=\s*(\[[\s\S]*?\]);", text)
+            if not match:
+                return []
+            data = json.loads(match.group(1))
+            rows = []
+            prev_nav = None
+            for item in data or []:
+                try:
+                    ts = int(item.get("x") or 0)
+                    nav = float(item.get("y") or 0.0)
+                    if ts <= 0 or nav <= 0:
+                        continue
+                    date_str = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+                    change_val = item.get("equityReturn")
+                    if change_val is None or str(change_val) == "":
+                        change = 0.0 if not prev_nav else round((nav - prev_nav) / prev_nav * 100, 3)
+                    else:
+                        change = float(change_val)
+                    rows.append({
+                        "date": date_str,
+                        "nav": nav,
+                        "acc_nav": nav,
+                        "change": change,
+                    })
+                    prev_nav = nav
+                except Exception:
+                    continue
+            rows.sort(key=lambda x: x["date"])
+            return rows
+        except Exception as e:
+            print(f"获取基金 {fund_code} pingzhong历史数据失败: {e}")
+            return []
+
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             for page in range(1, total_pages + 1):
@@ -2926,8 +2973,10 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
                 "change": float(change_str),
             })
         # F10DataApi 偶发返回空 HTML 或旧数据，用 JSON LSJZ 再补一次。
-        json_rows = await _fetch_lsjz_json()
-        for row in json_rows:
+        fallback_rows = []
+        fallback_rows.extend(await _fetch_lsjz_json())
+        fallback_rows.extend(await _fetch_pingzhong_history())
+        for row in fallback_rows:
             if row.get("date", "") in existing_dates or any(r.get("date") == row.get("date") for r in new_records):
                 continue
             new_records.append(row)
@@ -2952,10 +3001,12 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
         print(f"获取基金 {fund_code} 历史数据失败: {e}")
         # F10DataApi 异常时也必须尝试 JSON LSJZ，否则会一直回退到旧持久化数据。
         try:
-            json_rows = await _fetch_lsjz_json()
-            if json_rows:
+            fallback_rows = []
+            fallback_rows.extend(await _fetch_lsjz_json())
+            fallback_rows.extend(await _fetch_pingzhong_history())
+            if fallback_rows:
                 by_date = {r.get("date", ""): dict(r) for r in persisted if r.get("date")}
-                for row in json_rows:
+                for row in fallback_rows:
                     if row.get("date"):
                         by_date[row["date"]] = row
                 merged = sorted(by_date.values(), key=lambda x: x.get("date", ""))
