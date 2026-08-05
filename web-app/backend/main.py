@@ -5863,6 +5863,106 @@ def mark_fund_nav_readiness(funds: List[FundInfo], expected_date: str = "") -> N
         fund.nav_stale = bool(expected and nav_date and nav_date != expected)
 
 
+def build_return_audit(response: PortfolioResponse) -> dict:
+    """Build a deterministic return audit table for regression checks.
+
+    This is the single source of truth for validating:
+    - actual daily return = latest NAV / previous trading-day NAV - 1
+    - holding return = latest NAV / weighted cost NAV - 1
+    - stale per-fund NAV must not be treated as the latest actual return
+    """
+    expected = str(getattr(response, "latest_disclosed_date", "") or "")[:10]
+    rows = []
+    issues = []
+    for fund in getattr(response, "funds", []) or []:
+        history = sorted(getattr(fund, "history", None) or [], key=lambda item: str(getattr(item, "date", "")))
+        latest = history[-1] if history else None
+        prev = history[-2] if len(history) >= 2 else None
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        ready = bool(getattr(fund, "latest_nav_ready", False))
+        stale = bool(getattr(fund, "nav_stale", False))
+
+        calc_daily = None
+        calc_nav = None
+        prev_nav = None
+        hist_latest_date = ""
+        hist_prev_date = ""
+        if latest:
+            hist_latest_date = str(getattr(latest, "date", "") or "")[:10]
+            calc_nav = float(getattr(latest, "nav", 0.0) or 0.0)
+        if prev:
+            hist_prev_date = str(getattr(prev, "date", "") or "")[:10]
+            prev_nav = float(getattr(prev, "nav", 0.0) or 0.0)
+        if calc_nav and prev_nav:
+            calc_daily = round((calc_nav - prev_nav) / prev_nav * 100, 3)
+
+        api_daily = round(float(getattr(fund, "daily_change", 0.0) or 0.0), 3)
+        daily_diff = None if calc_daily is None else round(api_daily - calc_daily, 3)
+        daily_ok = calc_daily is not None and abs(daily_diff or 0.0) <= 0.02 and nav_date == hist_latest_date
+
+        buy_point = getattr(fund, "buy_point", None)
+        holding = bool(getattr(buy_point, "is_holding", False)) if buy_point else False
+        cost_nav = float(getattr(buy_point, "cost_nav", 0.0) or 0.0) if buy_point else 0.0
+        api_holding = float(getattr(buy_point, "yield_pct", 0.0) or 0.0) if buy_point else 0.0
+        calc_holding = None
+        holding_diff = None
+        holding_ok = True
+        if holding and cost_nav > 0:
+            calc_holding = round((float(getattr(fund, "current_nav", 0.0) or 0.0) - cost_nav) / cost_nav * 100, 2)
+            holding_diff = round(api_holding - calc_holding, 2)
+            holding_ok = abs(holding_diff) <= 0.02
+
+        row_issues = []
+        if expected and nav_date != expected:
+            row_issues.append(f"净值日期未到最新披露日 {expected}")
+        if hist_latest_date and nav_date != hist_latest_date:
+            row_issues.append(f"基金nav_date({nav_date})与历史最新({hist_latest_date})不一致")
+        if calc_daily is not None and not daily_ok:
+            row_issues.append(f"实际收益不一致 api={api_daily} calc={calc_daily}")
+        if holding and not holding_ok:
+            row_issues.append(f"持仓收益不一致 api={api_holding} calc={calc_holding}")
+        if row_issues:
+            issues.append({"code": str(getattr(fund, "code", "")), "issues": row_issues})
+
+        rows.append({
+            "code": str(getattr(fund, "code", "")),
+            "name": str(getattr(fund, "name", "")),
+            "expected_nav_date": expected,
+            "nav_date": nav_date,
+            "latest_nav_ready": ready,
+            "nav_stale": stale,
+            "current_nav": float(getattr(fund, "current_nav", 0.0) or 0.0),
+            "previous_nav": float(getattr(fund, "previous_nav", 0.0) or 0.0),
+            "history_latest_date": hist_latest_date,
+            "history_latest_nav": calc_nav,
+            "history_prev_date": hist_prev_date,
+            "history_prev_nav": prev_nav,
+            "api_daily_change": api_daily,
+            "calc_daily_change": calc_daily,
+            "daily_diff": daily_diff,
+            "daily_ok": daily_ok,
+            "is_holding": holding,
+            "cost_nav": cost_nav,
+            "api_holding_yield": round(api_holding, 2),
+            "calc_holding_yield": calc_holding,
+            "holding_diff": holding_diff,
+            "holding_ok": holding_ok,
+            "status": "ready" if ready and daily_ok and holding_ok else ("waiting_nav" if stale else "check"),
+            "issues": row_issues,
+        })
+
+    return {
+        "ok": not issues,
+        "date": getattr(response, "date", ""),
+        "time": getattr(response, "time", ""),
+        "market_status": getattr(response, "market_status", ""),
+        "latest_disclosed_date": expected,
+        "fund_count": len(rows),
+        "issues": issues,
+        "funds": rows,
+    }
+
+
 def _deepseek_text_cache() -> Dict[str, dict]:
     global DEEPSEEK_AI_CACHE
     if not DEEPSEEK_AI_CACHE:
@@ -6203,6 +6303,13 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         save_portfolio_to_db(response)
 
     return portfolio_response_for_client(response, lite, deepseek)
+
+
+@app.get("/api/debug/returns")
+async def debug_returns(force: int = 1):
+    """Read-only return audit for actual/holding return consistency."""
+    response = await get_portfolio(force=force, lite=0, deepseek=0)
+    return build_return_audit(response)
 
 
 async def background_portfolio_refresher():
