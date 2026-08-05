@@ -1812,7 +1812,7 @@ def set_cached_est(fund_code: str, est_nav: float, est_change: float, est_time: 
 
 # 获取web-app目录（当前目录的父目录）
 web_app_dir = os.path.dirname(current_dir)
-index_path = os.path.join(web_app_dir, "index.html")
+index_path = os.path.join(web_app_dir, "index_v4.html")
 
 # 买点配置文件路径（持久化）
 buy_points_file = os.path.join(current_dir, "buy_points.json")
