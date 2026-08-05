@@ -6195,15 +6195,19 @@ def apply_deepseek_ai_cache(response: PortfolioResponse) -> PortfolioResponse:
 
 
 def align_k50_estimate_for_client(response: PortfolioResponse) -> PortfolioResponse:
-    """Keep 011609 intraday display locked to realtime K50 before latest NAV is ready."""
+    """Keep 011609 display locked to realtime K50 until the current date NAV is disclosed."""
     try:
         k50_change = float(getattr(getattr(response, "k50_index", None), "daily_change", 0.0) or 0.0)
     except Exception:
         return response
+    response_date = str(getattr(response, "date", "") or "")[:10]
+    latest_disclosed = str(getattr(response, "latest_disclosed_date", "") or "")[:10]
     for fund in getattr(response, "funds", []) or []:
         if str(getattr(fund, "code", "")) != "011609":
             continue
-        if bool(getattr(fund, "latest_nav_ready", False)):
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        current_nav_disclosed = bool(response_date and latest_disclosed == response_date and nav_date == response_date)
+        if current_nav_disclosed:
             continue
         value = round(k50_change, 3)
         fund.estimated_change = value
