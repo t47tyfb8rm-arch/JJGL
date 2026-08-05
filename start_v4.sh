@@ -14,9 +14,16 @@ mkdir -p "$BACKEND_DIR"
 if [ -f "$PID_FILE" ]; then
   OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-    echo "[INFO] V4 backend already running, PID=$OLD_PID"
-    exit 0
+    if curl -fsS "http://127.0.0.1:$PORT/v4/" >/dev/null 2>&1; then
+      echo "[INFO] V4 backend already running, PID=$OLD_PID, port=$PORT"
+      exit 0
+    fi
+    echo "[WARN] V4 PID=$OLD_PID exists but port=$PORT is not responding; restarting"
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 1
+    kill -9 "$OLD_PID" 2>/dev/null || true
   fi
+  rm -f "$PID_FILE"
 fi
 
 cd "$BACKEND_DIR"
