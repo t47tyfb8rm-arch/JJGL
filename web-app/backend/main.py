@@ -621,6 +621,36 @@ def load_index_history_from_db(index_key: str, limit: int = 12) -> List["IndexHi
         return []
 
 
+def load_latest_fund_from_db(code: str) -> Optional["FundInfo"]:
+    """Load the latest persisted fund row as a per-fund fallback.
+
+    This prevents the portfolio response from losing cards when one upstream
+    fund request fails temporarily.
+    """
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                """
+                SELECT payload
+                FROM fund_daily_snapshots
+                WHERE code=?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (str(code),),
+            ).fetchone()
+        if not row:
+            return None
+        data = json.loads(row[0] or "{}")
+        if hasattr(FundInfo, "model_validate"):
+            return FundInfo.model_validate(data)
+        return FundInfo.parse_obj(data)
+    except Exception as e:
+        print(f"[DB] load fund fallback failed: {code} {e}")
+        return None
+
+
 def clear_portfolio_db_cache():
     try:
         init_app_db()
@@ -6006,6 +6036,25 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
             funds.append(result)
         elif isinstance(result, Exception):
             print(f"基金获取异常: {result}")
+    fund_by_code: Dict[str, FundInfo] = {str(fund.code): fund for fund in funds}
+    if len(fund_by_code) < len(WATCHED_FUNDS):
+        snapshot_response, _snapshot_age = load_portfolio_snapshot_from_db()
+        snapshot_funds = {
+            str(fund.code): fund
+            for fund in (getattr(snapshot_response, "funds", None) or [])
+            if isinstance(fund, FundInfo)
+        }
+        for code in WATCHED_FUNDS:
+            code = str(code)
+            if code in fund_by_code:
+                continue
+            fallback = load_latest_fund_from_db(code) or snapshot_funds.get(code)
+            if fallback:
+                fund_by_code[code] = fallback
+                print(f"基金 {code} 使用数据库快照回补")
+            else:
+                print(f"基金 {code} 实时获取失败且没有可用快照")
+    funds = [fund_by_code[code] for code in WATCHED_FUNDS if code in fund_by_code]
     fix_fund_daily_change_from_latest_history(funds)
 
     news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
