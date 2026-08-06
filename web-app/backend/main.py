@@ -19,7 +19,7 @@ class NoCacheStaticFiles(StaticFiles):
         response.headers["Expires"] = "0"
         return response
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 import httpx
 from datetime import datetime, timedelta
 import re
@@ -212,6 +212,59 @@ def init_app_db():
             )
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS watched_funds (
+                code TEXT PRIMARY KEY,
+                name TEXT,
+                is_core INTEGER NOT NULL DEFAULT 0,
+                follow_date TEXT,
+                historical_yield REAL NOT NULL DEFAULT 0,
+                historical_date TEXT,
+                drop_threshold REAL NOT NULL DEFAULT 5,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS buy_point_settings (
+                code TEXT PRIMARY KEY,
+                ref_nav REAL,
+                ref_date TEXT,
+                drop_threshold REAL NOT NULL DEFAULT 5,
+                historical_yield REAL NOT NULL DEFAULT 0,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_positions (
+                code TEXT PRIMARY KEY,
+                is_holding INTEGER NOT NULL DEFAULT 0,
+                cost_nav REAL NOT NULL DEFAULT 0,
+                buy_date TEXT,
+                shares REAL NOT NULL DEFAULT 0,
+                realized_yield_pct REAL NOT NULL DEFAULT 0,
+                holding_yield_pct REAL NOT NULL DEFAULT 0,
+                total_return_pct REAL NOT NULL DEFAULT 0,
+                sell_date TEXT,
+                sell_price REAL NOT NULL DEFAULT 0,
+                payload TEXT NOT NULL DEFAULT '{}',
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT NOT NULL,
+                type TEXT NOT NULL,
+                trade_date TEXT,
+                nav REAL,
+                shares REAL,
+                yield_pct REAL,
+                payload TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS fund_nav_history (
                 code TEXT NOT NULL,
                 nav_date TEXT NOT NULL,
@@ -220,6 +273,34 @@ def init_app_db():
                 payload TEXT NOT NULL,
                 updated_at REAL NOT NULL,
                 PRIMARY KEY(code, nav_date)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS fund_return_ledger (
+                code TEXT NOT NULL,
+                trade_date TEXT NOT NULL,
+                nav_date TEXT,
+                latest_nav_ready INTEGER NOT NULL DEFAULT 0,
+                nav_stale INTEGER NOT NULL DEFAULT 0,
+                current_nav REAL,
+                previous_nav REAL,
+                actual_daily_change REAL,
+                estimated_change REAL,
+                model_estimated_change REAL,
+                corrected_estimated_change REAL,
+                holding_yield_pct REAL,
+                realized_yield_pct REAL,
+                total_return_pct REAL,
+                return_7d REAL,
+                return_1m REAL,
+                return_6m REAL,
+                cost_nav REAL,
+                shares REAL,
+                is_holding INTEGER NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT '',
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, trade_date)
             )
         """)
         conn.execute("""
@@ -283,9 +364,21 @@ def init_app_db():
                 PRIMARY KEY(code, snapshot_date)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS deepseek_strategy_snapshots (
+                code TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(code, snapshot_date)
+            )
+        """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_nav_history_code_date ON fund_nav_history(code, nav_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_return_ledger_code_date ON fund_return_ledger(code, trade_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_transactions_code_date ON fund_transactions(code, trade_date DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_intraday_estimates_code_time ON intraday_estimate_snapshots(code, trade_date DESC, estimate_time DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_index_snapshots_key_date ON index_snapshots(index_key, trade_date DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_deepseek_strategy_date ON deepseek_strategy_snapshots(snapshot_date DESC, code)")
         conn.commit()
 
 
@@ -305,13 +398,265 @@ def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
         now_ts = time.time()
         with sqlite3.connect(DB_PATH) as conn:
             for code, value in (cost_navs or {}).items():
+                code = str(code)
+                payload = value if isinstance(value, dict) else {"value": value}
                 conn.execute(
                     "INSERT OR REPLACE INTO cost_nav_snapshots(code, created_at, payload) VALUES(?,?,?)",
-                    (str(code), now_ts, _json_payload(value if isinstance(value, dict) else {"value": value})),
+                    (code, now_ts, _json_payload(payload)),
                 )
+                if isinstance(payload, dict):
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO fund_positions
+                        (code, is_holding, cost_nav, buy_date, shares, realized_yield_pct, holding_yield_pct,
+                         total_return_pct, sell_date, sell_price, payload, updated_at)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (
+                            code,
+                            1 if payload.get("is_holding", False) else 0,
+                            _db_float(payload.get("buy_nav", payload.get("cost_nav", payload.get("buy_price", 0.0)))),
+                            str(payload.get("buy_date", "")),
+                            _db_float(payload.get("shares", 0.0)),
+                            _db_float(payload.get("realized_yield_pct", 0.0)),
+                            _db_float(payload.get("yield_pct", payload.get("holding_yield_pct", 0.0))),
+                            _db_float(payload.get("total_return", payload.get("yield_pct", 0.0))),
+                            str(payload.get("sell_date", "")),
+                            _db_float(payload.get("sell_price", 0.0)),
+                            _json_payload(payload),
+                            now_ts,
+                        ),
+                    )
+                    conn.execute("DELETE FROM fund_transactions WHERE code=?", (code,))
+                    for txn in payload.get("transactions", []) or []:
+                        if not isinstance(txn, dict):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT INTO fund_transactions
+                            (code, type, trade_date, nav, shares, yield_pct, payload, created_at)
+                            VALUES(?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                code,
+                                str(txn.get("type", "")),
+                                str(txn.get("date", txn.get("trade_date", ""))),
+                                _db_float(txn.get("nav", txn.get("price", 0.0))),
+                                _db_float(txn.get("shares", 0.0)),
+                                _db_float(txn.get("yield_pct", 0.0)),
+                                _json_payload(txn),
+                                now_ts,
+                            ),
+                        )
             conn.commit()
     except Exception as e:
         print(f"[DB] save cost navs failed: {e}")
+
+
+def _db_float(value, default: float = 0.0) -> float:
+    try:
+        if value in (None, "", "--"):
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def load_cost_navs_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, payload FROM fund_positions ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, payload in rows:
+            try:
+                data = json.loads(payload or "{}")
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if data:
+                result[str(code)] = data
+        return result
+    except Exception as e:
+        print(f"[DB] load cost navs failed: {e}")
+        return {}
+
+
+def save_fund_settings_to_db(settings: Dict[str, dict]) -> None:
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for code in CORE_FUNDS:
+                if code not in settings:
+                    hist = HISTORICAL_YIELDS.get(code, {}) if isinstance(HISTORICAL_YIELDS.get(code), dict) else {}
+                    bp = BUY_POINT_CONFIG.get(code, {}) if isinstance(BUY_POINT_CONFIG.get(code), dict) else {}
+                    settings[code] = {
+                        "code": code,
+                        "name": "",
+                        "follow_date": hist.get("date", ""),
+                        "historical_yield": hist.get("yield", 0.0),
+                        "historical_date": hist.get("date", ""),
+                        "drop_threshold": bp.get("drop_threshold", 5.0),
+                        "is_core": True,
+                    }
+            for code, cfg in (settings or {}).items():
+                if not isinstance(cfg, dict):
+                    continue
+                code = str(code)
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO watched_funds
+                    (code, name, is_core, follow_date, historical_yield, historical_date, drop_threshold, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        code,
+                        str(cfg.get("name", "")),
+                        1 if code in CORE_FUNDS or cfg.get("is_core", False) else 0,
+                        str(cfg.get("follow_date", "")),
+                        _db_float(cfg.get("historical_yield", 0.0)),
+                        str(cfg.get("historical_date", cfg.get("follow_date", ""))),
+                        _db_float(cfg.get("drop_threshold", 5.0), 5.0),
+                        _json_payload(cfg),
+                        now_ts,
+                    ),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save fund settings failed: {e}")
+
+
+def load_fund_settings_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, payload, follow_date, historical_yield, historical_date, drop_threshold, name, is_core FROM watched_funds ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, payload, follow_date, historical_yield, historical_date, drop_threshold, name, is_core in rows:
+            try:
+                cfg = json.loads(payload or "{}")
+            except Exception:
+                cfg = {}
+            if not isinstance(cfg, dict):
+                cfg = {}
+            cfg.update({
+                "code": str(code),
+                "name": cfg.get("name") or name or "",
+                "follow_date": cfg.get("follow_date") or follow_date or historical_date or "",
+                "historical_yield": _db_float(cfg.get("historical_yield", historical_yield)),
+                "historical_date": cfg.get("historical_date") or historical_date or follow_date or "",
+                "drop_threshold": _db_float(cfg.get("drop_threshold", drop_threshold), 5.0),
+                "is_core": bool(is_core),
+            })
+            result[str(code)] = cfg
+        return result
+    except Exception as e:
+        print(f"[DB] load fund settings failed: {e}")
+        return {}
+
+
+def save_buy_point_refs_to_db(refs: Dict[str, dict]) -> None:
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for code, ref in (refs or {}).items():
+                if not isinstance(ref, dict):
+                    continue
+                cfg = FUND_SETTINGS.get(str(code), {}) if isinstance(FUND_SETTINGS.get(str(code)), dict) else {}
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO buy_point_settings
+                    (code, ref_nav, ref_date, drop_threshold, historical_yield, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        str(code),
+                        _db_float(ref.get("ref_nav", 0.0)),
+                        str(ref.get("ref_date", "")),
+                        _db_float(cfg.get("drop_threshold", BUY_POINT_CONFIG.get(str(code), {}).get("drop_threshold", 5.0)), 5.0),
+                        _db_float(cfg.get("historical_yield", HISTORICAL_YIELDS.get(str(code), {}).get("yield", 0.0) if isinstance(HISTORICAL_YIELDS.get(str(code)), dict) else 0.0)),
+                        _json_payload(ref),
+                        now_ts,
+                    ),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save buy point refs failed: {e}")
+
+
+def load_buy_point_refs_from_db() -> Dict[str, dict]:
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            rows = conn.execute("SELECT code, ref_nav, ref_date, payload FROM buy_point_settings ORDER BY code").fetchall()
+        result: Dict[str, dict] = {}
+        for code, ref_nav, ref_date, payload in rows:
+            try:
+                ref = json.loads(payload or "{}")
+            except Exception:
+                ref = {}
+            if not isinstance(ref, dict):
+                ref = {}
+            ref["ref_nav"] = _db_float(ref.get("ref_nav", ref_nav))
+            ref["ref_date"] = str(ref.get("ref_date") or ref_date or "")
+            result[str(code)] = ref
+        return result
+    except Exception as e:
+        print(f"[DB] load buy point refs failed: {e}")
+        return {}
+
+
+def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
+    bp = getattr(fund, "buy_point", None)
+    cost_nav = _db_float(getattr(bp, "cost_nav", 0.0) if bp else 0.0)
+    shares = _db_float(getattr(bp, "shares", 0.0) if bp and hasattr(bp, "shares") else 0.0)
+    is_holding = bool(getattr(bp, "is_holding", False)) if bp else False
+    holding_yield = _db_float(getattr(bp, "yield_pct", 0.0) if bp else 0.0)
+    realized_yield = _db_float(getattr(bp, "realized_yield_pct", 0.0) if bp else 0.0)
+    total_return = _db_float(getattr(bp, "total_return", holding_yield) if bp else holding_yield)
+    expected_date = str(getattr(fund, "expected_nav_date", "") or expected_actual_nav_date())[:10]
+    nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+    ready = bool(getattr(fund, "latest_nav_ready", False)) or bool(nav_date and expected_date and nav_date >= expected_date)
+    stale = not ready
+    source = "actual_nav" if ready else "intraday_estimate"
+    payload = {
+        "code": getattr(fund, "code", ""),
+        "name": getattr(fund, "name", ""),
+        "trade_date": trade_date,
+        "nav_date": getattr(fund, "nav_date", ""),
+        "expected_nav_date": expected_date,
+        "latest_nav_ready": ready,
+        "nav_stale": stale,
+        "source": source,
+    }
+    return (
+        getattr(fund, "code", ""),
+        trade_date,
+        getattr(fund, "nav_date", ""),
+        1 if ready else 0,
+        1 if stale else 0,
+        _db_float(getattr(fund, "current_nav", 0.0)),
+        _db_float(getattr(fund, "previous_nav", 0.0)),
+        _db_float(getattr(fund, "daily_change", 0.0)),
+        _db_float(getattr(fund, "estimated_change", 0.0)),
+        _db_float(getattr(fund, "model_estimated_change", 0.0)),
+        _db_float(getattr(fund, "corrected_estimated_change", 0.0)),
+        holding_yield,
+        realized_yield,
+        total_return,
+        _db_float(getattr(fund, "return_7d", 0.0)),
+        _db_float(getattr(fund, "return_1m", 0.0)),
+        _db_float(getattr(fund, "return_6m", 0.0)),
+        cost_nav,
+        shares,
+        1 if is_holding else 0,
+        source,
+        _json_payload(payload),
+        now_ts,
+    )
 
 
 def save_portfolio_to_db(response):
@@ -349,6 +694,17 @@ def save_portfolio_to_db(response):
                         fund_payload,
                         now_ts,
                     ),
+                )
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO fund_return_ledger
+                    (code, trade_date, nav_date, latest_nav_ready, nav_stale, current_nav, previous_nav,
+                     actual_daily_change, estimated_change, model_estimated_change, corrected_estimated_change,
+                     holding_yield_pct, realized_yield_pct, total_return_pct, return_7d, return_1m, return_6m,
+                     cost_nav, shares, is_holding, source, payload, updated_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    _fund_return_ledger_row(fund, response.date, now_ts),
                 )
                 if getattr(fund, "nav_date", ""):
                     conn.execute(
@@ -480,68 +836,6 @@ def save_portfolio_to_db(response):
         print(f"[DB] save portfolio failed: {e}")
 
 
-def save_deepseek_ai_cache_to_db(items: Dict[str, dict]):
-    """Persist DeepSeek text-only advice without touching portfolio snapshots."""
-    if not items:
-        return
-    try:
-        init_app_db()
-        now_ts = time.time()
-        with sqlite3.connect(DB_PATH) as conn:
-            for code, value in items.items():
-                if not isinstance(value, dict):
-                    continue
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO ai_strategy_snapshots
-                    (code, snapshot_date, risk_level, trend, advice, payload, updated_at)
-                    VALUES(?,?,?,?,?,?,?)
-                    """,
-                    (
-                        str(code),
-                        DEEPSEEK_AI_SNAPSHOT_KEY,
-                        str(value.get("risk_level", "")),
-                        str(value.get("trend", "")),
-                        str(value.get("advice", "")),
-                        _json_payload(value),
-                        now_ts,
-                    ),
-                )
-            conn.commit()
-    except Exception as e:
-        print(f"[DB] save DeepSeek AI cache failed: {e}")
-
-
-def load_deepseek_ai_cache_from_db(max_age_seconds: int = 86400) -> Dict[str, dict]:
-    """Load the text-only DeepSeek advice cache."""
-    try:
-        init_app_db()
-        with sqlite3.connect(DB_PATH) as conn:
-            rows = conn.execute(
-                """
-                SELECT code, payload, updated_at
-                FROM ai_strategy_snapshots
-                WHERE snapshot_date=?
-                """,
-                (DEEPSEEK_AI_SNAPSHOT_KEY,),
-            ).fetchall()
-        now_ts = time.time()
-        result: Dict[str, dict] = {}
-        for code, payload, updated_at in rows:
-            if max_age_seconds > 0 and now_ts - float(updated_at or 0) > max_age_seconds:
-                continue
-            try:
-                value = json.loads(payload or "{}")
-            except Exception:
-                continue
-            if isinstance(value, dict):
-                result[str(code)] = value
-        return result
-    except Exception as e:
-        print(f"[DB] load DeepSeek AI cache failed: {e}")
-        return {}
-
-
 def load_portfolio_from_db(max_age_seconds: int = 180):
     try:
         init_app_db()
@@ -621,132 +915,6 @@ def load_index_history_from_db(index_key: str, limit: int = 12) -> List["IndexHi
         return []
 
 
-def load_fund_nav_history_from_db(code: str, limit: int = 190) -> List[dict]:
-    """Load persisted fund NAV rows for reconciliation.
-
-    The live fund page and F10 endpoints may lag or fail independently. If a
-    newer NAV row was already captured in SQLite, merge it back into the
-    in-memory/json history before deciding the fund is stale.
-    """
-    try:
-        init_app_db()
-        with sqlite3.connect(DB_PATH) as conn:
-            rows = conn.execute(
-                """
-                SELECT nav_date, nav, daily_change, payload
-                FROM fund_nav_history
-                WHERE code=?
-                ORDER BY nav_date DESC
-                LIMIT ?
-                """,
-                (str(code), max(1, int(limit))),
-            ).fetchall()
-        items = []
-        for nav_date, nav, daily_change, payload in rows:
-            try:
-                payload_data = json.loads(payload or "{}")
-            except Exception:
-                payload_data = {}
-            try:
-                date_str = str(nav_date or payload_data.get("nav_date") or "")[:10]
-                nav_value = float(nav if nav is not None else payload_data.get("current_nav") or 0.0)
-                change_value = float(daily_change if daily_change is not None else payload_data.get("daily_change") or 0.0)
-                if not date_str or nav_value <= 0:
-                    continue
-                items.append({
-                    "date": date_str,
-                    "nav": round(nav_value, 4),
-                    "acc_nav": round(float(payload_data.get("acc_nav") or nav_value), 4),
-                    "change": round(change_value, 3),
-                })
-            except Exception:
-                continue
-        items.sort(key=lambda x: x["date"])
-        return items
-    except Exception as e:
-        print(f"[DB] load fund nav history failed: {code} {e}")
-        return []
-
-
-def save_fund_nav_history_rows_to_db(code: str, rows: List[dict]) -> None:
-    """Persist normalized fund NAV rows immediately.
-
-    Fund NAV history is the source of truth for daily return calculation. Any
-    upstream row we trust enough to merge into history should be written to DB
-    before the portfolio response is rendered.
-    """
-    if not rows:
-        return
-    try:
-        init_app_db()
-        now_ts = time.time()
-        with sqlite3.connect(DB_PATH) as conn:
-            for row in rows:
-                try:
-                    date_str = str(row.get("date", "") or "")[:10]
-                    nav_value = float(row.get("nav") or 0.0)
-                    change_value = float(row.get("change") or 0.0)
-                    if not date_str or nav_value <= 0:
-                        continue
-                    payload = _json_payload({
-                        "code": str(code),
-                        "nav_date": date_str,
-                        "current_nav": round(nav_value, 4),
-                        "daily_change": round(change_value, 3),
-                        "acc_nav": row.get("acc_nav", nav_value),
-                    })
-                    conn.execute(
-                        """
-                        INSERT OR REPLACE INTO fund_nav_history
-                        (code, nav_date, nav, daily_change, payload, updated_at)
-                        VALUES(?,?,?,?,?,?)
-                        """,
-                        (
-                            str(code),
-                            date_str,
-                            round(nav_value, 4),
-                            round(change_value, 3),
-                            payload,
-                            now_ts,
-                        ),
-                    )
-                except Exception:
-                    continue
-            conn.commit()
-    except Exception as e:
-        print(f"[DB] save fund nav history failed: {code} {e}")
-
-
-def load_latest_fund_from_db(code: str) -> Optional["FundInfo"]:
-    """Load the latest persisted fund row as a per-fund fallback.
-
-    This prevents the portfolio response from losing cards when one upstream
-    fund request fails temporarily.
-    """
-    try:
-        init_app_db()
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute(
-                """
-                SELECT payload
-                FROM fund_daily_snapshots
-                WHERE code=?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                (str(code),),
-            ).fetchone()
-        if not row:
-            return None
-        data = json.loads(row[0] or "{}")
-        if hasattr(FundInfo, "model_validate"):
-            return FundInfo.model_validate(data)
-        return FundInfo.parse_obj(data)
-    except Exception as e:
-        print(f"[DB] load fund fallback failed: {code} {e}")
-        return None
-
-
 def clear_portfolio_db_cache():
     try:
         init_app_db()
@@ -790,19 +958,6 @@ FUND_SPECIFIC_MODELS = {
         "baseline_window": 10,
         "short_window": 3,
         "description": "纯债趋势：近3日/10日自身净值趋势为主，国债指数只做小权重修正"
-    }
-}
-
-# 债券基金结构化估算配置。持仓披露有滞后，先用偏保守的资产结构代理。
-BOND_FUND_HOLDING_PROFILES = {
-    "020741": {
-        "name": "华泰保兴安悦债券C",
-        "rate_bond_weight": 0.60,
-        "credit_bond_weight": 0.28,
-        "convertible_weight": 0.07,
-        "equity_weight": 0.03,
-        "cash_weight": 0.02,
-        "description": "利率债/信用债为主，少量转债与权益风险暴露"
     }
 }
 
@@ -1119,7 +1274,6 @@ def build_bond_range_estimate(
     curve_proxy: Optional[dict],
     beta: float,
     r_squared: float,
-    structured: Optional[dict] = None,
 ) -> dict:
     """Build a conservative display model for pure bond funds.
 
@@ -1138,12 +1292,8 @@ def build_bond_range_estimate(
     quality = str(curve.get("quality", "弱") or "弱")
 
     # Keep the direction conservative: the fund's own recent NAV trend is the
-    # anchor; when a holding-structure proxy exists, use it as the intraday
-    # direction instead of a single bond index.
-    if structured and structured.get("center") is not None:
-        center = float(structured.get("center") or 0.0)
-    else:
-        center = round(base * 0.76 + curve_signal * float(beta or 0.5) * 0.18 + idx_change * 0.06, 3)
+    # anchor, long-bond proxy only nudges the signal.
+    center = round(base * 0.76 + curve_signal * float(beta or 0.5) * 0.18 + idx_change * 0.06, 3)
     center = max(-0.16, min(0.16, center))
 
     spread = 0.025
@@ -1165,9 +1315,7 @@ def build_bond_range_estimate(
     else:
         signal, tone = "偏稳", "neutral"
 
-    if structured and structured.get("reason"):
-        reason = str(structured.get("reason"))
-    elif idx_change > 0.03:
+    if idx_change > 0.03:
         reason = "国债指数偏强，利率债情绪较暖"
     elif idx_change < -0.03:
         reason = "国债指数回落，长债估值承压"
@@ -1177,8 +1325,6 @@ def build_bond_range_estimate(
         reason = "票息收益为主，利率波动有限"
 
     confidence = "中" if r_squared >= 0.3 and quality in ("中", "强") else "低"
-    if structured and structured.get("confidence"):
-        confidence = str(structured.get("confidence"))
     return {
         "type": "rate_bond",
         "signal": signal,
@@ -1188,11 +1334,10 @@ def build_bond_range_estimate(
         "center": center,
         "reason": reason,
         "confidence": confidence,
-        "benchmark": structured.get("benchmark", "利率债/国债曲线") if structured else "利率债/国债曲线",
-        "source": structured.get("source", "自身净值趋势+国债曲线代理") if structured else "自身净值趋势+国债曲线代理",
+        "benchmark": "利率债/国债曲线",
+        "source": "自身净值趋势+国债曲线代理",
         "beta": round(float(beta or 0.0), 3),
         "r_squared": round(float(r_squared or 0.0), 3),
-        "factors": structured.get("factors", []) if structured else [],
     }
 
 
@@ -1216,79 +1361,6 @@ def _weighted_average_quote(items: list[tuple[Optional["IndexInfo"], float]]) ->
     if total_weight <= 0:
         return None, None
     return round(weighted_current / total_weight, 2), round(weighted_change / total_weight, 3)
-
-
-async def build_bond_holding_structured_estimate(
-    fund_code: str,
-    baseline_signal: float,
-    bond_index: Optional["IndexInfo"],
-    hs300_index: Optional["IndexInfo"],
-    curve_proxy: Optional[dict],
-) -> dict:
-    """Estimate a bond fund by its conservative asset structure.
-
-    Fund holdings are disclosed with delay, so this uses a configurable
-    allocation profile and domestic proxy indices instead of pretending to know
-    exact intraday holdings.
-    """
-    profile = BOND_FUND_HOLDING_PROFILES.get(str(fund_code))
-    if not profile:
-        return {}
-
-    credit_task = fetch_generic_index("sh000013", "企债指数")
-    convertible_task = fetch_generic_index("sh000832", "中证转债")
-    credit_index, convertible_index = await asyncio.gather(credit_task, convertible_task)
-
-    def change(item) -> Optional[float]:
-        if item and float(getattr(item, "current", 0.0) or 0.0) > 0:
-            return float(getattr(item, "daily_change", 0.0) or 0.0)
-        return None
-
-    curve_signal = float((curve_proxy or {}).get("signal", 0.0) or 0.0)
-    rate_change = change(bond_index)
-    credit_change = change(credit_index)
-    convertible_change = change(convertible_index)
-    equity_change = change(hs300_index)
-
-    factors = [
-        ("利率债", rate_change if rate_change is not None else curve_signal, float(profile.get("rate_bond_weight", 0.0) or 0.0)),
-        ("信用债", credit_change, float(profile.get("credit_bond_weight", 0.0) or 0.0)),
-        ("转债", convertible_change, float(profile.get("convertible_weight", 0.0) or 0.0)),
-        ("权益", equity_change, float(profile.get("equity_weight", 0.0) or 0.0)),
-        ("现金", 0.0, float(profile.get("cash_weight", 0.0) or 0.0)),
-    ]
-    usable = [(name, val, weight) for name, val, weight in factors if val is not None and weight > 0]
-    total_weight = sum(weight for _name, _val, weight in usable)
-    if total_weight <= 0:
-        return {}
-
-    structure_signal = sum(val * weight for _name, val, weight in usable) / total_weight
-    center = round(float(baseline_signal or 0.0) * 0.52 + structure_signal * 0.48, 3)
-    center = max(-0.18, min(0.18, center))
-
-    factor_payload = [
-        {"name": name, "change": round(float(val), 3), "weight": round(float(weight), 3)}
-        for name, val, weight in usable
-    ]
-    strongest = max(usable, key=lambda x: abs(x[1] * x[2]))
-    if center >= 0.035:
-        signal = "偏暖"
-    elif center <= -0.035:
-        signal = "偏弱"
-    else:
-        signal = "偏稳"
-    reason = f"{strongest[0]}因子{strongest[1]:+.2f}%，按持仓结构估算"
-    confidence = "中" if len(usable) >= 3 else "低"
-    return {
-        "center": center,
-        "signal": signal,
-        "reason": reason,
-        "confidence": confidence,
-        "benchmark": "债基持仓结构代理",
-        "source": "自身趋势+持仓结构代理",
-        "factors": factor_payload,
-        "structure_signal": round(structure_signal, 3),
-    }
 
 
 async def fetch_bond_market_proxy_index() -> "IndexInfo":
@@ -2101,7 +2173,7 @@ def set_cached_est(fund_code: str, est_nav: float, est_change: float, est_time: 
 
 # 获取web-app目录（当前目录的父目录）
 web_app_dir = os.path.dirname(current_dir)
-index_path = os.path.join(web_app_dir, "index.html")
+index_path = os.path.join(web_app_dir, "index_v3.html")
 
 # 买点配置文件路径（持久化）
 buy_points_file = os.path.join(current_dir, "buy_points.json")
@@ -2193,9 +2265,6 @@ class FundInfo(BaseModel):
     previous_nav: float
     nav_date: str
     daily_change: float
-    latest_nav_ready: bool = False       # 当前基金净值是否已更新到最新应披露日
-    expected_nav_date: str = ""          # 当前应等待/展示的净值日期
-    nav_stale: bool = False              # 当前基金净值落后于应披露日
     estimated: bool = False
     estimated_nav: float = 0.0    # 今日估算净值
     estimated_change: float = 0.0  # 估算日涨跌 %
@@ -2228,6 +2297,10 @@ class FundInfo(BaseModel):
     return_1m: float = 0.0       # 近1月累计收益率（%）
     return_3m: float = 0.0       # 近3月累计收益率（%）
     return_6m: float = 0.0       # 近6月累计收益率（%）
+    # === 净值披露状态（前端决定显示实际还是盘中预估） ===
+    expected_nav_date: str = ""
+    latest_nav_ready: bool = False
+    nav_stale: bool = False
 
 
 class NewsItem(BaseModel):
@@ -2435,7 +2508,7 @@ BACKGROUND_PORTFOLIO_STATUS = {
     "last_duration_seconds": None,
     "next_interval_seconds": None,
 }
-DEEPSEEK_AUTO_INTERVAL_SECONDS = 600
+DEEPSEEK_AUTO_INTERVAL_SECONDS = 3600
 DEEPSEEK_AUTO_STATUS = {
     "last_started_at": "",
     "last_finished_at": "",
@@ -2443,9 +2516,8 @@ DEEPSEEK_AUTO_STATUS = {
     "last_duration_seconds": None,
     "next_interval_seconds": DEEPSEEK_AUTO_INTERVAL_SECONDS,
     "enhanced_count": 0,
+    "last_done_ts": 0.0,
 }
-DEEPSEEK_AI_SNAPSHOT_KEY = "deepseek_latest"
-DEEPSEEK_AI_CACHE: Dict[str, dict] = {}
 
 
 def portfolio_snapshot_max_age_seconds() -> int:
@@ -2461,7 +2533,8 @@ def schedule_portfolio_refresh(reason: str = "stale_snapshot"):
     async def _refresh_once():
         global BACKGROUND_PORTFOLIO_REFRESHING
         try:
-            await get_portfolio(force=1, lite=0)
+            response = await get_portfolio(force=1, lite=0)
+            await _run_deepseek_auto_if_due(response)
             print(f"[后台刷新] {reason} 已刷新 {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             print(f"[后台刷新] {reason} 失败: {e}")
@@ -2517,6 +2590,31 @@ def _is_today_disclosed() -> bool:
         return False
     latest = _latest_disclosed_date()
     return all(f.nav_date == latest for f in funds)
+
+
+def expected_actual_nav_date(now: Optional[datetime] = None) -> str:
+    """
+    Date whose actual NAV can replace intraday estimates.
+    - Before 09:30: use the latest disclosed NAV date, usually yesterday.
+    - From 09:30 onward on a trading day: expect today's NAV; until each fund
+      reaches it, the frontend should treat yesterday's NAV as stale.
+    """
+    now = now or datetime.now()
+    if now.weekday() < 5:
+        market_start = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        if now >= market_start:
+            return now.strftime("%Y-%m-%d")
+    return _latest_disclosed_date()
+
+
+def mark_fund_nav_readiness(funds: List[FundInfo], expected_date: str = "") -> None:
+    """Mark each fund's actual NAV as ready/stale against the display expectation."""
+    expected = expected_date or expected_actual_nav_date()
+    for fund in funds or []:
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        fund.expected_nav_date = expected
+        fund.latest_nav_ready = bool(nav_date and nav_date >= expected)
+        fund.nav_stale = not fund.latest_nav_ready
 
 
 def _next_market_open_ts(now: datetime) -> float:
@@ -2633,11 +2731,16 @@ fund_settings_file = os.path.join(current_dir, "fund_settings.json")
 
 
 def load_fund_settings() -> Dict[str, dict]:
+    db_data = load_fund_settings_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(fund_settings_file):
             with open(fund_settings_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data if isinstance(data, dict) else {}
+                if isinstance(data, dict):
+                    save_fund_settings_to_db(data)
+                    return data
     except Exception as e:
         print(f"加载基金关注配置失败: {e}")
     return {}
@@ -2647,6 +2750,7 @@ def save_fund_settings(settings: Dict[str, dict]) -> bool:
     try:
         with open(fund_settings_file, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
+        save_fund_settings_to_db(settings)
         return True
     except Exception as e:
         print(f"保存基金关注配置失败: {e}")
@@ -2683,14 +2787,19 @@ BUY_POINT_REFS: Dict[str, dict] = {}
 
 def load_buy_point_refs() -> Dict[str, dict]:
     """从本地文件加载买点参考价（仅含 ref_nav/ref_date）"""
+    db_data = load_buy_point_refs_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(buy_point_refs_file):
             with open(buy_point_refs_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    return {k: {"ref_nav": float(v.get("ref_nav", 0)),
-                                "ref_date": str(v.get("ref_date", ""))}
-                            for k, v in data.items() if isinstance(v, dict)}
+                    result = {k: {"ref_nav": float(v.get("ref_nav", 0)),
+                                  "ref_date": str(v.get("ref_date", ""))}
+                              for k, v in data.items() if isinstance(v, dict)}
+                    save_buy_point_refs_to_db(result)
+                    return result
     except Exception as e:
         print(f"加载买点参考价失败: {e}")
     return {}
@@ -2701,6 +2810,7 @@ def save_buy_point_refs(refs: Dict[str, dict]) -> bool:
     try:
         with open(buy_point_refs_file, "w", encoding="utf-8") as f:
             json.dump(refs, f, ensure_ascii=False, indent=2)
+        save_buy_point_refs_to_db(refs)
         return True
     except Exception as e:
         print(f"保存买点参考价失败: {e}")
@@ -2717,6 +2827,9 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
     """从本地文件加载成本净值 —— 只保留用户真正确认买入的记录（is_holding=True）
     其他未确认的虚拟成本一律忽略，保证 buy_points.json 是用户操作的纯净记录。
     """
+    db_data = load_cost_navs_from_db()
+    if db_data:
+        return db_data
     try:
         if os.path.exists(buy_points_file):
             with open(buy_points_file, "r", encoding="utf-8") as f:
@@ -2766,6 +2879,7 @@ def load_cost_navs_from_file() -> Dict[str, dict]:
                                 "sell_date": str(v.get("sell_date", "")),
                                 "sell_price": float(v.get("sell_price", 0.0) or 0.0)
                             }
+                    save_cost_navs_to_db(result)
                     return result
     except Exception as e:
         print(f"加载成本净值失败: {e}")
@@ -2777,6 +2891,7 @@ def save_cost_navs_to_file(cost_navs: Dict[str, dict]) -> bool:
     try:
         with open(buy_points_file, "w", encoding="utf-8") as f:
             json.dump(cost_navs, f, ensure_ascii=False, indent=2)
+        save_cost_navs_to_db(cost_navs)
         return True
     except Exception as e:
         print(f"保存成本净值失败: {e}")
@@ -2916,18 +3031,6 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
 
     # === 持久化增量：算 last_date，决定只拉哪段 ===
     persisted = NAV_HISTORY.get(fund_code, [])
-    db_history_rows = load_fund_nav_history_from_db(fund_code, limit=max(days + 30, 190))
-    if db_history_rows:
-        by_date = {str(r.get("date", ""))[:10]: dict(r) for r in persisted if r.get("date")}
-        for row in db_history_rows:
-            date_key = str(row.get("date", ""))[:10]
-            if date_key:
-                by_date[date_key] = row
-        merged_persisted = sorted(by_date.values(), key=lambda x: x.get("date", ""))
-        if merged_persisted != persisted:
-            persisted = merged_persisted
-            NAV_HISTORY[fund_code] = persisted
-            save_nav_history(NAV_HISTORY)
     today_str = datetime.now().strftime("%Y-%m-%d")
     if persisted:
         last_date = persisted[-1].get("date", "")
@@ -2959,99 +3062,6 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
     }
 
     all_rows = []
-
-    async def _fetch_lsjz_json() -> List[dict]:
-        """Stable fallback: Eastmoney JSON LSJZ endpoint, newest first."""
-        url = "http://api.fund.eastmoney.com/f10/lsjz"
-        params = {
-            "fundCode": fund_code,
-            "pageIndex": 1,
-            "pageSize": max(days, 40),
-            "mode": "1",
-            "_": int(datetime.now().timestamp() * 1000),
-        }
-        try:
-            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-                response = await client.get(
-                    url,
-                    params=params,
-                    headers={
-                        "User-Agent": "Mozilla/5.0",
-                        "Referer": f"http://fundf10.eastmoney.com/jjjz_{fund_code}.html",
-                    },
-                )
-                response.raise_for_status()
-            data = response.json()
-            rows = []
-            for item in data.get("Data", {}).get("LSJZList", []) or []:
-                try:
-                    date_str = str(item.get("FSRQ", "") or "")[:10]
-                    nav = float(item.get("DWJZ") or item.get("NAV") or 0.0)
-                    acc_nav = float(item.get("LJJZ") or item.get("ACC_NAV") or nav)
-                    change_text = str(item.get("JZZZL") or item.get("ZZL") or "0").replace("%", "")
-                    if not date_str or nav <= 0:
-                        continue
-                    rows.append({
-                        "date": date_str,
-                        "nav": nav,
-                        "acc_nav": acc_nav,
-                        "change": float(change_text or 0.0),
-                    })
-                except Exception:
-                    continue
-            rows.sort(key=lambda x: x["date"])
-            return rows
-        except Exception as e:
-            print(f"获取基金 {fund_code} JSON历史数据失败: {e}")
-            return []
-
-    async def _fetch_pingzhong_history() -> List[dict]:
-        """Fallback from pingzhongdata Data_netWorthTrend."""
-        url = f"https://fund.eastmoney.com/pingzhongdata/{fund_code}.js?v={int(datetime.now().timestamp() * 1000)}"
-        try:
-            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-                response = await client.get(
-                    url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0",
-                        "Referer": f"https://fund.eastmoney.com/{fund_code}.html",
-                    },
-                )
-                response.raise_for_status()
-            text = response.text
-            match = re.search(r"Data_netWorthTrend\s*=\s*(\[[\s\S]*?\]);", text)
-            if not match:
-                return []
-            data = json.loads(match.group(1))
-            rows = []
-            prev_nav = None
-            for item in data or []:
-                try:
-                    ts = int(item.get("x") or 0)
-                    nav = float(item.get("y") or 0.0)
-                    if ts <= 0 or nav <= 0:
-                        continue
-                    date_str = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d")
-                    change_val = item.get("equityReturn")
-                    if change_val is None or str(change_val) == "":
-                        change = 0.0 if not prev_nav else round((nav - prev_nav) / prev_nav * 100, 3)
-                    else:
-                        change = float(change_val)
-                    rows.append({
-                        "date": date_str,
-                        "nav": nav,
-                        "acc_nav": nav,
-                        "change": change,
-                    })
-                    prev_nav = nav
-                except Exception:
-                    continue
-            rows.sort(key=lambda x: x["date"])
-            return rows
-        except Exception as e:
-            print(f"获取基金 {fund_code} pingzhong历史数据失败: {e}")
-            return []
-
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             for page in range(1, total_pages + 1):
@@ -3085,20 +3095,11 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
                 "acc_nav": float(acc_nav_str),
                 "change": float(change_str),
             })
-        # F10DataApi 偶发返回空 HTML 或旧数据，用 JSON LSJZ 再补一次。
-        fallback_rows = []
-        fallback_rows.extend(await _fetch_lsjz_json())
-        fallback_rows.extend(await _fetch_pingzhong_history())
-        for row in fallback_rows:
-            if row.get("date", "") in existing_dates or any(r.get("date") == row.get("date") for r in new_records):
-                continue
-            new_records.append(row)
         if new_records:
             persisted.extend(new_records)
             persisted.sort(key=lambda x: x["date"])
             NAV_HISTORY[fund_code] = persisted
             save_nav_history(NAV_HISTORY)
-            save_fund_nav_history_rows_to_db(fund_code, new_records)
 
         # 取最近 days 条
         recent = persisted[-days:] if len(persisted) >= days else persisted
@@ -3113,29 +3114,6 @@ async def fetch_fund_history(fund_code: str, days: int = 7, force: int = 0) -> L
 
     except Exception as e:
         print(f"获取基金 {fund_code} 历史数据失败: {e}")
-        # F10DataApi 异常时也必须尝试 JSON LSJZ，否则会一直回退到旧持久化数据。
-        try:
-            fallback_rows = []
-            fallback_rows.extend(await _fetch_lsjz_json())
-            fallback_rows.extend(await _fetch_pingzhong_history())
-            if fallback_rows:
-                by_date = {r.get("date", ""): dict(r) for r in persisted if r.get("date")}
-                for row in fallback_rows:
-                    if row.get("date"):
-                        by_date[row["date"]] = row
-                merged = sorted(by_date.values(), key=lambda x: x.get("date", ""))
-                NAV_HISTORY[fund_code] = merged
-                save_nav_history(NAV_HISTORY)
-                save_fund_nav_history_rows_to_db(fund_code, fallback_rows)
-                recent = merged[-days:] if len(merged) >= days else merged
-                history = [NavHistoryItem(**r) for r in recent]
-                if fund_code not in FUND_DETAIL_CACHE:
-                    FUND_DETAIL_CACHE[fund_code] = {}
-                FUND_DETAIL_CACHE[fund_code][cache_key_days] = history
-                FUND_DETAIL_CACHE[fund_code]["_saved_at"] = time.time()
-                return history
-        except Exception as json_error:
-            print(f"基金 {fund_code} JSON历史兜底失败: {json_error}")
         # 失败时回退到持久化数据（如果有）
         if persisted:
             return [NavHistoryItem(**r) for r in persisted[-days:]]
@@ -3494,21 +3472,6 @@ def generate_ai_prediction_simple(fund_type: str, fund_name: str, daily_change: 
 
     # === 指数型 ===
     if is_index:
-        if fund.code == "011609":
-            return AIPrediction(
-                trend="科创联动", trend_emoji="📈",
-                advice="科创50受科技成长情绪影响，盘中重点看半导体/AI、科创50指数和上方压力位",
-                confidence="中性",
-                est_nav=est_nav, est_change=est_change, est_time="",
-                est_vs_last=0.0, today_verdict=today_verdict,
-                valuation_position=valuation_position,
-                cost_performance=cost_performance,
-                key_levels=key_levels,
-                risk_level=risk_level,
-                return_7d=return_7d,
-                return_1m=return_1m,
-                return_6m=return_6m
-            )
         if today_change > 1.5:
             return AIPrediction(
                 trend="强势上涨", trend_emoji="🚀",
@@ -3808,17 +3771,6 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             latest_history = await fetch_fund_history(fund_code, days=3, force=force)
             if latest_history and len(latest_history) >= 2:
                 latest_history = sorted(latest_history, key=lambda x: x.date)
-                newest_item = latest_history[-1]
-                # The fund detail page can lag behind the NAV history endpoint.
-                # Once history has a newer disclosed NAV, treat it as the source
-                # of truth for nav_date/current_nav/daily_change.
-                if newest_item.date and nav_date and newest_item.date > nav_date:
-                    nav_date = newest_item.date
-                    current_nav = round(float(newest_item.nav), 4)
-                    daily_change = round(float(getattr(newest_item, "change", 0.0) or 0.0), 3)
-                    if len(latest_history) >= 2 and latest_history[-2].nav > 0:
-                        previous_nav = round(float(latest_history[-2].nav), 4)
-                        daily_change = round((current_nav - previous_nav) / previous_nav * 100, 3)
                 match_idx = next((i for i, item in enumerate(latest_history) if item.date == nav_date), -1)
                 if match_idx > 0:
                     prev_item = latest_history[match_idx - 1]
@@ -4170,7 +4122,6 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             bond_beta = 0.5  # 默认系数
             bond_r_squared = 0.0  # 相关性强度
             curve_proxy = None
-            structured_bond_estimate = {}
 
             # 从缓存获取已计算的Beta系数
             beta_cache_key = f"bond_beta_{fund_code}"
@@ -4239,17 +4190,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 if curve_proxy.get("quality") == "弱":
                     bond_weight = min(bond_weight, 0.08)
                 hybrid_change = round(baseline_signal * (1 - bond_weight) + bond_signal * bond_weight, 3)
-                structured_bond_estimate = await build_bond_holding_structured_estimate(
-                    fund_code=fund_code,
-                    baseline_signal=baseline_signal,
-                    bond_index=bond_index,
-                    hs300_index=hs300_index,
-                    curve_proxy=curve_proxy,
-                )
-                has_structured_center = structured_bond_estimate.get("center") is not None
-                if has_structured_center:
-                    hybrid_change = float(structured_bond_estimate.get("center") or hybrid_change)
-                if not has_structured_center and abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
+                if abs(hybrid_change) < 0.001 and abs(bond_signal) >= 0.001:
                     hybrid_change = round(bond_signal * bond_weight, 3)
                 hybrid_change = max(-0.18, min(0.18, hybrid_change))
                 # 如果估算净值有数据但涨跌为0，用混合估算补齐
@@ -4260,7 +4201,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                         est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 # 如果完全没有估算数据（非交易时间），用昨日净值+国债指数推算
@@ -4270,14 +4211,14 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                     est_nav = round(previous_nav * (1 + est_change / 100), 4)
                     model_estimated_change = est_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
                     print(f"[债券非交易推算] {fund_code}: 推算后 est_nav={est_nav}, est_change={est_change}")
                     set_cached_est(fund_code, est_nav, est_change, est_time or datetime.now().strftime("%Y-%m-%d %H:%M"))
                 elif abs(float(est_change or 0.0)) >= 0.005:
                     # 天天基金给出有效非零估值时，展示仍优先用它；模型字段保留混合估算作对照。
                     model_estimated_change = hybrid_change
                     model_benchmark_change = bond_index.daily_change
-                    model_benchmark_name = structured_bond_estimate.get("benchmark") or f"债基趋势+曲线代理 {bond_weight:.0%}"
+                    model_benchmark_name = f"债基趋势+曲线代理 {bond_weight:.0%}"
 
             # 将Beta系数传递给AI预判（用于置信度判断）
             bond_analysis_extra = {
@@ -4292,7 +4233,6 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 curve_proxy=curve_proxy,
                 beta=bond_beta,
                 r_squared=bond_r_squared,
-                structured=structured_bond_estimate,
             )
 
         # period_returns / history / holdings 已在上面一次性并行拉取（line ~2234）
@@ -5094,117 +5034,6 @@ async def enhance_funds_with_deepseek(
                 continue
         return default
 
-    def _fund_strategy_profile(f: FundInfo) -> Dict[str, Any]:
-        code = str(f.code)
-        name = str(f.name or "")
-        fund_type = str(f.type or "")
-        if code == "011609" or "科创" in name:
-            return {
-                "style": "科创成长指数",
-                "drivers": ["科创50", "半导体", "AI科技", "成长风格", "风险偏好"],
-                "focus": "看半导体/AI情绪、科创50趋势修复和成交量确认",
-            }
-        if code == "004746" or "上证50" in name:
-            return {
-                "style": "大盘蓝筹指数",
-                "drivers": ["上证50", "沪深300", "金融权重", "消费权重", "大盘风格"],
-                "focus": "看权重板块强弱、金融消费修复和指数支撑位",
-            }
-        if code == "020741" or "债" in name or "债" in fund_type:
-            return {
-                "style": "利率债/债券基金",
-                "drivers": ["国债指数", "利率方向", "资金面", "票息收益", "债市波动"],
-                "focus": "看利率变化、票息贡献和净值波动是否放大",
-            }
-        return {
-            "style": fund_type or "主动/主题基金",
-            "drivers": ["市场风格", "主题行情", "净值趋势", "买点距离"],
-            "focus": "看主题持续性、净值趋势和买点位置",
-        }
-
-    def _fund_signal_pack(f: FundInfo) -> Dict[str, Any]:
-        est_change = _first_number(
-            f.corrected_estimated_change,
-            f.model_estimated_change,
-            f.estimated_change,
-            f.ai_prediction.est_change if f.ai_prediction else None,
-        )
-        bp = f.buy_point
-        is_holding = bool(bp and bp.is_holding)
-        progress = float(bp.progress_pct if bp else 0)
-        hold_yield = float(bp.yield_pct if bp else 0)
-        if is_holding:
-            buy_signal = "持仓中，买点不作为新增判断"
-            action_candidate = "持有观察" if est_change > -1 else "控制补仓节奏"
-        elif progress >= 80:
-            buy_signal = "接近买点"
-            action_candidate = "分批观察买入"
-        elif progress >= 45:
-            buy_signal = "距离买点中等"
-            action_candidate = "等待确认"
-        else:
-            buy_signal = "未接近买点"
-            action_candidate = "暂不追入"
-
-        r7 = _first_number(f.return_7d, default=0)
-        r1 = _first_number(f.return_1m, default=0)
-        r6 = _first_number(f.return_6m, default=0)
-        if r7 > 2 and r1 > 0:
-            trend_signal = "短线偏强"
-        elif r7 < -2 and r1 < 0:
-            trend_signal = "短线承压"
-        elif abs(r7) < 1 and abs(r1) < 2:
-            trend_signal = "震荡整理"
-        elif r7 > 0:
-            trend_signal = "短线修复"
-        else:
-            trend_signal = "短线偏弱"
-
-        if est_change <= -1.5:
-            today_signal = "盘中明显承压"
-        elif est_change <= -0.4:
-            today_signal = "盘中偏弱"
-        elif est_change >= 1.5:
-            today_signal = "盘中明显走强"
-        elif est_change >= 0.4:
-            today_signal = "盘中偏强"
-        else:
-            today_signal = "盘中震荡"
-
-        return {
-            "estimated_change": est_change,
-            "daily_change": f.daily_change,
-            "return_7d": r7,
-            "return_1m": r1,
-            "return_6m": r6,
-            "trend_signal": trend_signal,
-            "today_signal": today_signal,
-            "buy_signal": buy_signal,
-            "action_candidate": action_candidate,
-            "is_holding": is_holding,
-            "holding_yield_pct": hold_yield,
-            "buy_progress_pct": progress,
-        }
-
-    fund_payload = []
-    for f in funds:
-        profile = _fund_strategy_profile(f)
-        signals = _fund_signal_pack(f)
-        fund_payload.append({
-            "code": f.code,
-            "name": f.name,
-            "type": f.type,
-            "nav_date": f.nav_date,
-            "profile": profile,
-            "signals": signals,
-            "local_ai": {
-                "trend": f.ai_prediction.trend if f.ai_prediction else "",
-                "advice": f.ai_prediction.advice if f.ai_prediction else "",
-                "risk_level": f.ai_prediction.risk_level if f.ai_prediction else "",
-                "key_levels": f.ai_prediction.key_levels if f.ai_prediction else "",
-            },
-        })
-
     payload = {
         "market": {
             "date": datetime.now().strftime("%Y-%m-%d"),
@@ -5221,19 +5050,44 @@ async def enhance_funds_with_deepseek(
             }
             for n in (news or [])[:12]
         ],
-        "funds": fund_payload,
+        "funds": [
+            {
+                "code": f.code,
+                "name": f.name,
+                "type": f.type,
+                "nav_date": f.nav_date,
+                "daily_change": f.daily_change,
+                "estimated_change": _first_number(
+                    f.corrected_estimated_change,
+                    f.model_estimated_change,
+                    f.estimated_change,
+                    f.ai_prediction.est_change if f.ai_prediction else None,
+                ),
+                "return_7d": f.return_7d,
+                "return_1m": f.return_1m,
+                "return_6m": f.return_6m,
+                "buy_point": {
+                    "is_holding": bool(f.buy_point and f.buy_point.is_holding),
+                    "yield_pct": f.buy_point.yield_pct if f.buy_point else 0,
+                    "drop_pct": f.buy_point.drop_pct if f.buy_point else 0,
+                    "progress_pct": f.buy_point.progress_pct if f.buy_point else 0,
+                },
+                "local_ai": {
+                    "trend": f.ai_prediction.trend if f.ai_prediction else "",
+                    "advice": f.ai_prediction.advice if f.ai_prediction else "",
+                    "risk_level": f.ai_prediction.risk_level if f.ai_prediction else "",
+                    "key_levels": f.ai_prediction.key_levels if f.ai_prediction else "",
+                },
+            }
+            for f in funds
+        ],
     }
     prompt = (
-        "你是基金组合投研助理，只负责把结构化信号改写成专业、克制、可执行的中文策略摘要。"
-        "不要重新计算收益，不要编造数据，不要复述全部数字，不要出现互相矛盾的判断。"
-        "每只基金必须按 profile.style 和 profile.drivers 分析：科创成长看半导体/AI和成长风格；"
-        "上证50看权重蓝筹、金融消费和大盘风格；债券基金看利率、资金面、票息和波动。"
-        "advice 必须是一句话，38到70个汉字，格式为：市场/基金状态 + 动作建议 + 主要风险或确认条件。"
-        "position_advice 只写一个动作短语加简短理由，动作只能从：持有观察、等待买点、分批观察、谨慎补仓、止盈观察、中性配置 中选择。"
-        "trend 是2到6个字的专业标签；risk_level 只能为低/中/高。"
-        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句专业结论\","
-        "\"market_env\":\"核心市场依据，不超过70字\", \"position_advice\":\"动作+理由，不超过45字\", "
-        "\"risk_tips\":\"主要风险或确认条件，不超过55字\", \"risk_level\":\"低/中/高\", \"trend\":\"趋势标签\"}}}。"
+        "你是基金组合策略分析助手。请基于给定JSON生成更有用的中文策略分析。"
+        "只返回JSON对象，格式：{\"funds\":{\"基金代码\":{\"advice\":\"一句话核心结论，必须和本地规则不同，不超过42字\","
+        "\"market_env\":\"市场/新闻影响，不超过60字\", \"position_advice\":\"当前动作建议，只能是观察/持有/等待买点/谨慎补仓/止盈观察之一，并补一句理由\", "
+        "\"risk_tips\":\"最主要风险，不超过50字\", \"risk_level\":\"低/中/高\", \"trend\":\"趋势标签，不超过6字\"}}}。"
+        "必须结合预估收益、买点距离、持仓状态、未来一周重要事件。不要给金额建议，不要夸大确定性。"
     )
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
@@ -5288,10 +5142,7 @@ async def enhance_funds_with_deepseek(
             f.ai_prediction.risk_level,
             f.ai_prediction.trend,
         )
-        advice = re.sub(r"\s+", " ", str(item.get("advice") or f.ai_prediction.advice)).strip()
-        if len(advice) < 18:
-            advice = f.ai_prediction.advice
-        f.ai_prediction.advice = advice[:120]
+        f.ai_prediction.advice = str(item.get("advice") or f.ai_prediction.advice)[:120]
         f.ai_prediction.market_env = str(item.get("market_env") or f.ai_prediction.market_env)[:240]
         f.ai_prediction.position_advice = str(item.get("position_advice") or f.ai_prediction.position_advice)[:240]
         f.ai_prediction.risk_tips = str(item.get("risk_tips") or f.ai_prediction.risk_tips)[:240]
@@ -5314,90 +5165,6 @@ async def enhance_funds_with_deepseek(
     if strict and changed_count == 0:
         raise HTTPException(status_code=502, detail="DeepSeek 已返回，但没有产生可展示的新分析")
     return funds
-
-
-async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None) -> None:
-    """后台定时增强 AI 建议：前端只读缓存，不直接触发 DeepSeek。"""
-    if not get_deepseek_api_key():
-        DEEPSEEK_AUTO_STATUS["last_error"] = "未配置 DEEPSEEK_API_KEY"
-        return
-    now_ts = time.time()
-    last_done = float(DEEPSEEK_AUTO_STATUS.get("last_done_ts") or 0.0)
-    remain = DEEPSEEK_AUTO_INTERVAL_SECONDS - (now_ts - last_done)
-    if remain > 0:
-        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = round(remain, 1)
-        return
-    target = response or PORTFOLIO_CACHE.get("data")
-    if target is None or not getattr(target, "funds", None):
-        DEEPSEEK_AUTO_STATUS["last_error"] = "暂无完整组合缓存"
-        return
-    started = time.time()
-    DEEPSEEK_AUTO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    DEEPSEEK_AUTO_STATUS["last_error"] = ""
-    try:
-        target_codes = {str(f.code) for f in target.funds or []}
-        if not set(CORE_FUNDS).issubset(target_codes):
-            raise RuntimeError("基金列表完整性异常，跳过 DeepSeek 自动增强")
-
-        source = target.copy(deep=True)
-        before = {
-            f.code: (
-                f.ai_prediction.advice if f.ai_prediction else "",
-                f.ai_prediction.position_advice if f.ai_prediction else "",
-                f.ai_prediction.market_env if f.ai_prediction else "",
-                f.ai_prediction.trend if f.ai_prediction else "",
-            )
-            for f in source.funds
-        }
-        enhanced_funds = await enhance_funds_with_deepseek(
-            source.funds,
-            target.index,
-            target.bond_index,
-            target.news,
-            strict=False,
-        )
-        enhanced_by_code = {str(f.code): f for f in enhanced_funds or []}
-        enhanced = 0
-        text_cache: Dict[str, dict] = {}
-        for code in target_codes:
-            f = enhanced_by_code.get(code)
-            if not f or not f.ai_prediction:
-                continue
-            advice = _clean_deepseek_text(f.ai_prediction.advice, 120)
-            if len(advice) < 18:
-                continue
-            after = (
-                f.ai_prediction.advice,
-                f.ai_prediction.position_advice,
-                f.ai_prediction.market_env,
-                f.ai_prediction.trend,
-            )
-            if str(f.ai_prediction.confidence).lower().find("deepseek") >= 0 or after != before.get(code):
-                text_cache[code] = {
-                    "advice": advice,
-                    "market_env": _clean_deepseek_text(f.ai_prediction.market_env, 240),
-                    "position_advice": _clean_deepseek_text(f.ai_prediction.position_advice, 120),
-                    "risk_tips": _clean_deepseek_text(f.ai_prediction.risk_tips, 160),
-                    "risk_level": _clean_deepseek_text(f.ai_prediction.risk_level, 4),
-                    "trend": _clean_deepseek_text(f.ai_prediction.trend, 12),
-                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                enhanced += 1
-        if text_cache:
-            DEEPSEEK_AI_CACHE.clear()
-            DEEPSEEK_AI_CACHE.update(text_cache)
-            save_deepseek_ai_cache_to_db(text_cache)
-        DEEPSEEK_AUTO_STATUS["last_done_ts"] = time.time()
-        DEEPSEEK_AUTO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
-        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
-        DEEPSEEK_AUTO_STATUS["enhanced_count"] = enhanced
-        print(f"[DeepSeek自动] 已增强 {enhanced} 只基金 {datetime.now().strftime('%H:%M:%S')}")
-    except Exception as e:
-        DEEPSEEK_AUTO_STATUS["last_error"] = str(e)
-        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
-        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
-        print(f"[DeepSeek自动] 失败: {e}")
 
 
 def _parse_tencent_kline(text: str, stock_code: str = "sh000001") -> List[tuple]:
@@ -5996,202 +5763,163 @@ def home_index_visual_history(index_info: Optional[IndexInfo], limit: int = 12) 
     return normalize_index_history(getattr(index_info, "history", None), limit=limit)
 
 
-def fix_fund_daily_change_from_latest_history(funds: List[FundInfo]) -> None:
-    """Final guard for NAV/date consistency before a portfolio response is emitted.
-
-    Eastmoney occasionally updates the latest NAV/date before the page-level
-    daily change field catches up. The fund history row is the authoritative
-    source once its latest date equals the fund nav_date.
-    """
-    for fund in funds or []:
-        history = sorted(getattr(fund, "history", None) or [], key=lambda item: str(getattr(item, "date", "")))
-        if len(history) < 2:
-            continue
-        latest = history[-1]
-        prev = history[-2]
-        latest_date = str(getattr(latest, "date", "") or "")[:10]
-        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
-        if not latest_date or not nav_date or latest_date != nav_date:
-            continue
-        latest_nav = float(getattr(latest, "nav", 0.0) or 0.0)
-        prev_nav = float(getattr(prev, "nav", 0.0) or 0.0)
-        if latest_nav <= 0 or prev_nav <= 0:
-            continue
-        fund.current_nav = round(latest_nav, 4)
-        fund.previous_nav = round(prev_nav, 4)
-        fund.daily_change = round((latest_nav - prev_nav) / prev_nav * 100, 3)
-
-        buy_point = getattr(fund, "buy_point", None)
-        if buy_point:
-            buy_point.current_nav = round(latest_nav, 4)
-            cost_nav = float(getattr(buy_point, "cost_nav", 0.0) or 0.0)
-            is_holding = bool(getattr(buy_point, "is_holding", False))
-            if is_holding and cost_nav > 0:
-                holding_yield = round((latest_nav - cost_nav) / cost_nav * 100, 2)
-                buy_point.yield_pct = holding_yield
-                buy_point.total_return = holding_yield
-                try:
-                    if str(fund.code) in COST_NAVS and isinstance(COST_NAVS.get(str(fund.code)), dict):
-                        COST_NAVS[str(fund.code)]["yield_pct"] = holding_yield
-                        COST_NAVS[str(fund.code)]["total_return"] = holding_yield
-                except Exception:
-                    pass
+def load_return_ledger_map(trade_date: str = "") -> Dict[str, dict]:
+    """Load persisted fund return facts for the requested trade date."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            if trade_date:
+                rows = conn.execute(
+                    "SELECT * FROM fund_return_ledger WHERE trade_date=? ORDER BY code ASC",
+                    (trade_date,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT l.*
+                    FROM fund_return_ledger l
+                    JOIN (
+                      SELECT code, MAX(trade_date) AS trade_date
+                      FROM fund_return_ledger
+                      GROUP BY code
+                    ) latest
+                    ON l.code=latest.code AND l.trade_date=latest.trade_date
+                    ORDER BY l.code ASC
+                    """
+                ).fetchall()
+        return {str(row["code"]): dict(row) for row in rows}
+    except Exception as e:
+        print(f"[DB] load return ledger failed: {e}")
+        return {}
 
 
-def mark_fund_nav_readiness(funds: List[FundInfo], expected_date: str = "") -> None:
-    """Mark each fund independently so stale NAV data is not shown as latest."""
-    expected = str(expected_date or "")[:10]
-    for fund in funds or []:
-        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
-        fund.expected_nav_date = expected
-        ready = bool(expected and nav_date and nav_date == expected)
-        fund.latest_nav_ready = ready
-        fund.nav_stale = bool(expected and nav_date and nav_date != expected)
-
-
-def build_return_audit(response: PortfolioResponse) -> dict:
-    """Build a deterministic return audit table for regression checks.
-
-    This is the single source of truth for validating:
-    - actual daily return = latest NAV / previous trading-day NAV - 1
-    - holding return = latest NAV / weighted cost NAV - 1
-    - stale per-fund NAV must not be treated as the latest actual return
-    """
-    expected = str(getattr(response, "latest_disclosed_date", "") or "")[:10]
-    rows = []
-    issues = []
+def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioResponse:
+    """Make client-visible fund returns come from the DB ledger when available."""
+    ledger = load_return_ledger_map(getattr(response, "date", ""))
+    if not ledger:
+        return response
     for fund in getattr(response, "funds", []) or []:
-        history = sorted(getattr(fund, "history", None) or [], key=lambda item: str(getattr(item, "date", "")))
-        latest = history[-1] if history else None
-        prev = history[-2] if len(history) >= 2 else None
-        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
-        ready = bool(getattr(fund, "latest_nav_ready", False))
-        stale = bool(getattr(fund, "nav_stale", False))
-
-        calc_daily = None
-        calc_nav = None
-        prev_nav = None
-        hist_latest_date = ""
-        hist_prev_date = ""
-        if latest:
-            hist_latest_date = str(getattr(latest, "date", "") or "")[:10]
-            calc_nav = float(getattr(latest, "nav", 0.0) or 0.0)
-        if prev:
-            hist_prev_date = str(getattr(prev, "date", "") or "")[:10]
-            prev_nav = float(getattr(prev, "nav", 0.0) or 0.0)
-        if calc_nav and prev_nav:
-            calc_daily = round((calc_nav - prev_nav) / prev_nav * 100, 3)
-
-        api_daily = round(float(getattr(fund, "daily_change", 0.0) or 0.0), 3)
-        daily_diff = None if calc_daily is None else round(api_daily - calc_daily, 3)
-        daily_ok = calc_daily is not None and abs(daily_diff or 0.0) <= 0.02 and nav_date == hist_latest_date
-
-        buy_point = getattr(fund, "buy_point", None)
-        holding = bool(getattr(buy_point, "is_holding", False)) if buy_point else False
-        cost_nav = float(getattr(buy_point, "cost_nav", 0.0) or 0.0) if buy_point else 0.0
-        api_holding = float(getattr(buy_point, "yield_pct", 0.0) or 0.0) if buy_point else 0.0
-        calc_holding = None
-        holding_diff = None
-        holding_ok = True
-        if holding and cost_nav > 0:
-            calc_holding = round((float(getattr(fund, "current_nav", 0.0) or 0.0) - cost_nav) / cost_nav * 100, 2)
-            holding_diff = round(api_holding - calc_holding, 2)
-            holding_ok = abs(holding_diff) <= 0.02
-
-        row_issues = []
-        if expected and nav_date != expected:
-            row_issues.append(f"净值日期未到最新披露日 {expected}")
-        if hist_latest_date and nav_date != hist_latest_date:
-            row_issues.append(f"基金nav_date({nav_date})与历史最新({hist_latest_date})不一致")
-        if calc_daily is not None and not daily_ok:
-            row_issues.append(f"实际收益不一致 api={api_daily} calc={calc_daily}")
-        if holding and not holding_ok:
-            row_issues.append(f"持仓收益不一致 api={api_holding} calc={calc_holding}")
-        if row_issues:
-            issues.append({"code": str(getattr(fund, "code", "")), "issues": row_issues})
-
-        rows.append({
-            "code": str(getattr(fund, "code", "")),
-            "name": str(getattr(fund, "name", "")),
-            "expected_nav_date": expected,
-            "nav_date": nav_date,
-            "latest_nav_ready": ready,
-            "nav_stale": stale,
-            "current_nav": float(getattr(fund, "current_nav", 0.0) or 0.0),
-            "previous_nav": float(getattr(fund, "previous_nav", 0.0) or 0.0),
-            "history_latest_date": hist_latest_date,
-            "history_latest_nav": calc_nav,
-            "history_prev_date": hist_prev_date,
-            "history_prev_nav": prev_nav,
-            "api_daily_change": api_daily,
-            "calc_daily_change": calc_daily,
-            "daily_diff": daily_diff,
-            "daily_ok": daily_ok,
-            "is_holding": holding,
-            "cost_nav": cost_nav,
-            "api_holding_yield": round(api_holding, 2),
-            "calc_holding_yield": calc_holding,
-            "holding_diff": holding_diff,
-            "holding_ok": holding_ok,
-            "status": "ready" if ready and daily_ok and holding_ok else ("waiting_nav" if stale else "check"),
-            "issues": row_issues,
-        })
-
-    return {
-        "ok": not issues,
-        "date": getattr(response, "date", ""),
-        "time": getattr(response, "time", ""),
-        "market_status": getattr(response, "market_status", ""),
-        "latest_disclosed_date": expected,
-        "fund_count": len(rows),
-        "issues": issues,
-        "funds": rows,
-    }
+        row = ledger.get(str(getattr(fund, "code", "")))
+        if not row:
+            continue
+        fund.nav_date = str(row.get("nav_date") or fund.nav_date or "")
+        fund.current_nav = _db_float(row.get("current_nav"), fund.current_nav)
+        fund.previous_nav = _db_float(row.get("previous_nav"), fund.previous_nav)
+        fund.daily_change = _db_float(row.get("actual_daily_change"), fund.daily_change)
+        fund.estimated_change = _db_float(row.get("estimated_change"), fund.estimated_change)
+        fund.model_estimated_change = _db_float(row.get("model_estimated_change"), fund.model_estimated_change)
+        fund.corrected_estimated_change = _db_float(row.get("corrected_estimated_change"), fund.corrected_estimated_change)
+        fund.return_7d = _db_float(row.get("return_7d"), fund.return_7d)
+        fund.return_1m = _db_float(row.get("return_1m"), fund.return_1m)
+        fund.return_6m = _db_float(row.get("return_6m"), fund.return_6m)
+        try:
+            fund.expected_nav_date = str(row.get("trade_date") or getattr(response, "date", "") or "")
+            fund.latest_nav_ready = bool(row.get("latest_nav_ready"))
+            fund.nav_stale = bool(row.get("nav_stale"))
+        except Exception:
+            pass
+        if getattr(fund, "buy_point", None):
+            bp = fund.buy_point
+            bp.current_nav = fund.current_nav
+            bp.cost_nav = _db_float(row.get("cost_nav"), bp.cost_nav)
+            bp.buy_price = bp.cost_nav
+            bp.yield_pct = _db_float(row.get("holding_yield_pct"), bp.yield_pct)
+            bp.realized_yield_pct = _db_float(row.get("realized_yield_pct"), bp.realized_yield_pct)
+            bp.total_return = _db_float(row.get("total_return_pct"), bp.total_return)
+            bp.shares = _db_float(row.get("shares"), getattr(bp, "shares", 0.0))
+            bp.is_holding = bool(row.get("is_holding"))
+    return response
 
 
-def _deepseek_text_cache() -> Dict[str, dict]:
-    global DEEPSEEK_AI_CACHE
-    if not DEEPSEEK_AI_CACHE:
-        DEEPSEEK_AI_CACHE = load_deepseek_ai_cache_from_db()
-    return DEEPSEEK_AI_CACHE or {}
+def save_deepseek_strategy_to_db(funds: List[FundInfo], snapshot_date: str) -> None:
+    """Persist only DeepSeek-enhanced AI text, separated from normal local AI."""
+    try:
+        init_app_db()
+        now_ts = time.time()
+        with sqlite3.connect(DB_PATH) as conn:
+            for fund in funds or []:
+                ai = getattr(fund, "ai_prediction", None)
+                if not ai or "deepseek" not in str(getattr(ai, "confidence", "")).lower():
+                    continue
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO deepseek_strategy_snapshots
+                    (code, snapshot_date, payload, updated_at)
+                    VALUES(?,?,?,?)
+                    """,
+                    (fund.code, snapshot_date, _json_payload(_model_dump(ai)), now_ts),
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"[DB] save DeepSeek strategy failed: {e}")
 
 
-def _clean_deepseek_text(value, limit: int = 120) -> str:
-    text = re.sub(r"\s+", " ", str(value or "")).strip()
-    return text[:limit]
+def load_deepseek_strategy_from_db(snapshot_date: str = "") -> Dict[str, dict]:
+    """Load latest DeepSeek AI text by fund code."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            if snapshot_date:
+                rows = conn.execute(
+                    """
+                    SELECT code, payload, updated_at
+                    FROM deepseek_strategy_snapshots
+                    WHERE snapshot_date=?
+                    ORDER BY code ASC
+                    """,
+                    (snapshot_date,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT d.code, d.payload, d.updated_at
+                    FROM deepseek_strategy_snapshots d
+                    JOIN (
+                      SELECT code, MAX(snapshot_date) AS snapshot_date
+                      FROM deepseek_strategy_snapshots
+                      GROUP BY code
+                    ) latest
+                    ON d.code=latest.code AND d.snapshot_date=latest.snapshot_date
+                    ORDER BY d.code ASC
+                    """
+                ).fetchall()
+        result: Dict[str, dict] = {}
+        for row in rows:
+            try:
+                payload = json.loads(row["payload"] or "{}")
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                payload["_updated_at"] = row["updated_at"]
+                result[str(row["code"])] = payload
+        return result
+    except Exception as e:
+        print(f"[DB] load DeepSeek strategy failed: {e}")
+        return {}
 
 
-def apply_deepseek_ai_cache(response: PortfolioResponse) -> PortfolioResponse:
-    """Apply cached DeepSeek text to a copy only; never mutate the raw portfolio cache."""
-    client = response.copy(deep=True)
-    funds = getattr(client, "funds", None) or []
-    codes = {str(f.code) for f in funds}
-    if not set(CORE_FUNDS).issubset(codes):
-        DEEPSEEK_AUTO_STATUS["last_error"] = "基金列表完整性异常，已跳过 DeepSeek 合并"
-        return client
-    cache = _deepseek_text_cache()
+def apply_deepseek_strategy_to_response(response: PortfolioResponse) -> PortfolioResponse:
+    """Overlay cached DeepSeek text without changing fund count or order."""
+    cache = load_deepseek_strategy_from_db(getattr(response, "date", "")) or load_deepseek_strategy_from_db()
     if not cache:
-        return client
-    for fund in funds:
-        cached = cache.get(str(fund.code))
-        if not cached or not getattr(fund, "ai_prediction", None):
+        return response
+    for fund in getattr(response, "funds", []) or []:
+        data = cache.get(str(getattr(fund, "code", "")))
+        if not data or not getattr(fund, "ai_prediction", None):
             continue
         ai = fund.ai_prediction
-        advice = _clean_deepseek_text(cached.get("advice"), 120)
-        if len(advice) >= 18:
-            ai.advice = advice
-            ai.confidence = "DeepSeek"
-        for field, limit in [
-            ("market_env", 240),
-            ("position_advice", 120),
-            ("risk_tips", 160),
-            ("trend", 12),
-            ("risk_level", 4),
-        ]:
-            value = _clean_deepseek_text(cached.get(field), limit)
-            if value:
-                setattr(ai, field, value)
-    return client
+        for field in ("advice", "market_env", "position_advice", "risk_tips", "key_metrics", "key_levels"):
+            val = data.get(field)
+            if val:
+                setattr(ai, field, str(val))
+        if data.get("risk_level") in ["低", "中", "高"]:
+            ai.risk_level = data["risk_level"]
+        if data.get("trend"):
+            ai.trend = str(data["trend"])[:12]
+        ai.confidence = "DeepSeek"
+    return response
 
 
 def align_k50_estimate_for_client(response: PortfolioResponse) -> PortfolioResponse:
@@ -6220,15 +5948,13 @@ def align_k50_estimate_for_client(response: PortfolioResponse) -> PortfolioRespo
 
 def portfolio_response_for_client(response: PortfolioResponse, lite: int = 0, deepseek: int = 0) -> PortfolioResponse:
     """Return a client copy; keep cached/raw response untouched."""
-    client = apply_deepseek_ai_cache(response) if deepseek else response.copy(deep=True)
-    fix_fund_daily_change_from_latest_history(getattr(client, "funds", None) or [])
-    mark_fund_nav_readiness(
-        getattr(client, "funds", None) or [],
-        getattr(client, "latest_disclosed_date", "") or _latest_disclosed_date(),
-    )
-    client = align_k50_estimate_for_client(client)
+    response = apply_return_ledger_to_response(response.copy(deep=True))
+    response = align_k50_estimate_for_client(response)
+    if deepseek:
+        response = apply_deepseek_strategy_to_response(response)
     if lite:
-        return lite_portfolio_response(client)
+        return lite_portfolio_response(response)
+    client = response
     if client.index:
         client.index.history = home_index_visual_history(client.index, limit=12)
     return client
@@ -6338,7 +6064,6 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
     k50_task = fetch_generic_index("sh000688", "科创50")
     k50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000688", 190)
     hsi_task = fetch_generic_index("hkHSI", "恒生指数")
-    hsi_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("hkHSI", 190)
     bond_index_task = fetch_bond_market_proxy_index()
     bond_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000012", 190)
     hs300_task = fetch_generic_index("sh000300", "沪深300")
@@ -6349,10 +6074,10 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
     sh50_history_task = asyncio.sleep(0, result=[]) if lite else fetch_index_history_for_code("sh000016", 190)
 
     (
-        index_base, index_history, k50_base, k50_history, hsi_base, hsi_history, bond_index_base, bond_history,
+        index_base, index_history, k50_base, k50_history, hsi_base, bond_index_base, bond_history,
         hs300_base, hs300_history, sz_index_base, sz_history, sh50_base, sh50_history
     ) = await asyncio.gather(
-        index_task, index_history_task, k50_task, k50_history_task, hsi_task, hsi_history_task, bond_index_task, bond_history_task,
+        index_task, index_history_task, k50_task, k50_history_task, hsi_task, bond_index_task, bond_history_task,
         hs300_task, hs300_history_task, sz_index_task, sz_history_task, sh50_task, sh50_history_task
     )
     if lite and len(index_history or []) < 2:
@@ -6392,7 +6117,7 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         current=hsi_base.current,
         previous=hsi_base.previous,
         daily_change=hsi_base.daily_change,
-        history=hsi_history
+        history=[]
     )
 
     # 构建沪深300指数数据
@@ -6441,26 +6166,6 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
             funds.append(result)
         elif isinstance(result, Exception):
             print(f"基金获取异常: {result}")
-    fund_by_code: Dict[str, FundInfo] = {str(fund.code): fund for fund in funds}
-    if len(fund_by_code) < len(WATCHED_FUNDS):
-        snapshot_response, _snapshot_age = load_portfolio_snapshot_from_db()
-        snapshot_funds = {
-            str(fund.code): fund
-            for fund in (getattr(snapshot_response, "funds", None) or [])
-            if isinstance(fund, FundInfo)
-        }
-        for code in WATCHED_FUNDS:
-            code = str(code)
-            if code in fund_by_code:
-                continue
-            fallback = load_latest_fund_from_db(code) or snapshot_funds.get(code)
-            if fallback:
-                fund_by_code[code] = fallback
-                print(f"基金 {code} 使用数据库快照回补")
-            else:
-                print(f"基金 {code} 实时获取失败且没有可用快照")
-    funds = [fund_by_code[code] for code in WATCHED_FUNDS if code in fund_by_code]
-    fix_fund_daily_change_from_latest_history(funds)
 
     news_age = now_ts - NEWS_CACHE.get("saved_at", 0.0)
     if not lite and (NEWS_CACHE["data"] is None or news_age >= NEWS_LIST_CACHE_TTL or force):
@@ -6481,6 +6186,10 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
     for idx in (index_info, bond_index_info, k50_index_info, hsi_index_info, hs300_info, sz_index_info):
         normalize_index_info_history(idx, limit=190)
 
+    display_date = _display_trade_date(now)
+    expected_nav_date = expected_actual_nav_date(now)
+    mark_fund_nav_readiness(funds, expected_nav_date)
+
     # 新闻后台刷新，不阻塞首页首屏
     # ❗ 注意：此处不保存 buy_points.json，该文件仅由 /api/buy 和 /api/sell 接口写入
     # 未确认买入的基金，其虚拟成本只在内存中计算，不持久化
@@ -6489,7 +6198,7 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         date=now.strftime("%Y-%m-%d"),
         time=now.strftime("%H:%M:%S"),
         is_trading_day=is_trading_day(now),
-        display_trade_date=_display_trade_date(now),
+        display_trade_date=display_date,
         latest_disclosed_date=_latest_disclosed_date(),
         market_status=market_status(),
         index=index_info,
@@ -6504,7 +6213,6 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         external_markets=external_markets,
         historical_yields=HISTORICAL_YIELDS
     )
-    mark_fund_nav_readiness(response.funds, response.latest_disclosed_date)
 
     # === 写入整页缓存（30s 内复用） ===
     # lite 首页首包不能写入完整缓存，否则后续基金/AI/市场页会拿到被瘦身的数据。
@@ -6514,13 +6222,6 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
         save_portfolio_to_db(response)
 
     return portfolio_response_for_client(response, lite, deepseek)
-
-
-@app.get("/api/debug/returns")
-async def debug_returns(force: int = 1):
-    """Read-only return audit for actual/holding return consistency."""
-    response = await get_portfolio(force=force, lite=0, deepseek=0)
-    return build_return_audit(response)
 
 
 async def background_portfolio_refresher():
@@ -6557,26 +6258,90 @@ async def background_portfolio_refresher():
         await asyncio.sleep(interval)
 
 
+async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None) -> None:
+    """Refresh DeepSeek advice cache during trading hours without blocking the foreground."""
+    if not is_trading_time():
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
+        return
+    if not get_deepseek_api_key():
+        DEEPSEEK_AUTO_STATUS["last_error"] = "未配置 DEEPSEEK_API_KEY"
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+        return
+    now_ts = time.time()
+    last_done = float(DEEPSEEK_AUTO_STATUS.get("last_done_ts") or 0.0)
+    remain = DEEPSEEK_AUTO_INTERVAL_SECONDS - (now_ts - last_done)
+    if remain > 0:
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = round(remain, 1)
+        return
+    if response is None:
+        response = PORTFOLIO_CACHE.get("data")
+    if response is None or not getattr(response, "funds", None):
+        await get_portfolio(force=1, lite=0)
+        response = PORTFOLIO_CACHE.get("data")
+    if response is None or not getattr(response, "funds", None):
+        DEEPSEEK_AUTO_STATUS["last_error"] = "暂无完整基金列表"
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+        return
+    started = time.time()
+    DEEPSEEK_AUTO_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    DEEPSEEK_AUTO_STATUS["last_finished_at"] = ""
+    DEEPSEEK_AUTO_STATUS["last_error"] = ""
+    try:
+        target = response.copy(deep=True)
+        target.funds = await enhance_funds_with_deepseek(
+            target.funds,
+            target.index,
+            target.bond_index,
+            target.news,
+            strict=False,
+        )
+        save_deepseek_strategy_to_db(target.funds, target.date)
+        enhanced = sum(1 for f in target.funds if "deepseek" in str(getattr(f.ai_prediction, "confidence", "")).lower())
+        DEEPSEEK_AUTO_STATUS["last_done_ts"] = time.time()
+        DEEPSEEK_AUTO_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = DEEPSEEK_AUTO_INTERVAL_SECONDS
+        DEEPSEEK_AUTO_STATUS["enhanced_count"] = enhanced
+    except Exception as e:
+        DEEPSEEK_AUTO_STATUS["last_error"] = str(e)
+        DEEPSEEK_AUTO_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+        DEEPSEEK_AUTO_STATUS["next_interval_seconds"] = 60
+
+
 @app.post("/api/ai/deepseek", response_model=PortfolioResponse)
 async def run_deepseek_analysis():
-    """DeepSeek 分析暂时关闭，避免影响首屏速度和误触发。"""
-    raise HTTPException(status_code=410, detail="DeepSeek 分析已暂时关闭")
+    """Manually refresh DeepSeek advice cache; normal portfolio data remains untouched."""
     if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
-    if PORTFOLIO_CACHE["data"] is None:
-        await get_portfolio(force=1)
+    if PORTFOLIO_CACHE["data"] is None or not getattr(PORTFOLIO_CACHE["data"], "funds", None):
+        await get_portfolio(force=1, lite=0)
     response = PORTFOLIO_CACHE["data"]
-    response.funds = await enhance_funds_with_deepseek(
-        response.funds,
-        response.index,
-        response.bond_index,
-        response.news,
+    if response is None or not getattr(response, "funds", None):
+        raise HTTPException(status_code=503, detail="暂无完整基金列表，请先刷新组合数据")
+
+    target = response.copy(deep=True)
+    target.funds = await enhance_funds_with_deepseek(
+        target.funds,
+        target.index,
+        target.bond_index,
+        target.news,
         strict=True,
     )
-    PORTFOLIO_CACHE["data"] = response
-    PORTFOLIO_CACHE["saved_at"] = time.time()
-    return response
+    save_deepseek_strategy_to_db(target.funds, target.date)
+    return portfolio_response_for_client(target, 0, 1)
+
+
+@app.get("/api/deepseek/status")
+async def get_deepseek_status():
+    """Debug DeepSeek cache freshness without triggering model calls."""
+    cache = load_deepseek_strategy_from_db()
+    return {
+        "ok": True,
+        "is_trading_time": is_trading_time(),
+        "status": DEEPSEEK_AUTO_STATUS,
+        "cache_codes": sorted(cache.keys()),
+    }
 
 
 @app.get("/api/portfolio/status")
@@ -6624,6 +6389,100 @@ async def get_refresh_status():
         "background": BACKGROUND_PORTFOLIO_STATUS,
         "deepseek_auto": DEEPSEEK_AUTO_STATUS,
     }
+
+
+@app.get("/api/debug/return-ledger")
+async def debug_return_ledger(limit: int = 20):
+    """Read the persisted return ledger for actual/estimate/holding return audits."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT code, trade_date, nav_date, latest_nav_ready, nav_stale, current_nav, previous_nav,
+                       actual_daily_change, estimated_change, holding_yield_pct, realized_yield_pct,
+                       total_return_pct, return_7d, return_1m, return_6m, cost_nav, shares, is_holding,
+                       source, updated_at
+                FROM fund_return_ledger
+                ORDER BY trade_date DESC, code ASC
+                LIMIT ?
+                """,
+                (max(1, min(int(limit or 20), 200)),),
+            ).fetchall()
+        return {
+            "ok": True,
+            "db_path": DB_PATH,
+            "rows": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in rows
+            ],
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "db_path": DB_PATH}
+
+
+@app.get("/api/debug/db-health")
+async def debug_db_health():
+    """Summarize the DB-backed state used by V4."""
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            tables = {}
+            for table in [
+                "watched_funds",
+                "buy_point_settings",
+                "fund_positions",
+                "fund_transactions",
+                "fund_return_ledger",
+                "portfolio_snapshots",
+                "fund_nav_history",
+                "intraday_estimate_snapshots",
+            ]:
+                tables[table] = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            latest_ledger = conn.execute(
+                """
+                SELECT code, trade_date, nav_date, latest_nav_ready, nav_stale,
+                       actual_daily_change, estimated_change, holding_yield_pct,
+                       source, updated_at
+                FROM fund_return_ledger
+                WHERE trade_date=(SELECT MAX(trade_date) FROM fund_return_ledger)
+                ORDER BY code ASC
+                """
+            ).fetchall()
+            positions = conn.execute(
+                """
+                SELECT code, is_holding, cost_nav, shares, holding_yield_pct,
+                       realized_yield_pct, total_return_pct, updated_at
+                FROM fund_positions
+                ORDER BY code ASC
+                """
+            ).fetchall()
+        return {
+            "ok": True,
+            "db_path": DB_PATH,
+            "tables": tables,
+            "latest_ledger": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in latest_ledger
+            ],
+            "positions": [
+                {
+                    **dict(row),
+                    "updated_at_text": datetime.fromtimestamp(float(row["updated_at"] or 0)).strftime("%Y-%m-%d %H:%M:%S") if row["updated_at"] else "",
+                }
+                for row in positions
+            ],
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "db_path": DB_PATH}
 
 
 @app.get("/api/news")
@@ -7580,6 +7439,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000
+        port=int(os.environ.get("PORT", "8000"))
     )
+
 
