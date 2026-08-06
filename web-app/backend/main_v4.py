@@ -6314,20 +6314,22 @@ async def run_deepseek_analysis():
     if not get_deepseek_api_key():
         raise HTTPException(status_code=400, detail="未配置 DEEPSEEK_API_KEY")
 
-    if PORTFOLIO_CACHE["data"] is None or not getattr(PORTFOLIO_CACHE["data"], "funds", None):
-        await get_portfolio(force=1, lite=0)
-    response = PORTFOLIO_CACHE["data"]
+    response = await get_portfolio(force=1, lite=0, deepseek=0)
     if response is None or not getattr(response, "funds", None):
         raise HTTPException(status_code=503, detail="暂无完整基金列表，请先刷新组合数据")
 
     target = response.copy(deep=True)
-    target.funds = await enhance_funds_with_deepseek(
+    original_count = len(target.funds or [])
+    enhanced_funds = await enhance_funds_with_deepseek(
         target.funds,
         target.index,
         target.bond_index,
         target.news,
         strict=True,
     )
+    if len(enhanced_funds or []) < original_count:
+        raise HTTPException(status_code=502, detail=f"DeepSeek 返回基金数量异常：{len(enhanced_funds or [])}/{original_count}")
+    target.funds = enhanced_funds
     save_deepseek_strategy_to_db(target.funds, target.date)
     return portfolio_response_for_client(target, 0, 1)
 
