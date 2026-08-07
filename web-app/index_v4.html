@@ -3349,6 +3349,8 @@ const _openManualCostTradeInlineDateBase=openManualCostTrade;
 openManualCostTrade=function(f,bp,type){_openManualCostTradeInlineDateBase(f,bp,type);markTradeCompactFields()}
 // trade-date-specificity-fix-20260807: 覆盖旧规则，成交净值/交易日期强制同一行。
 document.head.insertAdjacentHTML('beforeend','<style id="trade-date-specificity-fix-style">#trade-modal .trade-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}#trade-modal .trade-field.trade-price-field{grid-column:1!important;width:100%!important;max-width:100%!important;min-width:0!important}#trade-modal .trade-field.trade-date-field{grid-column:2!important;width:100%!important;max-width:100%!important;min-width:0!important;justify-self:stretch!important}#trade-modal .trade-field.trade-date-field input,#trade-modal .trade-field.trade-price-field input{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}#trade-modal .trade-extra{grid-column:1/-1!important}</style>');
+// trade-date-before-price-20260807: 交易日期在左，成交净值在右。
+document.head.insertAdjacentHTML('beforeend','<style id="trade-date-before-price-style">#trade-modal .trade-field.trade-date-field{grid-column:1!important;grid-row:1!important}#trade-modal .trade-field.trade-price-field{grid-column:2!important;grid-row:1!important}</style>');
 </script>
 </body>
 </html>
