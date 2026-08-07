@@ -6790,6 +6790,15 @@ def _return_include_pct(value, default=100.0):
     return max(0.0, min(100.0, pct))
 
 
+def _payload_float(value, default=None):
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _normalize_transaction_returns(transactions, cost_nav):
     normalized = []
     realized = 0.0
@@ -6805,7 +6814,11 @@ def _normalize_transaction_returns(transactions, cost_nav):
                 yield_pct = float(yield_pct)
             except (TypeError, ValueError):
                 yield_pct = round((nav_value - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 and nav_value > 0 else 0.0
-            counted = round(yield_pct * include_pct / 100.0, 2) if include_return else 0.0
+            direct_counted = _payload_float(item.get("counted_yield_pct"), None)
+            if include_return and direct_counted is not None:
+                counted = round(direct_counted, 2)
+            else:
+                counted = round(yield_pct * include_pct / 100.0, 2) if include_return else 0.0
             item["include_return"] = include_return
             item["include_pct"] = include_pct
             item["yield_pct"] = round(yield_pct, 2)
@@ -6856,11 +6869,14 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
 
     sell_date = str(payload.get("sell_date") or payload.get("date") or nav_date)
     include_return = _payload_bool(payload.get("include_return", payload.get("include_history", True)), True)
-    include_pct = 100.0 if is_full_sell else float(payload.get("include_pct", payload.get("return_pct", 100)) or 100)
-    include_pct = max(0.0, min(100.0, include_pct))
+    include_pct = 100.0 if is_full_sell else _return_include_pct(payload.get("include_pct", payload.get("return_pct", 100)), 100.0)
     cost_nav = float(old.get("buy_nav", 0.0) or 0.0)
     final_yield_pct = round((sell_nav - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 else 0.0
-    counted_yield_pct = round(final_yield_pct * include_pct / 100.0, 2) if include_return else 0.0
+    direct_counted = _payload_float(payload.get("counted_yield_pct"), None)
+    if include_return and direct_counted is not None:
+        counted_yield_pct = round(direct_counted, 2)
+    else:
+        counted_yield_pct = final_yield_pct if (include_return and is_full_sell) else (round(final_yield_pct * include_pct / 100.0, 2) if include_return else 0.0)
     transactions = list(old.get("transactions", []))
     transactions.append({
         "type": "sell",
