@@ -9,6 +9,8 @@
 <meta http-equiv="Expires" content="0">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="基金管家">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="180x180" href="/static/apple-touch-icon.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;letter-spacing:0}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:#F3F0EA}
@@ -3345,6 +3347,8 @@ document.head.insertAdjacentHTML('beforeend','<style id="trade-price-date-inline
 function markTradeCompactFields(){[['trade-price','trade-price-field'],['trade-date','trade-date-field'],['trade-shares','trade-shares-field']].forEach(([id,cls])=>{const el=document.getElementById(id),field=el&&el.closest('.trade-field');if(field)field.classList.add(cls)})}
 const _openManualCostTradeInlineDateBase=openManualCostTrade;
 openManualCostTrade=function(f,bp,type){_openManualCostTradeInlineDateBase(f,bp,type);markTradeCompactFields()}
+// trade-date-specificity-fix-20260807: 覆盖旧规则，成交净值/交易日期强制同一行。
+document.head.insertAdjacentHTML('beforeend','<style id="trade-date-specificity-fix-style">#trade-modal .trade-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}#trade-modal .trade-field.trade-price-field{grid-column:1!important;width:100%!important;max-width:100%!important;min-width:0!important}#trade-modal .trade-field.trade-date-field{grid-column:2!important;width:100%!important;max-width:100%!important;min-width:0!important;justify-self:stretch!important}#trade-modal .trade-field.trade-date-field input,#trade-modal .trade-field.trade-price-field input{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}#trade-modal .trade-extra{grid-column:1/-1!important}</style>');
 </script>
 </body>
 </html>
