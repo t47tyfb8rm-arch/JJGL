@@ -3301,6 +3301,20 @@ function openTrade(type,code){try{const f=findFund(code),bp=f.buy_point||{};trad
 function openCostCorrection(code){const f=findFund(code),bp=f.buy_point||{};if(!bp.is_holding){showToast('未持仓基金不需要修正成本');return}closeAiDetail();tradeState={type:'correct',code};openManualCostTrade(f,bp,'correct')}
 async function submitTrade(){const price=Number(document.getElementById('trade-price').value),date=document.getElementById('trade-date').value;if(!price||price<=0){alert((tradeState.type==='sell'?'卖出净值':'成本净值')+'必须大于0');return}const btn=document.getElementById('trade-submit');btn.disabled=true;try{let url,body;if(tradeState.type==='sell'){url=API+'/api/sell/'+tradeState.code;body={sell_price:price,sell_date:date}}else if(tradeState.type==='correct'){url=API+'/api/position/'+tradeState.code+'/cost';body={cost_nav:price,date}}else{url=API+'/api/buy/'+tradeState.code;body={buy_price:price,buy_date:date}}const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();if(!r.ok)throw new Error(j.detail||'操作失败');closeTrade();showToast(tradeState.type==='sell'?'已记录卖出':(tradeState.type==='correct'?'已更新成本':'已记录买入'));await fetchD(true)}catch(e){alert(e.message||'操作失败')}finally{btn.disabled=false}}
 function openHistoryDetail(code){const f=findFund(code),h=historyInfo(f),bp=h.bp,cost=Number(bp.cost_nav||bp.buy_nav||bp.buy_price||0),hold=h.holding,holdVal=hold==null?'--':fp(hold),status=bp.is_holding?'持仓中':'未持仓';document.getElementById('ai-detail-title').textContent='历史收益';document.getElementById('ai-detail-sub').textContent=code+' '+shortName(f,16)+' · '+status+' · 截止 '+md(h.histDate);document.getElementById('ai-detail-body').innerHTML='<div class="history-detail-hero"><div class="history-summary-grid"><div class="history-summary-card"><span>历史</span><b class="num" style="color:'+cc(h.hist)+'">'+fp(h.hist)+'</b></div><div class="history-summary-card"><span>已实现</span><b class="num" style="color:'+cc(h.realized)+'">'+fp(h.realized)+'</b></div><div class="history-summary-card"><span>持仓</span><b class="num" style="color:'+(hold==null?'var(--t3)':pctColor(hold))+'">'+holdVal+'</b></div></div><div class="history-detail-mini manual-cost-mini"><div><span>成本净值</span><b>'+(cost?nav(cost):'--')+'</b></div><div><span>持仓状态</span><b>'+esc(status)+'</b></div><div><span>买点收益</span><b style="color:'+cc(h.buyPoint)+'">'+fp(h.buyPoint)+'</b></div></div></div><div class="history-section"><div class="history-section-head">买卖记录 <span>'+h.tx.length+'笔</span></div>'+historyTxTimeline(h,bp)+'</div>';document.getElementById('ai-detail-modal').classList.add('show')}
+// historical-total-manual-cost-20260807: 历史累计 = 历史基准 + 已实现 + 当前持仓。
+function histTotal(code,old,bp,tx){
+  bp=bp||{};
+  const base=HIST_BASE[code]||{};
+  const baseYield=pickNum(base.yield,bp.hist_yield,old&&old.base_yield,old&&old.historical_yield,0);
+  const apiYield=(old&&old.yield!==undefined&&old.yield!==null)?Number(old.yield):null;
+  const total=pickNum(bp.total_return);
+  if(Number.isFinite(total))return Number((baseYield+total).toFixed(2));
+  const realized=pickNum(bp.realized_yield_pct,0);
+  const holding=bp.is_holding?pickNum(bp.yield_pct,bp.holding_yield_pct,0):0;
+  if(realized||holding)return Number((baseYield+realized+holding).toFixed(2));
+  if(apiYield!==null&&Number.isFinite(apiYield))return apiYield;
+  return baseYield;
+}
 </script>
 </body>
 </html>
