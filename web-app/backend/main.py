@@ -6774,6 +6774,56 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     }
 
 
+def _payload_bool(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in ["0", "false", "no", "否", "不", "none", ""]
+
+
+def _return_include_pct(value, default=100.0):
+    try:
+        pct = float(value if value is not None else default)
+    except (TypeError, ValueError):
+        pct = default
+    return max(0.0, min(100.0, pct))
+
+
+def _normalize_transaction_returns(transactions, cost_nav):
+    normalized = []
+    realized = 0.0
+    for tx in list(transactions or []):
+        item = dict(tx) if isinstance(tx, dict) else {}
+        raw_type = str(item.get("type", "")).lower()
+        if raw_type == "sell":
+            nav_value = float(item.get("nav") or item.get("price") or item.get("sell_price") or 0.0)
+            include_return = _payload_bool(item.get("include_return", item.get("include_history", True)), True)
+            include_pct = _return_include_pct(item.get("include_pct", item.get("return_pct", 100.0)), 100.0)
+            yield_pct = item.get("yield_pct", item.get("realized_yield_pct"))
+            try:
+                yield_pct = float(yield_pct)
+            except (TypeError, ValueError):
+                yield_pct = round((nav_value - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 and nav_value > 0 else 0.0
+            counted = round(yield_pct * include_pct / 100.0, 2) if include_return else 0.0
+            item["include_return"] = include_return
+            item["include_pct"] = include_pct
+            item["yield_pct"] = round(yield_pct, 2)
+            item["counted_yield_pct"] = counted
+            realized += counted
+        normalized.append(item)
+    return normalized, round(realized, 2)
+
+
+def _save_trade_record_update(fund_code, record):
+    COST_NAVS[fund_code] = record
+    save_cost_navs_to_file(COST_NAVS)
+    save_cost_navs_to_db(COST_NAVS)
+    PORTFOLIO_CACHE["data"] = None
+    PORTFOLIO_CACHE["saved_at"] = 0.0
+    clear_portfolio_db_cache()
+
+
 @app.post("/api/sell/{fund_code}")
 async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
     """
@@ -6796,20 +6846,34 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
     try:
         sell_nav = float(payload.get("sell_price") or payload.get("nav") or current_nav)
         old_shares = float(old.get("shares", 1.0) or 1.0)
-        sell_shares = float(payload.get("shares") or old_shares)
+        sell_mode = str(payload.get("sell_mode") or payload.get("mode") or "full").lower()
+        is_full_sell = sell_mode not in ["partial", "part", "部分卖出"]
+        sell_shares = old_shares if is_full_sell else 0.0
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="sell_price 和 shares 必须是有效数字")
-    if sell_nav <= 0 or sell_shares <= 0:
-        raise HTTPException(status_code=400, detail="sell_price 和 shares 必须大于0")
-    if sell_shares > old_shares:
-        raise HTTPException(status_code=400, detail="卖出份额不能大于当前份额")
+        raise HTTPException(status_code=400, detail="sell_price 必须是有效数字")
+    if sell_nav <= 0:
+        raise HTTPException(status_code=400, detail="sell_price 必须大于0")
 
     sell_date = str(payload.get("sell_date") or payload.get("date") or nav_date)
+    include_return = _payload_bool(payload.get("include_return", payload.get("include_history", True)), True)
+    include_pct = 100.0 if is_full_sell else float(payload.get("include_pct", payload.get("return_pct", 100)) or 100)
+    include_pct = max(0.0, min(100.0, include_pct))
     cost_nav = float(old.get("buy_nav", 0.0) or 0.0)
     final_yield_pct = round((sell_nav - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 else 0.0
-    cumulative_realized = round(float(old.get("realized_yield_pct", 0.0) or 0.0) + final_yield_pct, 2)
+    counted_yield_pct = round(final_yield_pct * include_pct / 100.0, 2) if include_return else 0.0
     transactions = list(old.get("transactions", []))
-    transactions.append({"type": "sell", "date": sell_date, "nav": round(sell_nav, 4), "shares": round(sell_shares, 4), "yield_pct": final_yield_pct})
+    transactions.append({
+        "type": "sell",
+        "date": sell_date,
+        "nav": round(sell_nav, 4),
+        "shares": round(sell_shares, 4),
+        "sell_mode": "full" if is_full_sell else "partial",
+        "include_return": include_return,
+        "include_pct": include_pct,
+        "yield_pct": final_yield_pct,
+        "counted_yield_pct": counted_yield_pct,
+    })
+    transactions, cumulative_realized = _normalize_transaction_returns(transactions, cost_nav)
     remain_shares = round(old_shares - sell_shares, 4)
 
     if remain_shares > 0:
@@ -6852,10 +6916,57 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
         "sell_date": sell_date,
         "remaining_shares": remain_shares,
         "final_yield_pct": final_yield_pct,
+        "counted_yield_pct": counted_yield_pct,
+        "include_return": include_return,
+        "include_pct": include_pct,
+        "sell_mode": "full" if is_full_sell else "partial",
         "realized_yield_pct": cumulative_realized,
         "buy_point_ref_date": sell_date if not is_holding else BUY_POINT_REFS.get(fund_code, {}).get("ref_date", ""),
         "buy_point_ref_nav": round((sell_nav if not is_holding else current_nav), 4)
     }
+
+
+@app.patch("/api/transactions/{fund_code}/{tx_index}")
+async def update_transaction(fund_code: str, tx_index: int, payload: Optional[dict] = None):
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+    payload = payload if isinstance(payload, dict) else {}
+    old = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
+    transactions = list(old.get("transactions", []))
+    if tx_index < 0 or tx_index >= len(transactions):
+        raise HTTPException(status_code=404, detail="交易流水不存在")
+    tx = dict(transactions[tx_index])
+    for key in ["date", "nav", "sell_mode", "include_return", "include_pct", "yield_pct", "counted_yield_pct"]:
+        if key in payload:
+            tx[key] = payload[key]
+    if "sell_price" in payload:
+        tx["nav"] = payload["sell_price"]
+    if "price" in payload:
+        tx["nav"] = payload["price"]
+    transactions[tx_index] = tx
+    cost_nav = float(old.get("buy_nav", 0.0) or 0.0)
+    transactions, cumulative_realized = _normalize_transaction_returns(transactions, cost_nav)
+    old["transactions"] = transactions
+    old["realized_yield_pct"] = cumulative_realized
+    _save_trade_record_update(fund_code, old)
+    return {"ok": True, "code": fund_code, "tx_index": tx_index, "realized_yield_pct": cumulative_realized, "transaction": transactions[tx_index]}
+
+
+@app.delete("/api/transactions/{fund_code}/{tx_index}")
+async def delete_transaction(fund_code: str, tx_index: int):
+    if fund_code not in WATCHED_FUNDS:
+        raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
+    old = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
+    transactions = list(old.get("transactions", []))
+    if tx_index < 0 or tx_index >= len(transactions):
+        raise HTTPException(status_code=404, detail="交易流水不存在")
+    removed = transactions.pop(tx_index)
+    cost_nav = float(old.get("buy_nav", 0.0) or 0.0)
+    transactions, cumulative_realized = _normalize_transaction_returns(transactions, cost_nav)
+    old["transactions"] = transactions
+    old["realized_yield_pct"] = cumulative_realized
+    _save_trade_record_update(fund_code, old)
+    return {"ok": True, "code": fund_code, "tx_index": tx_index, "removed": removed, "realized_yield_pct": cumulative_realized}
 
 
 @app.post("/api/position/{fund_code}/cost")
