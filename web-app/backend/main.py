@@ -2222,7 +2222,7 @@ class BuyPointInfo(BaseModel):
     drop_threshold: float = 0.0  # 买点下跌阈值 %
     ref_date: str = ""           # 买点判断开始日期
     ref_nav: float = 0.0         # 买点参考净值
-    shares: float = 0.0        # 份额权重（用于补仓加权成本）
+    shares: float = 0.0        # 兼容旧数据保留；买入/补仓不再按份额权重计算
     realized_yield_pct: float = 0.0  # 最近一次卖出实现收益率 %
     transactions: List[dict] = []    # 买入/卖出流水
 
@@ -3987,7 +3987,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                         "daily_change": item.change
                     })
                 # yield_history 按日期升序（与 history 一致）
-            total_return = yield_pct
+            total_return = round(realized_yield_pct + yield_pct, 2)
 
         else:
             # 未手动买入：使用 BUY_POINT_CONFIG 按基金独立计算买点
@@ -4083,7 +4083,7 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
                 hist_yield_for_bp = hist_yield
             buy_date = ""
             hold_days = 0
-            total_return = 0.0
+            total_return = round(realized_yield_pct, 2)
             yield_history = []
 
         buy_point = BuyPointInfo(
@@ -6716,9 +6716,9 @@ async def delete_watched_fund(fund_code: str):
 async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     """
     用户买入/补仓指定基金。
-    - buy_price: 买入净值，默认最新净值
-    - shares: 份额权重，默认 1，用于加权平均成本
+    - buy_price: 用户确认后的成本净值，默认最新净值
     - buy_date/date: 交易日期，默认最新净值日期
+    补仓时不再按份额权重加权，前端带出当前成本，由用户修正后直接覆盖成本。
     """
     if fund_code not in WATCHED_FUNDS:
         raise HTTPException(status_code=404, detail=f"基金 {fund_code} 不在关注列表")
@@ -6730,27 +6730,29 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     payload = payload if isinstance(payload, dict) else {}
     try:
         buy_nav = float(payload.get("buy_price") or payload.get("nav") or fund_latest.current_nav)
-        shares = float(payload.get("shares") or 1.0)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="buy_price 和 shares 必须是有效数字")
-    if buy_nav <= 0 or shares <= 0:
-        raise HTTPException(status_code=400, detail="buy_price 和 shares 必须大于0")
+        raise HTTPException(status_code=400, detail="成本净值必须是有效数字")
+    if buy_nav <= 0:
+        raise HTTPException(status_code=400, detail="成本净值必须大于0")
 
     buy_date = str(payload.get("buy_date") or payload.get("date") or fund_latest.nav_date)
     old = COST_NAVS.get(fund_code, {}) if isinstance(COST_NAVS.get(fund_code), dict) else {}
     old_holding = bool(old.get("is_holding", False) and old.get("buy_nav", 0) > 0)
-    old_shares = float(old.get("shares", 1.0 if old_holding else 0.0) or 0.0)
-    old_cost = float(old.get("buy_nav", 0.0) or 0.0)
-    new_shares = old_shares + shares
-    avg_cost = round(((old_cost * old_shares) + (buy_nav * shares)) / new_shares, 4) if new_shares > 0 else round(buy_nav, 4)
+    current_units = float(old.get("shares", 1.0 if old_holding else 1.0) or 1.0)
+    new_cost = round(buy_nav, 4)
     transactions = list(old.get("transactions", []))
-    transactions.append({"type": "buy", "date": buy_date, "nav": round(buy_nav, 4), "shares": round(shares, 4)})
+    transactions.append({
+        "type": "buy" if not old_holding else "correct_cost",
+        "date": buy_date,
+        "nav": new_cost,
+        "note": "manual_cost"
+    })
 
     COST_NAVS[fund_code] = {
-        "buy_nav": avg_cost,
+        "buy_nav": new_cost,
         "buy_date": old.get("buy_date") if old_holding else buy_date,
-        "buy_price": avg_cost,
-        "shares": round(new_shares, 4),
+        "buy_price": new_cost,
+        "shares": round(current_units, 4),
         "is_holding": True,
         "realized_yield_pct": float(old.get("realized_yield_pct", 0.0) or 0.0),
         "transactions": transactions
@@ -6764,9 +6766,8 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     return {
         "code": fund_code,
         "name": fund_latest.name,
-        "buy_price": round(buy_nav, 4),
-        "cost_nav": avg_cost,
-        "shares": round(new_shares, 4),
+        "buy_price": new_cost,
+        "cost_nav": new_cost,
         "buy_date": COST_NAVS[fund_code]["buy_date"],
         "is_holding": True,
         "is_additional_buy": old_holding
@@ -6778,7 +6779,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
     """
     用户卖出指定基金。支持部分卖出；全部卖出后恢复买点监控并更新买点参考日期。
     - sell_price: 卖出净值，默认最新净值
-    - shares: 卖出份额权重，默认全部
+    - shares: 内部兼容字段，默认全部卖出
     - sell_date/date: 卖出日期，默认最新净值日期
     """
     if fund_code not in WATCHED_FUNDS:
@@ -6806,6 +6807,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
     sell_date = str(payload.get("sell_date") or payload.get("date") or nav_date)
     cost_nav = float(old.get("buy_nav", 0.0) or 0.0)
     final_yield_pct = round((sell_nav - cost_nav) / cost_nav * 100, 2) if cost_nav > 0 else 0.0
+    cumulative_realized = round(float(old.get("realized_yield_pct", 0.0) or 0.0) + final_yield_pct, 2)
     transactions = list(old.get("transactions", []))
     transactions.append({"type": "sell", "date": sell_date, "nav": round(sell_nav, 4), "shares": round(sell_shares, 4), "yield_pct": final_yield_pct})
     remain_shares = round(old_shares - sell_shares, 4)
@@ -6817,7 +6819,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
             "buy_price": cost_nav,
             "shares": remain_shares,
             "is_holding": True,
-            "realized_yield_pct": final_yield_pct,
+            "realized_yield_pct": cumulative_realized,
             "transactions": transactions
         }
         is_holding = True
@@ -6830,7 +6832,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
             "is_holding": False,
             "sell_date": sell_date,
             "sell_price": round(sell_nav, 4),
-            "realized_yield_pct": final_yield_pct,
+            "realized_yield_pct": cumulative_realized,
             "transactions": transactions
         }
         is_holding = False
@@ -6850,6 +6852,7 @@ async def confirm_sell(fund_code: str, payload: Optional[dict] = None):
         "sell_date": sell_date,
         "remaining_shares": remain_shares,
         "final_yield_pct": final_yield_pct,
+        "realized_yield_pct": cumulative_realized,
         "buy_point_ref_date": sell_date if not is_holding else BUY_POINT_REFS.get(fund_code, {}).get("ref_date", ""),
         "buy_point_ref_nav": round((sell_nav if not is_holding else current_nav), 4)
     }
@@ -6871,12 +6874,11 @@ async def correct_position_cost(fund_code: str, payload: Optional[dict] = None):
 
     try:
         cost_nav = float(payload.get("cost_nav") or payload.get("buy_price") or payload.get("nav"))
-        shares = payload.get("shares")
-        shares = float(shares) if shares not in (None, "") else float(old.get("shares", 1.0) or 1.0)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="cost_nav 和 shares 必须是有效数字")
-    if cost_nav <= 0 or shares <= 0:
-        raise HTTPException(status_code=400, detail="cost_nav 和 shares 必须大于0")
+        raise HTTPException(status_code=400, detail="成本净值必须是有效数字")
+    if cost_nav <= 0:
+        raise HTTPException(status_code=400, detail="成本净值必须大于0")
+    shares = float(old.get("shares", 1.0) or 1.0)
 
     correct_date = str(payload.get("date") or payload.get("buy_date") or old.get("buy_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     old_cost = float(old.get("buy_nav", 0.0) or 0.0)
@@ -6886,7 +6888,7 @@ async def correct_position_cost(fund_code: str, payload: Optional[dict] = None):
         "date": correct_date,
         "old_nav": round(old_cost, 4),
         "nav": round(cost_nav, 4),
-        "shares": round(shares, 4)
+        "note": "manual_cost"
     })
 
     updated = dict(old)
