@@ -5985,11 +5985,12 @@ def lite_portfolio_response(response: PortfolioResponse) -> PortfolioResponse:
 
 
 @app.get("/api/portfolio", response_model=PortfolioResponse)
-async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
+async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0, snapshot: int = 0):
     """
     获取持仓概览（包括上证指数、国债指数、关注基金含7天净值、买点判断、AI预判）
     force=1 强制刷新（绕过 30s 整页缓存）
     lite=1 首页首包轻量模式：市场/资讯/弹窗数据懒加载
+    snapshot=1 首屏专用：只读内存/SQLite快照，不等待外部接口刷新
     """
     # === 整页缓存：业务状态判定（去 TTL 概念） ===
     # 用户场景：日涨跌没更新前一直拉，更新到了才停
@@ -6002,6 +6003,19 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0):
     now = datetime.now()
     is_trading = is_trading_time()
     disclosed = _is_today_disclosed()
+    # snapshot-first-paint-20260811: let frontend render SQLite snapshot before realtime refresh.
+    if snapshot:
+        db_response, db_age = load_portfolio_snapshot_from_db()
+        snap_response = db_response or PORTFOLIO_CACHE.get("data")
+        if snap_response is not None:
+            snap_response = snap_response.copy(deep=True)
+            snap_response.time = now.strftime("%H:%M:%S")
+            if db_response is not None:
+                PORTFOLIO_CACHE["data"] = db_response
+                PORTFOLIO_CACHE["saved_at"] = now_ts - float(db_age or 0)
+            return portfolio_response_for_client(snap_response, lite, deepseek)
+        # 没有快照时继续走原有流程，保证首次安装也能加载出数据。
+
     if force == 0:
         max_age = portfolio_snapshot_max_age_seconds()
         if PORTFOLIO_CACHE["data"] is not None:
