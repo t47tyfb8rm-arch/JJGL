@@ -3252,10 +3252,28 @@ function aiRawBlock(title,html,cls){return '<div class="ai-research-card '+(cls|
 function aiDecisionRow(k,v){return '<div class="ai-decision-row"><b>'+esc(k)+'</b><span>'+hi(v||'--')+'</span></div>'}
 function openAiDetail(code){const f=findFund(code),d=lastData||{},ai=f.ai_prediction||{},bs=buyState(f),risk=ai.risk_level||'中',trend=cleanTrend(ai.trend),deep=isDeepSeekAi(f),est=estimateChange(f),levels=ai.key_levels||ai.support_resistance||'',levelText=Array.isArray(levels)?levels.join(' / '):String(levels||'暂无关键位'),ad=aiCleanText(ai.advice||ai.position_advice,170)||compactAiAdvice(f,d),action=aiCleanText(ai.position_advice||'',150)||aiFallbackAction(f,d),watch=aiFundFocus(f),riskText=aiCleanText(ai.risk_tips||ai.market_env||'',150)||('风险等级 '+risk+'，重点看 '+watch+'。');document.getElementById('ai-detail-title').textContent=f.code+' '+shortName(f,16);document.getElementById('ai-detail-sub').textContent=(deep?'DeepSeek · ':'本地模型 · ')+trend+' · '+bs.label;document.getElementById('ai-detail-body').innerHTML='<div class="ai-decision-hero"><div class="ai-decision-top"><div class="ai-decision-k">策略建议</div><div class="ai-decision-v num" style="color:'+cc(est||0)+'">'+(est==null?'--':fp(est))+'</div></div><div class="ai-decision-text">'+hi(ad)+'</div></div><div class="ai-decision-list">'+aiDecisionRow('怎么做',action)+aiDecisionRow('看什么',watch)+aiDecisionRow('触发位','关键位 '+levelText+'；买点 '+bs.label+(bs.gap?'，'+bs.gap:''))+aiDecisionRow('风险',riskText)+'</div>'+aiRawBlock('核心资讯',aiCoreNewsHtml(aiRelatedNewsFor(f,d,3)));document.getElementById('ai-detail-modal').classList.add('show')}
 function openImportantDateDetail(i){const d=lastData||{},nodes=window.__aiDateNodes||marketKeyNodes(d),n=nodes[i]||nodes[0]||{};document.getElementById('ai-detail-title').textContent='重要日期 '+(n.date||'--');document.getElementById('ai-detail-sub').textContent=(n.impact||'市场影响');document.getElementById('ai-detail-body').innerHTML='<div class="ai-decision-hero"><div class="ai-decision-k">事件</div><div class="ai-decision-text">'+hi(n.title||'等待市场事件更新')+'</div></div><div class="ai-decision-list">'+aiDecisionRow('影响',n.impact||nodeImpactFromText(n.title||''))+'</div>'+aiRawBlock('核心新闻',aiCoreNewsHtml(dateNewsMatches(n,d)));document.getElementById('ai-detail-modal').classList.add('show')}
+// v4-snapshot-first-paint-20260811: paint SQLite snapshot before any forced realtime refresh.
+async function fetchSnapshotFirst(){
+  const ht=document.getElementById('header-time');
+  try{
+    const r=await fetch(API+'/api/portfolio?snapshot=1&deepseek=1&t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    lastData=d;
+    if(ht)ht.textContent=d.date+' '+d.time+' · 快照';
+    const hr=document.getElementById('home-refresh');
+    if(hr)hr.textContent=(d.time||'--').slice(0,5);
+    renderHome(d);renderFunds(d);renderAI(d);renderBuy(d);renderProfile(d);
+    return true;
+  }catch(e){
+    console.warn('snapshot first paint failed',e);
+    return false;
+  }
+}
 async function bootSnapshotAndLite(){
-  const liteTask=fetchHomeLiteOnly('first-load').catch(e=>console.warn('first lite refresh failed',e));
-  await fetchD(false,'initial');
-  await liteTask;
+  const painted=await fetchSnapshotFirst();
+  setTimeout(()=>fetchHomeLiteOnly('first-load').catch(e=>console.warn('first lite refresh failed',e)),painted?80:0);
+  if(!painted)await fetchD(false,'initial');
 }
 bootSnapshotAndLite();
 setTimeout(()=>autoRefreshVisibleCore(5000),5000);setInterval(()=>autoRefreshVisibleCore(25000),30000);
