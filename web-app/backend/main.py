@@ -888,6 +888,55 @@ def save_portfolio_to_db(response):
         print(f"[DB] save portfolio failed: {e}")
 
 
+def merge_lite_response_into_snapshot(lite_response: PortfolioResponse) -> PortfolioResponse:
+    """Persist 30s home lite refresh without erasing full-page cached data."""
+    base_response, _ = load_portfolio_snapshot_from_db()
+    if base_response is None:
+        base_response = PORTFOLIO_CACHE.get("data")
+    if base_response is None:
+        return lite_response
+    merged = base_response.copy(deep=True)
+    merged.date = lite_response.date
+    merged.time = lite_response.time
+    merged.is_trading_day = lite_response.is_trading_day
+    merged.display_trade_date = lite_response.display_trade_date
+    merged.latest_disclosed_date = lite_response.latest_disclosed_date
+    merged.market_status = lite_response.market_status
+    for attr in ("index", "bond_index", "k50_index", "hsi_index", "hs300_index", "sz_index"):
+        incoming = getattr(lite_response, attr, None)
+        if incoming is not None:
+            old = getattr(merged, attr, None)
+            if old is not None and not getattr(incoming, "history", None):
+                incoming.history = getattr(old, "history", [])
+            setattr(merged, attr, incoming)
+    old_funds = {str(getattr(f, "code", "")): f for f in getattr(merged, "funds", []) or []}
+    merged_funds: List[FundInfo] = []
+    for incoming in getattr(lite_response, "funds", []) or []:
+        old = old_funds.get(str(getattr(incoming, "code", "")))
+        if old is not None:
+            if not getattr(incoming, "history", None):
+                incoming.history = getattr(old, "history", [])
+            if not getattr(incoming, "holdings", None):
+                incoming.holdings = getattr(old, "holdings", [])
+            if getattr(incoming, "buy_point", None) and getattr(old, "buy_point", None):
+                if not getattr(incoming.buy_point, "yield_history", None):
+                    incoming.buy_point.yield_history = getattr(old.buy_point, "yield_history", [])
+        merged_funds.append(incoming)
+    if merged_funds:
+        merged.funds = merged_funds
+    return merged
+
+
+def save_lite_portfolio_to_db(response: PortfolioResponse) -> None:
+    try:
+        merged = merge_lite_response_into_snapshot(response)
+        save_portfolio_to_db(merged)
+        PORTFOLIO_CACHE["data"] = merged
+        PORTFOLIO_CACHE["saved_at"] = time.time()
+    except Exception as e:
+        print(f"[DB] save lite portfolio failed: {e}")
+
+
 def load_portfolio_from_db(max_age_seconds: int = 180):
     try:
         init_app_db()
@@ -6301,6 +6350,8 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0, snapsh
         PORTFOLIO_CACHE["data"] = response
         PORTFOLIO_CACHE["saved_at"] = time.time()
         save_portfolio_to_db(response)
+    elif force:
+        save_lite_portfolio_to_db(response)
 
     return portfolio_response_for_client(response, lite, deepseek)
 
