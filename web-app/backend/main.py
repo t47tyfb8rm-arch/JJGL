@@ -659,19 +659,62 @@ def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
     )
 
 
+def _history_item_value(item, key: str, default=None):
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _fund_history_latest_pair(fund):
+    history = list(getattr(fund, "history", None) or [])
+    valid = []
+    for item in history:
+        date_str = str(_history_item_value(item, "date", "") or "")[:10]
+        nav = _db_float(_history_item_value(item, "nav", None), None)
+        if date_str and nav is not None and nav > 0:
+            valid.append((date_str, nav, item))
+    if not valid:
+        return None, None
+    valid.sort(key=lambda x: x[0])
+    latest = valid[-1]
+    prev = valid[-2] if len(valid) >= 2 else None
+    return latest, prev
+
+
+def normalize_fund_returns_from_history(response) -> None:
+    """Let history be the source of truth before ledger/snapshot persistence."""
+    for fund in getattr(response, "funds", []) or []:
+        latest, prev = _fund_history_latest_pair(fund)
+        if not latest:
+            continue
+        latest_date, latest_nav, latest_item = latest
+        fund.nav_date = latest_date
+        fund.current_nav = latest_nav
+        if prev:
+            _, prev_nav, _ = prev
+            fund.previous_nav = prev_nav
+            if prev_nav:
+                fund.daily_change = round((latest_nav / prev_nav - 1) * 100, 3)
+        else:
+            change = _db_float(_history_item_value(latest_item, "change", None), None)
+            if change is not None:
+                fund.daily_change = change
+
+        bp = getattr(fund, "buy_point", None)
+        if bp:
+            bp.current_nav = latest_nav
+            cost_nav = _db_float(getattr(bp, "cost_nav", 0.0), 0.0)
+            if bool(getattr(bp, "is_holding", False)) and cost_nav:
+                bp.yield_pct = round((latest_nav / cost_nav - 1) * 100, 2)
+
+
 def save_portfolio_to_db(response):
     try:
         init_app_db()
-        payload = _json_payload(_model_dump(response))
+        normalize_fund_returns_from_history(response)
+        mark_fund_nav_readiness(response.funds, getattr(response, "latest_disclosed_date", "") or expected_actual_nav_date())
         now_ts = time.time()
         with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                "INSERT INTO portfolio_snapshots(snapshot_key, created_at, trade_date, market_status, payload) VALUES(?,?,?,?,?)",
-                ("latest", now_ts, response.date, response.market_status, payload),
-            )
-            conn.execute(
-                "DELETE FROM portfolio_snapshots WHERE snapshot_key='latest' AND id NOT IN (SELECT id FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 24)"
-            )
             for fund in response.funds or []:
                 fund_dict = _model_dump(fund)
                 fund_payload = _json_payload(fund_dict)
@@ -826,6 +869,14 @@ def save_portfolio_to_db(response):
             conn.execute(
                 "INSERT OR REPLACE INTO news_snapshots(news_key, created_at, payload) VALUES(?,?,?)",
                 ("latest", now_ts, news_payload),
+            )
+            payload = _json_payload(_model_dump(response))
+            conn.execute(
+                "INSERT INTO portfolio_snapshots(snapshot_key, created_at, trade_date, market_status, payload) VALUES(?,?,?,?,?)",
+                ("latest", now_ts, response.date, response.market_status, payload),
+            )
+            conn.execute(
+                "DELETE FROM portfolio_snapshots WHERE snapshot_key='latest' AND id NOT IN (SELECT id FROM portfolio_snapshots WHERE snapshot_key='latest' ORDER BY created_at DESC LIMIT 24)"
             )
             conn.execute("DELETE FROM intraday_estimate_snapshots WHERE updated_at < ?", (now_ts - 86400 * 10,))
             conn.execute("DELETE FROM index_snapshots WHERE updated_at < ?", (now_ts - 86400 * 90,))
@@ -5803,6 +5854,10 @@ def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioRes
     for fund in getattr(response, "funds", []) or []:
         row = ledger.get(str(getattr(fund, "code", "")))
         if not row:
+            continue
+        latest, _ = _fund_history_latest_pair(fund)
+        ledger_nav_date = str(row.get("nav_date") or "")[:10]
+        if latest and ledger_nav_date and latest[0] > ledger_nav_date:
             continue
         fund.nav_date = str(row.get("nav_date") or fund.nav_date or "")
         fund.current_nav = _db_float(row.get("current_nav"), fund.current_nav)
