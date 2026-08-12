@@ -937,6 +937,22 @@ def save_lite_portfolio_to_db(response: PortfolioResponse) -> None:
         print(f"[DB] save lite portfolio failed: {e}")
 
 
+def schedule_lite_portfolio_snapshot_save(response: PortfolioResponse) -> None:
+    """Save lite refresh into DB in the background; never block first paint."""
+    try:
+        snapshot = response.copy(deep=True)
+
+        async def _save():
+            try:
+                await asyncio.to_thread(save_lite_portfolio_to_db, snapshot)
+            except Exception as e:
+                print(f"[DB] async save lite portfolio failed: {e}")
+
+        asyncio.create_task(_save())
+    except Exception as e:
+        print(f"[DB] schedule lite portfolio save failed: {e}")
+
+
 def load_portfolio_from_db(max_age_seconds: int = 180):
     try:
         init_app_db()
@@ -6351,7 +6367,7 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0, snapsh
         PORTFOLIO_CACHE["saved_at"] = time.time()
         save_portfolio_to_db(response)
     elif force:
-        save_lite_portfolio_to_db(response)
+        schedule_lite_portfolio_snapshot_save(response)
 
     return portfolio_response_for_client(response, lite, deepseek)
 
