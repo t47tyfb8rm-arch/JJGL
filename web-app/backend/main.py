@@ -6366,8 +6366,6 @@ async def get_portfolio(force: int = 0, lite: int = 0, deepseek: int = 0, snapsh
         PORTFOLIO_CACHE["data"] = response
         PORTFOLIO_CACHE["saved_at"] = time.time()
         save_portfolio_to_db(response)
-    elif force:
-        schedule_lite_portfolio_snapshot_save(response)
 
     return portfolio_response_for_client(response, lite, deepseek)
 
