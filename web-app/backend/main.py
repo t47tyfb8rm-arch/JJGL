@@ -94,6 +94,7 @@ async def start_snapshot_scheduler():
     _asyncio.create_task(snapshot_scheduler())
     _asyncio.create_task(daily_model_fitter())
     _asyncio.create_task(background_portfolio_refresher())
+    _asyncio.create_task(nav_disclosure_watcher())
     print(f"[启动] 盘中快照调度已启动，采样时点: {SNAPSHOT_TIMES}")
     # 启动时立即跑一次多因子回归（冷启动 / 重启恢复）
     import asyncio as _asyncio2
@@ -2558,6 +2559,16 @@ BACKGROUND_PORTFOLIO_STATUS = {
     "last_error": "",
     "last_duration_seconds": None,
     "next_interval_seconds": None,
+}
+NAV_DISCLOSURE_WATCH_STATUS = {
+    "last_started_at": "",
+    "last_finished_at": "",
+    "last_error": "",
+    "last_duration_seconds": None,
+    "next_interval_seconds": None,
+    "expected_nav_date": "",
+    "updated_codes": [],
+    "ready_codes": [],
 }
 DEEPSEEK_AUTO_INTERVAL_SECONDS = 3600
 DEEPSEEK_AUTO_STATUS = {
@@ -6328,6 +6339,96 @@ async def background_portfolio_refresher():
         await asyncio.sleep(interval)
 
 
+def _response_nav_ready_codes(response: Optional[PortfolioResponse], expected_date: str) -> List[str]:
+    result: List[str] = []
+    if not response:
+        return result
+    for fund in getattr(response, "funds", []) or []:
+        nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
+        if nav_date and expected_date and nav_date >= expected_date:
+            result.append(str(getattr(fund, "code", "")))
+    return result
+
+
+async def nav_disclosure_watcher():
+    """After close, poll only fund NAV disclosure and update DB/home snapshot quickly."""
+    await asyncio.sleep(12)
+    while True:
+        interval = 300
+        started = time.time()
+        try:
+            expected_date = expected_actual_nav_date()
+            NAV_DISCLOSURE_WATCH_STATUS["expected_nav_date"] = expected_date
+            if is_trading_time():
+                interval = 300
+                NAV_DISCLOSURE_WATCH_STATUS["next_interval_seconds"] = interval
+            else:
+                current_response = PORTFOLIO_CACHE.get("data")
+                if current_response is None:
+                    current_response, _ = load_portfolio_snapshot_from_db()
+                ready_codes = _response_nav_ready_codes(current_response, expected_date)
+                if len(set(ready_codes)) >= len(WATCHED_FUNDS):
+                    interval = 600
+                    NAV_DISCLOSURE_WATCH_STATUS["ready_codes"] = ready_codes
+                    NAV_DISCLOSURE_WATCH_STATUS["next_interval_seconds"] = interval
+                else:
+                    interval = 60
+                    NAV_DISCLOSURE_WATCH_STATUS["last_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    NAV_DISCLOSURE_WATCH_STATUS["last_error"] = ""
+                    base_response = current_response
+                    if base_response is None:
+                        base_response = await get_portfolio(force=1, lite=0, deepseek=0)
+                    updated: List[str] = []
+                    fund_tasks = [
+                        fetch_fund_from_eastmoney(
+                            code,
+                            stock_index=getattr(base_response, "index", None),
+                            bond_index=getattr(base_response, "bond_index", None),
+                            hs300_index=getattr(base_response, "hs300_index", None),
+                            force=1,
+                            lite=0,
+                        )
+                        for code in WATCHED_FUNDS
+                    ]
+                    results = await asyncio.gather(*fund_tasks, return_exceptions=True)
+                    fund_map = {str(getattr(f, "code", "")): f for f in getattr(base_response, "funds", []) or []}
+                    for item in results:
+                        if isinstance(item, FundInfo):
+                            code = str(getattr(item, "code", ""))
+                            old = fund_map.get(code)
+                            old_date = str(getattr(old, "nav_date", "") or "")[:10] if old else ""
+                            new_date = str(getattr(item, "nav_date", "") or "")[:10]
+                            fund_map[code] = item
+                            if new_date and new_date >= expected_date and new_date != old_date:
+                                updated.append(code)
+                        elif isinstance(item, Exception):
+                            print(f"[净值披露检查] 基金获取异常: {item}")
+                    base_response.funds = [fund_map.get(code) for code in WATCHED_FUNDS if fund_map.get(code)]
+                    base_response.date = datetime.now().strftime("%Y-%m-%d")
+                    base_response.time = datetime.now().strftime("%H:%M:%S")
+                    base_response.latest_disclosed_date = _latest_disclosed_date()
+                    base_response.display_trade_date = _display_trade_date()
+                    base_response.market_status = market_status()
+                    mark_fund_nav_readiness(base_response.funds, expected_date)
+                    save_portfolio_to_db(base_response)
+                    PORTFOLIO_CACHE["data"] = base_response
+                    PORTFOLIO_CACHE["saved_at"] = time.time()
+                    ready_codes = _response_nav_ready_codes(base_response, expected_date)
+                    NAV_DISCLOSURE_WATCH_STATUS["updated_codes"] = updated
+                    NAV_DISCLOSURE_WATCH_STATUS["ready_codes"] = ready_codes
+                    NAV_DISCLOSURE_WATCH_STATUS["last_finished_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    NAV_DISCLOSURE_WATCH_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+                    NAV_DISCLOSURE_WATCH_STATUS["next_interval_seconds"] = 600 if len(set(ready_codes)) >= len(WATCHED_FUNDS) else interval
+                    print(f"[净值披露检查] expected={expected_date} ready={ready_codes} updated={updated}")
+        except Exception as e:
+            interval = 60
+            NAV_DISCLOSURE_WATCH_STATUS["last_error"] = str(e)
+            NAV_DISCLOSURE_WATCH_STATUS["last_duration_seconds"] = round(time.time() - started, 2)
+            NAV_DISCLOSURE_WATCH_STATUS["next_interval_seconds"] = interval
+            print(f"[净值披露检查] 异常: {e}")
+        await asyncio.sleep(interval)
+
+
 async def _run_deepseek_auto_if_due(response: Optional[PortfolioResponse] = None) -> None:
     """Refresh DeepSeek advice cache during trading hours without blocking the foreground."""
     if not is_trading_time():
@@ -6459,6 +6560,7 @@ async def get_refresh_status():
         "news_age_seconds": round(now_ts - float(NEWS_CACHE.get("saved_at") or 0.0), 1) if NEWS_CACHE.get("saved_at") else None,
         "external_market_age_seconds": round(now_ts - float(EXTERNAL_MARKET_CACHE.get("saved_at") or 0.0), 1) if EXTERNAL_MARKET_CACHE.get("saved_at") else None,
         "background": BACKGROUND_PORTFOLIO_STATUS,
+        "nav_disclosure_watch": NAV_DISCLOSURE_WATCH_STATUS,
         "deepseek_auto": DEEPSEEK_AUTO_STATUS,
     }
 
