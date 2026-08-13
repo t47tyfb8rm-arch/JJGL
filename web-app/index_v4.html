@@ -3290,7 +3290,6 @@ async function bootSnapshotAndLite(){
     }catch(e){console.warn('local snapshot paint failed',e)}
   }
   if(!painted){paintHomeShell();fetchSnapshotFirst().catch(e=>console.warn('snapshot first paint failed',e))}
-  else setTimeout(()=>fetchSnapshotFirst().catch(e=>console.warn('snapshot hydrate failed',e)),1200);
   setTimeout(()=>fetchHomeLiteOnly('first-load').catch(e=>console.warn('first lite refresh failed',e)),painted?160:260);
 }
 bootSnapshotAndLite();
