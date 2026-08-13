@@ -3446,3 +3446,6 @@ document.head.insertAdjacentHTML('beforeend','<style id="buy-history-total-size-
 
 
 <script>// trade-date-before-price-dom-20260807: DOM order is transaction date first, then NAV price.</script>
+
+// center-buy-trade-modals-20260813: 买点/交易相关弹窗改为居中卡片，而不是底部抽屉。
+document.head.insertAdjacentHTML('beforeend','<style id="center-buy-trade-modals-20260813">.trade-modal{align-items:center!important;justify-content:center!important;padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))!important}.trade-modal.show .trade-sheet{animation:centerModalIn .18s ease-out both}.trade-sheet{width:min(440px,calc(100vw - 28px))!important;max-height:calc(100dvh - 88px)!important;overflow:auto!important;border-radius:24px!important;box-shadow:0 18px 46px rgba(31,86,174,.20)!important}@keyframes centerModalIn{from{opacity:.72;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}body.dark .trade-sheet{box-shadow:0 20px 48px rgba(0,0,0,.42)!important}</style>');
