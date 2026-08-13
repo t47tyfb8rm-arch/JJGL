@@ -3285,11 +3285,12 @@ async function bootSnapshotAndLite(){
       if(ht)ht.textContent=(cached.date||'--')+' '+(cached.time||'--')+' · 本地快照';
       const hr=document.getElementById('home-refresh');
       if(hr)hr.textContent=(cached.time||'--').slice(0,5);
-      renderHome(cached);renderAI(cached);
+      renderHome(cached);renderFunds(cached);renderAI(cached);renderBuy(cached);renderProfile(cached);
       painted=true;
     }catch(e){console.warn('local snapshot paint failed',e)}
   }
   if(!painted){paintHomeShell();fetchSnapshotFirst().catch(e=>console.warn('snapshot first paint failed',e))}
+  else setTimeout(()=>fetchSnapshotFirst().catch(e=>console.warn('snapshot hydrate failed',e)),1200);
   setTimeout(()=>fetchHomeLiteOnly('first-load').catch(e=>console.warn('first lite refresh failed',e)),painted?160:260);
 }
 bootSnapshotAndLite();
