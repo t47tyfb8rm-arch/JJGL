@@ -888,7 +888,7 @@ def save_portfolio_to_db(response):
         print(f"[DB] save portfolio failed: {e}")
 
 
-def merge_lite_response_into_snapshot(lite_response: PortfolioResponse) -> PortfolioResponse:
+def merge_lite_response_into_snapshot(lite_response: "PortfolioResponse") -> "PortfolioResponse":
     """Persist 30s home lite refresh without erasing full-page cached data."""
     base_response, _ = load_portfolio_snapshot_from_db()
     if base_response is None:
@@ -927,7 +927,7 @@ def merge_lite_response_into_snapshot(lite_response: PortfolioResponse) -> Portf
     return merged
 
 
-def save_lite_portfolio_to_db(response: PortfolioResponse) -> None:
+def save_lite_portfolio_to_db(response: "PortfolioResponse") -> None:
     try:
         merged = merge_lite_response_into_snapshot(response)
         save_portfolio_to_db(merged)
@@ -937,7 +937,7 @@ def save_lite_portfolio_to_db(response: PortfolioResponse) -> None:
         print(f"[DB] save lite portfolio failed: {e}")
 
 
-def schedule_lite_portfolio_snapshot_save(response: PortfolioResponse) -> None:
+def schedule_lite_portfolio_snapshot_save(response: "PortfolioResponse") -> None:
     """Save lite refresh into DB in the background; never block first paint."""
     try:
         snapshot = response.copy(deep=True)
