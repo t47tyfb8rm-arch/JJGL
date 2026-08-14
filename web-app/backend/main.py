@@ -7290,6 +7290,75 @@ async def get_fund(fund_code: str):
     return fund
 
 
+@app.get("/api/funds/{fund_code}/intraday-chart")
+async def get_fund_intraday_chart(fund_code: str):
+    """Return today's locally persisted linked-market series without fetching upstream data."""
+    code = str(fund_code or "").strip()
+    if code not in FUND_SETTINGS:
+        raise HTTPException(status_code=404, detail=f"基金 {code} 未找到")
+
+    model = FUND_SPECIFIC_MODELS.get(code, {})
+    benchmark_name = str(model.get("benchmark_name") or "")
+    if code == "020741":
+        benchmark_name = "债市估算"
+    elif not benchmark_name:
+        benchmark_name = "关联标的"
+
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            date_row = conn.execute(
+                "SELECT MAX(trade_date) AS trade_date FROM intraday_estimate_snapshots WHERE code=?",
+                (code,),
+            ).fetchone()
+            trade_date = str((date_row["trade_date"] if date_row else "") or "")
+            rows = conn.execute(
+                """
+                SELECT estimate_time, estimated_change, benchmark_change
+                FROM intraday_estimate_snapshots
+                WHERE code=? AND trade_date=?
+                ORDER BY estimate_time ASC
+                """,
+                (code, trade_date),
+            ).fetchall() if trade_date else []
+    except Exception as e:
+        print(f"[DB] intraday chart read failed {code}: {e}")
+        raise HTTPException(status_code=500, detail="盘中快照读取失败")
+
+    points_by_minute = {}
+    for row in rows:
+        time_text = str(row["estimate_time"] or "")[:5]
+        if not time_text or time_text < "09:30" or time_text > "15:00":
+            continue
+        raw_value = row["estimated_change"] if code == "020741" else row["benchmark_change"]
+        if raw_value is None:
+            raw_value = row["estimated_change"]
+        try:
+            value = round(float(raw_value), 3)
+        except (TypeError, ValueError):
+            continue
+        points_by_minute[time_text] = {"time": time_text, "value": value}
+
+    points = list(points_by_minute.values())
+    if len(points) > 72:
+        step = max(1, len(points) // 64)
+        sampled = points[::step]
+        if sampled[-1] != points[-1]:
+            sampled.append(points[-1])
+        points = sampled
+
+    latest = points[-1]["value"] if points else None
+    return {
+        "ok": True,
+        "code": code,
+        "trade_date": trade_date,
+        "benchmark_name": benchmark_name,
+        "latest": latest,
+        "points": points,
+        "source": "intraday_estimate_snapshots",
+    }
+
+
 @app.get("/api/index/{index_code}", response_model=IndexInfo)
 async def get_index(index_code: str):
     """获取指数信息"""
