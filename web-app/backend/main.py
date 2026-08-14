@@ -766,7 +766,12 @@ def save_portfolio_to_db(response):
                             now_ts,
                         ),
                     )
-                if getattr(fund, "estimated_time", "") or getattr(fund, "estimated_change", None) is not None:
+                # Keep one stable point per five-minute bucket during trading.
+                # The 30-second portfolio refresh remains unchanged; it only updates
+                # the current bucket instead of growing the chart on every refresh.
+                if is_trading_time() and (getattr(fund, "estimated_time", "") or getattr(fund, "estimated_change", None) is not None):
+                    snapshot_now = datetime.now()
+                    snapshot_time = f"{snapshot_now.hour:02d}:{(snapshot_now.minute // 5) * 5:02d}:00"
                     conn.execute(
                         """
                         INSERT OR REPLACE INTO intraday_estimate_snapshots
@@ -776,7 +781,7 @@ def save_portfolio_to_db(response):
                         (
                             fund.code,
                             response.date,
-                            getattr(fund, "estimated_time", "") or datetime.now().strftime("%H:%M:%S"),
+                            snapshot_time,
                             getattr(fund, "estimated_change", None),
                             getattr(fund, "model_estimated_change", None),
                             getattr(fund, "corrected_estimated_change", None),
@@ -7308,7 +7313,11 @@ async def get_fund_intraday_chart(fund_code: str):
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
             date_row = conn.execute(
-                "SELECT MAX(trade_date) AS trade_date FROM intraday_estimate_snapshots WHERE code=?",
+                """
+                SELECT MAX(trade_date) AS trade_date
+                FROM intraday_estimate_snapshots
+                WHERE code=? AND substr(estimate_time,1,5) BETWEEN '09:30' AND '15:00'
+                """,
                 (code,),
             ).fetchone()
             trade_date = str((date_row["trade_date"] if date_row else "") or "")
