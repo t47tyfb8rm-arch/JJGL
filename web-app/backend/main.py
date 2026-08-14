@@ -502,6 +502,20 @@ def save_fund_settings_to_db(settings: Dict[str, dict]) -> None:
                         "drop_threshold": bp.get("drop_threshold", 5.0),
                         "is_core": True,
                     }
+            desired_codes = {
+                str(code).strip()
+                for code, cfg in (settings or {}).items()
+                if str(code).strip() and isinstance(cfg, dict)
+            }
+            desired_codes.update(CORE_FUNDS)
+            placeholders = ",".join("?" for _ in desired_codes)
+            if placeholders:
+                conn.execute(
+                    f"DELETE FROM watched_funds WHERE is_core=0 AND code NOT IN ({placeholders})",
+                    tuple(sorted(desired_codes)),
+                )
+            else:
+                conn.execute("DELETE FROM watched_funds WHERE is_core=0")
             for code, cfg in (settings or {}).items():
                 if not isinstance(cfg, dict):
                     continue
@@ -1045,6 +1059,34 @@ def clear_portfolio_db_cache():
             conn.commit()
     except Exception as e:
         print(f"[DB] clear portfolio failed: {e}")
+
+
+def delete_fund_state_from_db(fund_code: str) -> None:
+    """Delete every persisted record owned by a user-added fund."""
+    code = str(fund_code or "").strip()
+    if not code or code in CORE_FUNDS:
+        return
+    init_app_db()
+    code_tables = (
+        "watched_funds",
+        "buy_point_settings",
+        "cost_nav_snapshots",
+        "fund_positions",
+        "fund_transactions",
+        "fund_daily_snapshots",
+        "fund_nav_history",
+        "fund_return_ledger",
+        "intraday_estimate_snapshots",
+        "ai_strategy_snapshots",
+        "deepseek_strategy_snapshots",
+    )
+    with sqlite3.connect(DB_PATH) as conn:
+        for table in code_tables:
+            conn.execute(f"DELETE FROM {table} WHERE code=?", (code,))
+        # Portfolio payloads contain the complete fund list, so none of the old
+        # snapshots are safe to reuse after a watch-list deletion.
+        conn.execute("DELETE FROM portfolio_snapshots")
+        conn.commit()
 
 EST_CACHE_FILE = os.path.join(current_dir, "est_cache.json")
 CORRECTION_CACHE_FILE = os.path.join(current_dir, "correction_cache.json")
@@ -6946,6 +6988,7 @@ async def delete_watched_fund(fund_code: str):
     save_cost_navs_to_file(COST_NAVS)
     save_cost_navs_to_db(COST_NAVS)
     save_nav_history(NAV_HISTORY)
+    delete_fund_state_from_db(fund_code)
 
     PORTFOLIO_CACHE["data"] = None
     PORTFOLIO_CACHE["saved_at"] = 0.0
