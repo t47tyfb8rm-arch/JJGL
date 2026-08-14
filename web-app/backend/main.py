@@ -5012,6 +5012,23 @@ def _theme_detail_text(name: str, value: Optional[float], note: str, source: str
     return f"{subject}当前{direction}，用于观察主题热度和相关基金短期压力。"
 
 
+def _cn_market_update_stamp(history: Optional[List[IndexHistoryItem]] = None) -> str:
+    """Return the last meaningful A-share quote time, not the cache refresh time."""
+    now = datetime.now()
+    if is_trading_time():
+        return now.strftime("%m-%d %H:%M")
+
+    history_dates = []
+    for row in _history_rows(history):
+        value = str(row.get("date") or "")[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            history_dates.append(value)
+    if history_dates:
+        return f"{max(history_dates)[5:]} 15:00"
+
+    return now.strftime("%m-%d %H:%M")
+
+
 def _theme_sector_from_history(
     name: str,
     value: Optional[float],
@@ -5028,7 +5045,7 @@ def _theme_sector_from_history(
         note=note,
         tone=_theme_tone(value, label),
         source=source,
-        updated_at=datetime.now().strftime("%H:%M"),
+        updated_at=_cn_market_update_stamp(history),
         history=history or [],
         return_7d=_history_return(history, 7),
         return_1m=_history_return(history, 30),
@@ -5133,7 +5150,9 @@ def build_theme_sectors(
     sh50_index: Optional[IndexInfo] = None,
 ) -> List[ThemeSectorInfo]:
     """后台生成主题板块温度，随组合数据定时刷新。"""
-    now_label = datetime.now().strftime("%H:%M")
+    # market-update-freeze-after-close-20260814: cache/news jobs may keep running,
+    # but A-share market cards retain the last effective quote timestamp.
+    now_label = _cn_market_update_stamp(index_info.history if index_info else [])
     bond_fund = _find_theme_fund(funds, r"020741", r"债", r"国债")
     sh_change = index_info.daily_change if index_info and index_info.current > 0 else None
     sz_change = sz_index.daily_change if sz_index and sz_index.current > 0 else None
@@ -5168,6 +5187,8 @@ def build_theme_sectors(
         item.updated_at = now_label
         sectors.append(item)
     if market_theme_sectors:
+        for item in market_theme_sectors:
+            item.updated_at = now_label
         sectors.extend(market_theme_sectors)
     existing_names = {item.name for item in sectors}
     for name, _code, display_name in THEME_MARKET_INDEXES:
