@@ -7553,7 +7553,9 @@ async def get_fund_performance_chart(fund_code: str, period: str = "3m"):
         cost_level = round((cost_nav / fund_base - 1.0) * 100.0, 3)
 
     latest_rows = []
-    for item in sorted(fund_history, key=lambda x: str(x.get("date") or ""), reverse=True)[:7]:
+    # The chart keeps its selected period, while the dedicated NAV page needs
+    # enough disclosed rows to be useful without another data source.
+    for item in sorted(fund_history, key=lambda x: str(x.get("date") or ""), reverse=True)[:60]:
         latest_rows.append({
             "date": str(item.get("date") or "")[:10],
             "nav": item.get("nav"),
