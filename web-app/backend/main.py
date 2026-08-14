@@ -7418,8 +7418,8 @@ async def get_fund_performance_chart(fund_code: str, period: str = "3m"):
     if code not in FUND_SETTINGS:
         raise HTTPException(status_code=404, detail=f"基金 {code} 未找到")
 
-    period_days = {"1m": 31, "3m": 93, "6m": 186, "1y": 370}
-    range_key = period if period in period_days else "3m"
+    period_days = {"1m": 31, "3m": 93, "6m": 186, "1y": 370, "all": 36500}
+    range_key = period if period in period_days else "all"
     days = period_days[range_key]
 
     def parse_json(raw, fallback=None):
@@ -7480,20 +7480,31 @@ async def get_fund_performance_chart(fund_code: str, period: str = "3m"):
             ).fetchone()
             fund_payload = parse_json(fund_row["payload"] if fund_row else "{}")
             fund_history = list(fund_payload.get("history") or [])
-            if not fund_history:
-                nav_rows = conn.execute(
-                    """
-                    SELECT nav_date, nav, daily_change
-                    FROM fund_nav_history
-                    WHERE code=?
-                    ORDER BY nav_date ASC
-                    """,
-                    (code,),
-                ).fetchall()
-                fund_history = [
-                    {"date": row["nav_date"], "nav": row["nav"], "change": row["daily_change"]}
-                    for row in nav_rows
-                ]
+            nav_rows = conn.execute(
+                """
+                SELECT nav_date, nav, daily_change
+                FROM fund_nav_history
+                WHERE code=?
+                ORDER BY nav_date ASC
+                """,
+                (code,),
+            ).fetchall()
+            # A light snapshot may contain only a short history. Merge the
+            # persisted daily ledger so the selected chart period is complete.
+            merged_history = {
+                str(row["nav_date"] or "")[:10]: {
+                    "date": str(row["nav_date"] or "")[:10],
+                    "nav": row["nav"],
+                    "change": row["daily_change"],
+                }
+                for row in nav_rows
+                if row["nav_date"]
+            }
+            for item in fund_history:
+                item_date = str(item.get("date") or "")[:10]
+                if item_date:
+                    merged_history[item_date] = item
+            fund_history = [merged_history[key] for key in sorted(merged_history)]
 
             source_type, source_key = benchmark_source
             if source_type == "sector":
