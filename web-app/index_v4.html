@@ -3395,59 +3395,41 @@ document.head.insertAdjacentHTML('beforeend','<style id="trade-date-specificity-
 document.head.insertAdjacentHTML('beforeend','<style id="trade-date-before-price-style">#trade-modal .trade-grid{grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr)!important;gap:8px!important}#trade-modal .trade-field.trade-date-field{grid-column:1!important;grid-row:1!important;min-width:0!important;overflow:hidden!important}#trade-modal .trade-field.trade-price-field{grid-column:2!important;grid-row:1!important;min-width:0!important;overflow:hidden!important}#trade-modal .trade-field.trade-date-field input,#trade-modal .trade-field.trade-price-field input{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}#trade-date{-webkit-appearance:none!important;appearance:none!important;font-size:13px!important;font-weight:600!important;padding-left:6px!important;padding-right:6px!important;text-align:center!important;letter-spacing:0!important}#trade-date::-webkit-date-and-time-value{text-align:center!important;font-size:12px!important;min-width:0!important}#trade-price{font-size:13px!important;padding-left:8px!important;padding-right:8px!important}</style>');
 // buy-history-total-size-fix-20260811: 买点首页历史累计收益右侧百分比缩小并固定列宽，避免小屏超出。
 document.head.insertAdjacentHTML('beforeend','<style id="buy-history-total-size-fix-style">#tbuy .history-card{grid-template-columns:minmax(0,1fr) 82px!important;column-gap:8px!important}#tbuy .history-card .fund-side{width:82px!important;min-width:82px!important;max-width:82px!important;justify-self:end!important;text-align:right!important;overflow:hidden!important}#tbuy .history-total,#tbuy .history-card .history-total{display:block!important;width:100%!important;max-width:100%!important;font-size:clamp(15px,3.95vw,17px)!important;line-height:1.05!important;font-weight:750!important;letter-spacing:-.35px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:clip!important;text-align:right!important}#tbuy .history-card .chip-sub{font-size:10px!important;line-height:1.1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}@media(max-width:390px){#tbuy .history-card{grid-template-columns:minmax(0,1fr) 78px!important}#tbuy .history-card .fund-side{width:78px!important;min-width:78px!important;max-width:78px!important}#tbuy .history-total,#tbuy .history-card .history-total{font-size:clamp(14px,3.65vw,16px)!important;letter-spacing:-.45px!important}}</style>');
+
+// full-snapshot-hydrate-20260814: keep non-home tabs synced from DB snapshot without blocking first paint.
+let fullSnapshotHydrateBusy=false,fullSnapshotHydrateAt=0;
+function renderAllFromSnapshot(d){
+  if(!d||!Array.isArray(d.funds)||!d.funds.length)return false;
+  lastData=d;
+  saveLocalSnapshot(d);
+  const ht=document.getElementById('header-time');
+  if(ht&&d.date&&d.time)ht.textContent=d.date+' '+d.time+' · 快照';
+  const hr=document.getElementById('home-refresh');
+  if(hr)hr.textContent=(d.time||'--').slice(0,5);
+  renderHome(d);renderFunds(d);renderAI(d);renderBuy(d);renderProfile(d);
+  return true;
+}
+async function hydrateFullSnapshot(reason='auto'){
+  const now=Date.now(),gap=reason==='interval'?170000:28000;
+  if(fullSnapshotHydrateBusy||now-fullSnapshotHydrateAt<gap)return false;
+  fullSnapshotHydrateBusy=true;fullSnapshotHydrateAt=now;
+  try{
+    const r=await fetch(API+'/api/portfolio?snapshot=1&deepseek=1&t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    return renderAllFromSnapshot(d);
+  }catch(e){console.warn('full snapshot hydrate failed',reason,e);return false}
+  finally{fullSnapshotHydrateBusy=false}
+}
+const goTabSnapshotBase=goTab;
+goTab=function(n){
+  goTabSnapshotBase(n);
+  if(n!=='home'&&n!=='ai')setTimeout(()=>hydrateFullSnapshot('tab-'+n),80);
+};
+setTimeout(()=>hydrateFullSnapshot('boot'),900);
+setInterval(()=>hydrateFullSnapshot('interval'),180000);
+// center-buy-trade-modals-20260813: 买点/交易相关弹窗改为居中卡片，而不是底部抽屉。
+document.head.insertAdjacentHTML('beforeend','<style id="center-buy-trade-modals-20260813">.trade-modal{align-items:center!important;justify-content:center!important;padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))!important}.trade-modal.show .trade-sheet{animation:centerModalIn .18s ease-out both}.trade-sheet{width:min(440px,calc(100vw - 28px))!important;max-height:calc(100dvh - 88px)!important;overflow:auto!important;border-radius:24px!important;box-shadow:0 18px 46px rgba(31,86,174,.20)!important}@keyframes centerModalIn{from{opacity:.72;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}body.dark .trade-sheet{box-shadow:0 20px 48px rgba(0,0,0,.42)!important}</style>');
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<script>// trade-date-before-price-dom-20260807: DOM order is transaction date first, then NAV price.
-// center-buy-detail-modals-20260813: 买点里的历史收益/买点设置详情弹窗也改为居中，不再从底部弹出。
-document.head.insertAdjacentHTML('beforeend','<style id="center-buy-detail-modals-20260813">.ai-detail-modal{align-items:center!important;justify-content:center!important;padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))!important}.ai-detail-modal.show .ai-detail-sheet{animation:centerDetailModalIn .18s ease-out both}.ai-detail-sheet{width:min(440px,calc(100vw - 28px))!important;max-height:calc(100dvh - 88px)!important;overflow:auto!important;border-radius:24px!important;padding-bottom:82px!important;box-shadow:0 18px 46px rgba(31,86,174,.20)!important}@keyframes centerDetailModalIn{from{opacity:.72;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}body.dark .ai-detail-sheet{box-shadow:0 20px 48px rgba(0,0,0,.42)!important}</style>');
-</script>
-
-// center-buy-trade-modals-20260813: 买点/交易相关弹窗改为居中卡片，而不是底部抽屉。
-document.head.insertAdjacentHTML('beforeend','<style id="center-buy-trade-modals-20260813">.trade-modal{align-items:center!important;justify-content:center!important;padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom))!important}.trade-modal.show .trade-sheet{animation:centerModalIn .18s ease-out both}.trade-sheet{width:min(440px,calc(100vw - 28px))!important;max-height:calc(100dvh - 88px)!important;overflow:auto!important;border-radius:24px!important;box-shadow:0 18px 46px rgba(31,86,174,.20)!important}@keyframes centerModalIn{from{opacity:.72;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}body.dark .trade-sheet{box-shadow:0 20px 48px rgba(0,0,0,.42)!important}</style>');
