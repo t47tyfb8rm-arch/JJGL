@@ -7411,6 +7411,173 @@ async def get_fund_intraday_chart(fund_code: str):
     }
 
 
+@app.get("/api/funds/{fund_code}/performance-chart")
+async def get_fund_performance_chart(fund_code: str, period: str = "3m"):
+    """Build a fund/benchmark performance chart entirely from persisted snapshots."""
+    code = str(fund_code or "").strip()
+    if code not in FUND_SETTINGS:
+        raise HTTPException(status_code=404, detail=f"基金 {code} 未找到")
+
+    period_days = {"1m": 31, "3m": 93, "6m": 186, "1y": 370}
+    range_key = period if period in period_days else "3m"
+    days = period_days[range_key]
+
+    def parse_json(raw, fallback=None):
+        try:
+            return json.loads(raw or "{}")
+        except Exception:
+            return fallback if fallback is not None else {}
+
+    def normalized_series(items, date_key: str, value_key: str):
+        cleaned = []
+        for item in items or []:
+            try:
+                date_text = str(item.get(date_key) or "")[:10]
+                value = float(item.get(value_key))
+                if date_text and value > 0:
+                    cleaned.append((date_text, value))
+            except (TypeError, ValueError, AttributeError):
+                continue
+        cleaned = sorted(dict(cleaned).items())
+        if not cleaned:
+            return [], None
+        latest_date = datetime.strptime(cleaned[-1][0], "%Y-%m-%d")
+        cutoff = (latest_date - timedelta(days=days)).strftime("%Y-%m-%d")
+        cleaned = [(d, v) for d, v in cleaned if d >= cutoff]
+        if not cleaned:
+            return [], None
+        base = cleaned[0][1]
+        return [
+            {"date": d, "value": round((v / base - 1.0) * 100.0, 3), "raw": round(v, 4)}
+            for d, v in cleaned
+        ], base
+
+    benchmark_name = "沪深300"
+    benchmark_source = ("index", "hs300")
+    if code == "011609":
+        benchmark_name = "科创50"
+        benchmark_source = ("index", "k50")
+    elif code == "004746":
+        benchmark_name = "上证50"
+        benchmark_source = ("sector", "上证50蓝筹")
+    elif code == "020741":
+        benchmark_name = "债市参考"
+        benchmark_source = ("index", "bond")
+
+    try:
+        init_app_db()
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            fund_row = conn.execute(
+                """
+                SELECT snapshot_date, payload
+                FROM fund_daily_snapshots
+                WHERE code=?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (code,),
+            ).fetchone()
+            fund_payload = parse_json(fund_row["payload"] if fund_row else "{}")
+            fund_history = list(fund_payload.get("history") or [])
+            if not fund_history:
+                nav_rows = conn.execute(
+                    """
+                    SELECT nav_date, nav, daily_change
+                    FROM fund_nav_history
+                    WHERE code=?
+                    ORDER BY nav_date ASC
+                    """,
+                    (code,),
+                ).fetchall()
+                fund_history = [
+                    {"date": row["nav_date"], "nav": row["nav"], "change": row["daily_change"]}
+                    for row in nav_rows
+                ]
+
+            source_type, source_key = benchmark_source
+            if source_type == "sector":
+                benchmark_row = conn.execute(
+                    """
+                    SELECT payload FROM theme_sector_snapshots
+                    WHERE name=?
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                    """,
+                    (source_key,),
+                ).fetchone()
+            else:
+                benchmark_row = conn.execute(
+                    """
+                    SELECT payload FROM index_snapshots
+                    WHERE index_key=?
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                    """,
+                    (source_key,),
+                ).fetchone()
+            benchmark_payload = parse_json(benchmark_row["payload"] if benchmark_row else "{}")
+            benchmark_history = list(benchmark_payload.get("history") or [])
+    except Exception as e:
+        print(f"[DB] performance chart read failed {code}: {e}")
+        raise HTTPException(status_code=500, detail="业绩走势读取失败")
+
+    fund_series, fund_base = normalized_series(fund_history, "date", "nav")
+    benchmark_series, _ = normalized_series(benchmark_history, "date", "close")
+
+    # During trading, extend the fund line with the persisted intraday estimate.
+    has_intraday = False
+    try:
+        estimate = float(fund_payload.get("estimated_change"))
+        snapshot_date = str((fund_row["snapshot_date"] if fund_row else "") or "")[:10]
+        nav_date = str(fund_payload.get("nav_date") or "")[:10]
+        current_nav = float(fund_payload.get("current_nav") or 0)
+        if is_trading_time() and snapshot_date and snapshot_date > nav_date and current_nav > 0 and fund_base:
+            estimated_nav = current_nav * (1.0 + estimate / 100.0)
+            point = {
+                "date": snapshot_date,
+                "value": round((estimated_nav / fund_base - 1.0) * 100.0, 3),
+                "raw": round(estimated_nav, 4),
+                "estimated": True,
+            }
+            fund_series = [p for p in fund_series if p["date"] != snapshot_date] + [point]
+            has_intraday = True
+    except (TypeError, ValueError):
+        pass
+
+    buy_point = fund_payload.get("buy_point") or {}
+    is_holding = bool(buy_point.get("is_holding"))
+    cost_nav = float(buy_point.get("cost_nav") or buy_point.get("buy_nav") or 0.0)
+    cost_level = None
+    if is_holding and cost_nav > 0 and fund_base:
+        cost_level = round((cost_nav / fund_base - 1.0) * 100.0, 3)
+
+    latest_rows = []
+    for item in sorted(fund_history, key=lambda x: str(x.get("date") or ""), reverse=True)[:7]:
+        latest_rows.append({
+            "date": str(item.get("date") or "")[:10],
+            "nav": item.get("nav"),
+            "change": item.get("change"),
+        })
+
+    return {
+        "ok": True,
+        "code": code,
+        "period": range_key,
+        "fund_name": str(fund_payload.get("name") or FUND_SETTINGS.get(code, {}).get("name") or code),
+        "benchmark_name": benchmark_name,
+        "fund_series": fund_series,
+        "benchmark_series": benchmark_series,
+        "fund_return": fund_series[-1]["value"] if fund_series else None,
+        "benchmark_return": benchmark_series[-1]["value"] if benchmark_series else None,
+        "cost_level": cost_level,
+        "is_holding": is_holding,
+        "has_intraday": has_intraday,
+        "latest_rows": latest_rows,
+        "source": "sqlite_snapshots",
+    }
+
+
 @app.get("/api/index/{index_code}", response_model=IndexInfo)
 async def get_index(index_code: str):
     """获取指数信息"""
