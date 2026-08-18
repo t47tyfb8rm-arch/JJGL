@@ -3583,27 +3583,27 @@ document.head.insertAdjacentHTML('beforeend',`<style id="ai-second-page-v3-20260
 #fund-second-page.ai-second-mode .fund-product-focus{grid-template-columns:1.2fr .8fr .8fr!important}
 #fund-second-page.ai-second-mode .fund-product-focus>div:first-child b{font-size:34px!important}
 #fund-second-page.ai-second-mode .fund-product-mini b{white-space:normal!important;line-height:1.35!important}
-.ai-second-card{padding:18px;background:var(--card);border-bottom:8px solid var(--bg)}
-.ai-second-card h3{margin:0 0 10px;font-size:15px;font-weight:650;color:var(--t1)}
-.ai-second-card p{margin:0;font-size:13px;line-height:1.72;color:var(--t2)}
+.ai-second-card{margin:12px 14px 0;padding:15px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 20px rgba(31,86,174,.06)}
+.ai-second-card h3{margin:0 0 9px;font-size:14px;font-weight:650;color:var(--t1)}
+.ai-second-card p{margin:0;font-size:12px;line-height:1.68;color:var(--t2)}
 .ai-second-card p+p{margin-top:9px}
 .ai-second-label{display:inline-block;margin-right:7px;color:var(--brand-dark);font-weight:650}
-.ai-second-signal{display:grid;gap:13px;padding:18px;background:var(--card);border-bottom:8px solid var(--bg)}
+.ai-second-signal{display:grid;gap:10px;margin:12px 14px 0;padding:15px 16px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 20px rgba(31,86,174,.06)}
 .ai-second-signal-row{display:grid;grid-template-columns:58px minmax(0,1fr) 42px;gap:9px;align-items:center;font-size:12px;color:var(--t2)}
 .ai-second-track{height:7px;border-radius:4px;background:var(--soft);overflow:hidden}
 .ai-second-fill{height:100%;border-radius:inherit;background:#4f8fe4}
-.ai-second-news{display:grid;gap:0;background:var(--card)}
-.ai-second-news-item{padding:15px 18px;border-bottom:1px solid var(--line)}
-.ai-second-news-item:last-child{border-bottom:0}
+.ai-second-news{display:grid;gap:10px;margin:12px 14px;background:transparent}
+.ai-second-news-item{padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 6px 16px rgba(31,86,174,.05)}
+.ai-second-news-item:last-child{border-bottom:1px solid var(--line)}
 .ai-second-news-meta{font-size:11px;color:var(--muted);margin-bottom:6px}
-.ai-second-news-title{font-size:13px;line-height:1.55;color:var(--t1)}
+.ai-second-news-title{font-size:12px;line-height:1.55;color:var(--t1);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ai-second-empty{padding:44px 18px;text-align:center;color:var(--muted);font-size:13px;background:var(--card)}
 .ai-date-node{cursor:pointer}
 .ai-date-node:active{transform:scale(.985)}
-.ai-event-hero{padding:20px 18px;background:var(--card);border-bottom:8px solid var(--bg)}
-.ai-event-date{font-size:34px;line-height:1;font-weight:600;color:var(--brand-dark)}
-.ai-event-title{margin-top:13px;font-size:18px;line-height:1.45;font-weight:650;color:var(--t1)}
-.ai-event-impact{margin-top:8px;font-size:13px;line-height:1.6;color:var(--t2)}
+.ai-event-hero{padding:20px 18px;background:linear-gradient(155deg,#FFFFFF 0%,#F1F6FD 100%);border-bottom:8px solid var(--bg)}
+.ai-event-date{font-size:32px;line-height:1;font-weight:650;color:var(--brand-dark)}
+.ai-event-title{margin-top:12px;font-size:17px;line-height:1.42;font-weight:650;color:var(--t1)}
+.ai-event-impact{margin-top:8px;font-size:12px;line-height:1.55;color:var(--t2)}
 body.dark .ai-second-card,body.dark .ai-second-signal,body.dark .ai-second-news,body.dark .ai-second-empty,body.dark .ai-event-hero{background:#191919}
 </style>`);
 
@@ -3638,11 +3638,11 @@ function aiSecondTab(name){const page=document.getElementById('fund-second-page'
 function showAiSecondPage(title,sub,html){const p=ensureFundSecondPage();p.classList.add('ai-second-mode');document.getElementById('fund-second-name').textContent=title;document.getElementById('fund-second-code').textContent=sub||'';document.getElementById('fund-second-sub-left').textContent='';document.getElementById('fund-second-sub-right').textContent='';document.getElementById('fund-second-body').innerHTML=html;p.style.display='block';requestAnimationFrame(()=>{p.classList.add('show');p.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';const body=document.getElementById('fund-second-body');if(body)body.scrollTop=0})}
 const openFundDetailAiSecondBase=openFundDetail;
 openFundDetail=function(code){const p=document.getElementById('fund-second-page');if(p)p.classList.remove('ai-second-mode');return openFundDetailAiSecondBase(code)};
-function aiDecisionSection(f,d){const ai=f.ai_prediction||{},bs=buyState(f),action=aiSafeText(ai.position_advice,bs.label==='持仓中'?'继续观察持仓变化，暂不追涨':'等待买点条件确认后再行动'),reason=aiSafeText(ai.market_env||ai.tech_analysis,'结合指数方向、短期趋势和市场情绪综合判断'),watch=typeof aiFundFocus==='function'?aiFundFocus(f):aiSafeText(ai.key_levels||ai.support_resistance,'关注趋势与关键位'),risk=aiSafeText(ai.risk_tips,'关注市场波动、趋势反转和净值回撤');return '<div class="ai-second-card ai-action-card"><h3>执行建议</h3><p>'+esc(action)+'</p><p><span class="ai-second-label">依据</span>'+esc(reason)+'</p></div><div class="ai-second-card ai-risk-card"><h3>触发与风险</h3><p><span class="ai-second-label">关注</span>'+esc(watch)+'</p><p><span class="ai-second-label">风险</span>'+esc(risk)+'</p></div>'}
+function aiDecisionSection(f,d){const ai=f.ai_prediction||{},bs=buyState(f),action=aiSafeText(ai.position_advice||ai.advice,bs.label==='持仓中'?'继续观察持仓变化，暂不追涨':'等待买点条件确认后再行动'),reason=aiSafeText(ai.market_env||ai.tech_analysis,'结合指数方向、短期趋势和市场情绪综合判断'),watch=typeof aiFundFocus==='function'?aiFundFocus(f):aiSafeText(ai.key_levels||ai.support_resistance,'关注趋势与关键位'),risk=aiSafeText(ai.risk_tips,'关注市场波动、趋势反转和净值回撤');return '<div class="ai-second-card ai-action-card"><h3>操作结论</h3><p>'+esc(action)+'</p></div><div class="ai-second-card"><h3>判断依据</h3><p>'+esc(reason)+'</p></div><div class="ai-second-card ai-risk-card"><h3>触发与风险</h3><p><span class="ai-second-label">关注</span>'+esc(watch)+'</p><p><span class="ai-second-label">风险</span>'+esc(risk)+'</p></div>'}
 function aiSignalSection(f,d){const ai=f.ai_prediction||{},risk=ai.risk_level||'中',score=Math.max(0,Math.min(100,aiScore(f))),bs=buyState(f),progress=Math.max(0,Math.min(100,Number(bs.progress||0))),cg=displayChange(f,d),ret=Math.max(0,Math.min(100,Math.abs(Number(cg||0))*18));return '<div class="ai-second-signal">'+[['综合信号',score],['买点接近',progress],['今日波动',ret]].map(x=>'<div class="ai-second-signal-row"><span>'+x[0]+'</span><div class="ai-second-track"><div class="ai-second-fill" style="width:'+x[1]+'%"></div></div><b class="num">'+fmt(x[1],0)+'</b></div>').join('')+'</div><div class="ai-second-card"><h3>信号说明</h3><p><span class="ai-second-label">趋势</span>'+esc(cleanTrend(ai.trend))+'</p><p><span class="ai-second-label">风险</span>'+esc(risk)+'</p><p><span class="ai-second-label">关键位</span>'+esc(aiSafeText(ai.key_levels||ai.support_resistance,'暂无关键位'))+'</p></div>'}
 function openAiDetail(code){const f=findFund(code),d=lastData||{},ai=f.ai_prediction||{},bs=buyState(f),score=Math.max(0,Math.min(100,aiScore(f))),risk=ai.risk_level||'中',trend=cleanTrend(ai.trend),advice=aiSafeText(ai.advice||ai.position_advice,'当前信号不足，继续观察市场方向与关键位置'),html='<section class="ai-decision-overview"><div class="ai-decision-kicker">AI DECISION</div><div class="ai-decision-head"><div><span>核心结论</span><strong>'+esc(advice)+'</strong></div><div class="ai-decision-score"><b class="num">'+fmt(score,0)+'</b><span>综合信号</span></div></div><div class="ai-decision-facts"><div><span>趋势</span><b>'+esc(trend)+'</b></div><div><span>风险</span><b>'+esc(risk)+'</b></div><div><span>买点</span><b>'+esc(bs.label)+'</b></div></div></section><nav class="fund-product-tabs"><button class="active" data-pane="decision" onclick="aiSecondTab(\'decision\')">综合判断</button><button data-pane="signal" onclick="aiSecondTab(\'signal\')">信号依据</button><button data-pane="news" onclick="aiSecondTab(\'news\')">相关资讯</button></nav><section class="fund-product-pane active" data-pane="decision">'+aiDecisionSection(f,d)+'</section><section class="fund-product-pane" data-pane="signal">'+aiSignalSection(f,d)+'</section><section class="fund-product-pane" data-pane="news">'+aiSecondNewsHtml(aiSecondNews(f,d))+'</section>';showAiSecondPage(f.name||shortName(f,18),f.code||code,html)}
 function aiDateNews(node,d,limit=6){const words=String(node?.title||'').replace(/[，。、《》【】（）()]/g,' ').split(/\s+/).filter(x=>x.length>1);return (d?.news||[]).slice().sort((a,b)=>newsTs(b)-newsTs(a)).filter(n=>{const t=newsText(n);return words.some(w=>t.includes(w))||String(n.date||n.time||'').includes(String(node?.date||'').replace('/','-'))}).slice(0,limit)}
-function openAiDateDetail(index){const d=lastData||{},n=aiDateNodesCache[index];if(!n)return;const rows=aiDateNews(n,d),html='<section class="ai-event-hero"><div class="ai-event-date">'+esc(n.date||'--')+'</div><div class="ai-event-title">'+esc(n.title||'重要市场事件')+'</div><div class="ai-event-impact">影响方向：'+esc(n.impact||'市场风险偏好')+' · '+esc(n.level||'关注')+'</div></section><nav class="fund-product-tabs"><button class="active" data-pane="event" onclick="aiSecondTab(\'event\')">事件解读</button><button data-pane="news" onclick="aiSecondTab(\'news\')">核心资讯</button><button data-pane="impact" onclick="aiSecondTab(\'impact\')">市场影响</button></nav><section class="fund-product-pane active" data-pane="event"><div class="ai-second-card"><h3>事件说明</h3><p>'+esc(n.title||'重要市场事件')+'</p></div></section><section class="fund-product-pane" data-pane="news">'+aiSecondNewsHtml(rows)+'</section><section class="fund-product-pane" data-pane="impact"><div class="ai-second-card"><h3>关注方向</h3><p><span class="ai-second-label">影响</span>'+esc(n.impact||'市场风险偏好')+'</p><p><span class="ai-second-label">等级</span>'+esc(n.level||'关注')+'</p></div></section>';showAiSecondPage('重要日期',n.date||'',html)}
+function openAiDateDetail(index){const d=lastData||{},n=aiDateNodesCache[index];if(!n)return;const rows=aiDateNews(n,d),html='<section class="ai-event-hero"><div class="ai-event-date">'+esc(n.date||'--')+'</div><div class="ai-event-title">'+esc(n.title||'重要市场事件')+'</div><div class="ai-event-impact">影响方向：'+esc(n.impact||'市场风险偏好')+' · '+esc(n.level||'关注')+'</div></section><div class="ai-second-card"><h3>核心关注</h3><p>'+esc(n.impact||'关注指数波动、资金面和相关板块情绪变化')+'</p></div>'+aiSecondNewsHtml(rows);showAiSecondPage('重要日期',n.date||'',html)}
 function aiDateBoard(nodes){aiDateNodesCache=(nodes||[]).slice();return aiDateNodesCache.map((n,i)=>'<div class="ai-date-node" onclick="openAiDateDetail('+i+')"><div class="ai-date-num">'+esc(n.date)+'</div><div class="ai-date-title">'+esc(n.title)+'</div><div class="ai-date-impact">'+esc(n.impact)+' · '+esc(n.level||'关注')+'</div></div>').join('')}
 </script>
 </body>
