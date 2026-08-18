@@ -5652,9 +5652,21 @@ def _external_tone(value: Optional[float]) -> str:
     return "neutral"
 
 
+def _external_market_time_label(market: str) -> str:
+    """Show live update time only while that external market is in session."""
+    now = datetime.now()
+    minutes = now.hour * 60 + now.minute
+    if market == "kr":
+        # Korea exchange: 09:00-15:30 KST, roughly 08:00-14:30 China time.
+        return now.strftime("%H:%M") if 8 * 60 <= minutes < 14 * 60 + 30 else "韩国收盘"
+    if market == "us":
+        # US regular session during daylight saving time is roughly 21:30-04:00 China time.
+        return now.strftime("%H:%M") if minutes >= 21 * 60 + 30 or minutes < 4 * 60 else "美股收盘"
+    return now.strftime("%H:%M")
+
+
 async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     """Fetch US/Korea markets and return cards using the same temperature model."""
-    now_text = datetime.now().strftime("%H:%M")
     # us-stock-groups-cn-source-20260730: external market cards use domestic-accessible
     # quotes for US stock groups only; Korea cards keep the existing shape.
     specs = [
@@ -5770,7 +5782,7 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
     korea_market = korea_chip_stock if korea_chip_stock is not None else q("韩国KOSPI")
     korea_market_note = "三星电子 / SK海力士"
 
-    cards = [
+    us_cards = [
         ("美股大盘", us_market, "纳指100 / 道指"),
         ("AI半导体", us_ai_chip, "英伟达 / 博通"),
         ("科技巨头", us_tech, "微软 / 苹果"),
@@ -5781,9 +5793,12 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
         ("光通信链", us_optical, "Coherent / Lumentum"),
         ("电动车链", us_ev_chain, "特斯拉 / 安森美"),
         ("利率压力", us_rate_pressure, "美债 / 美元"),
+    ]
+    kr_cards = [
         ("韩国股市", korea_market, korea_market_note),
         ("韩国半导体", korea_chip, "三星电子 / SK海力士"),
     ]
+    cards = [(*item, "us") for item in us_cards] + [(*item, "kr") for item in kr_cards]
     return [
         ThemeSectorInfo(
             name=name,
@@ -5792,9 +5807,9 @@ async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
             note=note,
             tone=_external_tone(value),
             source="外部市场",
-            updated_at=now_text,
+            updated_at=_external_market_time_label(market),
         )
-        for name, value, note in cards
+        for name, value, note, market in cards
     ]
 
 
