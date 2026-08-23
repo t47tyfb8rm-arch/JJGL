@@ -3700,6 +3700,40 @@ const showAiSecondPageBuySecondBase=showAiSecondPage;
 showAiSecondPage=function(title,sub,html){const p=document.getElementById('fund-second-page');if(p)p.classList.remove('buy-second-mode');return showAiSecondPageBuySecondBase(title,sub,html)}
 const marketStableLabelBuySecondBase=marketStableLabel;
 marketStableLabel=function(prefix,v,d){const s=String(v||'').trim();if(/收盘|未开盘/.test(s)&&!/^\d{2}-\d{2}/.test(s)){const day=String(d?.date||'').slice(5,10)||'';return prefix+' · '+(day?day+' ':'')+s}return marketStableLabelBuySecondBase(prefix,v,d)}
+// buy-history-second-page-fix-v3-20260823: align buy-point date with saved setting and move cumulative history to second page.
+document.head.insertAdjacentHTML('beforeend',`<style id="buy-history-second-page-fix-v3-20260823">
+#fund-second-page.history-second-mode .fund-second-sub{display:none!important}
+.history-second-overview{border-bottom-width:8px!important}
+.history-second-section{padding:16px 18px;background:var(--card)}
+.history-second-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:15px;font-weight:650;color:var(--ink)}
+.history-second-title span{font-size:11px;font-weight:400;color:var(--muted)}
+.history-second-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.history-second-card{min-width:0;padding:12px 10px;border-radius:12px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+.history-second-card span{display:block;font-size:11px;color:var(--muted);white-space:nowrap}
+.history-second-card b{display:block;margin-top:6px;font-size:18px;line-height:1.05}
+.history-second-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.history-second-mini div{min-width:0;padding:10px;border-radius:10px;background:rgba(47,111,214,.055)}
+.history-second-mini span{display:block;font-size:11px;color:var(--muted)}
+.history-second-mini b{display:block;margin-top:5px;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-second-trades .history-timeline{display:grid!important;gap:0!important}
+.history-second-trades .history-time-row.tx-ledger-row{display:grid!important;grid-template-columns:48px 44px minmax(0,1fr) 62px!important;gap:6px!important;align-items:center!important;min-height:46px!important;padding:8px 0!important;border-radius:0!important;border-bottom:1px solid var(--line)!important;background:transparent!important}
+.history-second-trades .history-time-row.tx-ledger-row:last-child{border-bottom:0!important}
+.history-second-trades .history-time-row span,.history-second-trades .history-time-row b,.history-second-trades .history-time-row em{font-size:12.5px!important;white-space:nowrap!important}
+.history-second-trades .history-time-row em{text-align:right!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.history-second-trades .tx-actions{grid-column:auto!important;display:flex!important;justify-content:flex-end!important;gap:4px!important;margin:0!important}
+.history-second-trades .tx-actions button{min-width:27px!important;width:27px!important;height:25px!important;padding:0!important;border-radius:50%!important;font-size:0!important}
+.history-second-trades .tx-actions button:first-child:after{content:"改";font-size:11px!important}
+.history-second-trades .tx-actions .danger:after{content:"删";font-size:11px!important}
+body.dark .history-second-section{background:#191919!important}
+body.dark .history-second-card{background:#222!important}
+body.dark .history-second-mini div{background:#202020!important}
+</style>`);
+function buySecondSortedHistory(f){return (f.history||[]).filter(x=>x&&x.date&&Number(x.nav||0)>0).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')))}
+function buySecondRefInfo(f,start){const bp=f.buy_point||{},st=String(start||'').slice(0,10),hist=buySecondSortedHistory(f);let refRow=null;if(st){for(const x of hist){const dt=String(x.date||'').slice(0,10);if(dt<=st)refRow=x;else break}if(!refRow&&hist.length)refRow=hist[0]}const fallback=Number(bp.ref_nav||bp.cost_nav||bp.buy_nav||bp.buy_price||0);return{date:refRow?String(refRow.date||'').slice(0,10):(bp.ref_date||bp.buy_point_ref_date||st),nav:refRow?Number(refRow.nav||0):fallback}}
+function buySecondReturnInfo(f){const start=buyPointStartDateValue(f),refInfo=buySecondRefInfo(f,start),cur=Number(f.current_nav||0),pct=(refInfo.nav>0&&cur>0)?(cur/refInfo.nav-1)*100:null;return{start,ref:refInfo.nav,refDate:refInfo.date,cur,pct}}
+function buySecondHistoryRows(f,start){const st=String(start||'').slice(0,10);return buySecondSortedHistory(f).filter(x=>!st||String(x.date||'').slice(0,10)>=st).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))}
+function buySecondHistoryHtml(f,info){const rows=buySecondHistoryRows(f,info.start);if(!rows.length||!info.ref)return'<div class="buy-second-empty">暂无买点日期后的净值记录，后台更新后自动补齐</div>';return '<div class="buy-second-history"><div class="buy-second-history-title">买点以来收益 <span>全部 '+rows.length+' 条 · 基准 '+esc(md(info.refDate||info.start))+'</span></div><div class="buy-second-table-head"><span>日期</span><span style="text-align:right">当日</span><span style="text-align:right">净值</span><span style="text-align:right">累计</span></div>'+rows.map(x=>{const n=Number(x.nav||0),day=Number(x.change),cum=(n>0&&info.ref>0)?(n/info.ref-1)*100:null;return '<div class="buy-second-row"><span class="date">'+esc(md(x.date||''))+'</span><span class="day num" style="color:'+cc(day||0)+'">'+(Number.isFinite(day)?fp(day):'--')+'</span><span class="bp-nav num">'+(n?nav(n):'--')+'</span><span class="cum num" style="color:'+cc(cum||0)+'">'+(cum==null?'--':fp(cum))+'</span></div>'}).join('')+'</div>'}
+function openHistoryDetail(code){const f=findFund(code),h=historyInfo(f),bp=h.bp||{},hold=h.holding,holdVal=hold==null?'--':fp(hold),cost=Number(bp.cost_nav||bp.buy_nav||bp.buy_price||0),status=bp.is_holding?'持仓中':'未持仓',p=ensureFundSecondPage();h.code=code;p.classList.remove('ai-second-mode','buy-second-mode');p.classList.add('history-second-mode');document.getElementById('fund-second-name').textContent='历史累计收益';document.getElementById('fund-second-code').textContent=(code||'')+' '+shortName(f,18);document.getElementById('fund-second-sub-left').textContent='';document.getElementById('fund-second-sub-right').textContent='';document.getElementById('fund-second-body').innerHTML='<section class="fund-product-overview history-second-overview"><div class="history-second-grid"><div class="history-second-card"><span>历史累计</span><b class="num" style="color:'+cc(h.hist)+'">'+fp(h.hist)+'</b></div><div class="history-second-card"><span>已实现</span><b class="num" style="color:'+cc(h.realized)+'">'+fp(h.realized)+'</b></div><div class="history-second-card"><span>持仓收益</span><b class="num" style="color:'+(hold==null?'var(--t3)':pctColor(hold))+'">'+holdVal+'</b></div></div><div class="history-second-mini"><div><span>截止日期</span><b>'+esc(md(h.histDate)||'--')+'</b></div><div><span>持仓状态</span><b>'+esc(status)+'</b></div><div><span>成本净值</span><b class="num">'+(cost?nav(cost):'--')+'</b></div></div></section><section class="history-second-section history-second-trades"><div class="history-second-title">买卖记录 <span>'+h.tx.length+' 笔 · 点击修改/删除</span></div>'+historyTxTimeline(h,bp,code)+'</section>';p.style.display='block';requestAnimationFrame(()=>{p.classList.add('show');p.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';const body=document.getElementById('fund-second-body');if(body)body.scrollTop=0})}
 </script>
 </body>
 </html>
