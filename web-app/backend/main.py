@@ -2385,6 +2385,8 @@ class BuyPointInfo(BaseModel):
     progress_pct: float = 0.0  # 买点进度百分比（0-100）
     drop_threshold: float = 0.0  # 买点下跌阈值 %
     ref_date: str = ""           # 买点判断开始日期
+    start_date: str = ""         # 用户选择的买点判断开始日期
+    follow_date: str = ""        # 兼容前端读取的关注/判断开始日期
     ref_nav: float = 0.0         # 买点参考净值
     shares: float = 0.0        # 兼容旧数据保留；买入/补仓不再按份额权重计算
     realized_yield_pct: float = 0.0  # 最近一次卖出实现收益率 %
@@ -4300,6 +4302,8 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             progress_pct=progress_pct if not is_user_holding else 0,
             drop_threshold=float(BUY_POINT_CONFIG.get(fund_code, {}).get("drop_threshold", 0.0) or 0.0),
             ref_date=str(BUY_POINT_REFS.get(fund_code, {}).get("ref_date", "")),
+            start_date=str((FUND_SETTINGS.get(fund_code, {}) or {}).get("follow_date", "")),
+            follow_date=str((FUND_SETTINGS.get(fund_code, {}) or {}).get("follow_date", "")),
             ref_nav=float(BUY_POINT_REFS.get(fund_code, {}).get("ref_nav", 0.0) or 0.0),
             shares=holding_shares if is_user_holding else 0.0,
             realized_yield_pct=realized_yield_pct,
@@ -7016,6 +7020,8 @@ async def update_watched_fund(fund_code: str, payload: dict):
         "ok": True,
         "code": fund_code,
         "drop_threshold": drop_threshold,
+        "start_date": start_date,
+        "follow_date": start_date,
         "ref_date": ref_date,
         "ref_nav": ref_nav,
     }
