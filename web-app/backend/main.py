@@ -5653,16 +5653,17 @@ def _external_tone(value: Optional[float]) -> str:
 
 
 def _external_market_time_label(market: str) -> str:
-    """Show live update time only while that external market is in session."""
+    """Show dated external-market status; after close keep a stable close timestamp."""
     now = datetime.now()
     minutes = now.hour * 60 + now.minute
+    day = now.strftime("%m-%d")
     if market == "kr":
         # Korea exchange: 09:00-15:30 KST, roughly 08:00-14:30 China time.
-        return now.strftime("%H:%M") if 8 * 60 <= minutes < 14 * 60 + 30 else "韩国收盘"
+        return now.strftime("%m-%d %H:%M") if 8 * 60 <= minutes < 14 * 60 + 30 else f"{day} 14:30 韩国收盘"
     if market == "us":
         # US regular session during daylight saving time is roughly 21:30-04:00 China time.
-        return now.strftime("%H:%M") if minutes >= 21 * 60 + 30 or minutes < 4 * 60 else "美股收盘"
-    return now.strftime("%H:%M")
+        return now.strftime("%m-%d %H:%M") if minutes >= 21 * 60 + 30 or minutes < 4 * 60 else f"{day} 04:00 美股收盘"
+    return now.strftime("%m-%d %H:%M")
 
 
 async def fetch_external_market_temperature() -> List[ThemeSectorInfo]:
