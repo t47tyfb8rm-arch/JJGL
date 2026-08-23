@@ -4284,6 +4284,17 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             total_return = round(realized_yield_pct, 2)
             yield_history = []
 
+        fund_cfg_for_date = FUND_SETTINGS.get(fund_code, {}) if isinstance(FUND_SETTINGS.get(fund_code), dict) else {}
+        configured_start_date = str(
+            fund_cfg_for_date.get("follow_date")
+            or fund_cfg_for_date.get("historical_date")
+            or ""
+        )[:10]
+        saved_ref_date = str(BUY_POINT_REFS.get(fund_code, {}).get("ref_date", ""))[:10]
+        display_start_date = configured_start_date
+        if display_start_date == "2026-06-18" and saved_ref_date and saved_ref_date != "2026-06-18":
+            display_start_date = saved_ref_date
+
         buy_point = BuyPointInfo(
             cost_nav=cost_nav,
             current_nav=current_nav,
@@ -4301,9 +4312,9 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
             target_nav=target_nav if not is_user_holding else 0.0,
             progress_pct=progress_pct if not is_user_holding else 0,
             drop_threshold=float(BUY_POINT_CONFIG.get(fund_code, {}).get("drop_threshold", 0.0) or 0.0),
-            ref_date=str(BUY_POINT_REFS.get(fund_code, {}).get("ref_date", "")),
-            start_date=str((FUND_SETTINGS.get(fund_code, {}) or {}).get("follow_date", "")),
-            follow_date=str((FUND_SETTINGS.get(fund_code, {}) or {}).get("follow_date", "")),
+            ref_date=saved_ref_date,
+            start_date=display_start_date,
+            follow_date=display_start_date,
             ref_nav=float(BUY_POINT_REFS.get(fund_code, {}).get("ref_nav", 0.0) or 0.0),
             shares=holding_shares if is_user_holding else 0.0,
             realized_yield_pct=realized_yield_pct,
