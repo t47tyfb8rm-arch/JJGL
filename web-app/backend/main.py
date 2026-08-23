@@ -2993,6 +2993,27 @@ def save_buy_point_refs(refs: Dict[str, dict]) -> bool:
 
 BUY_POINT_REFS = load_buy_point_refs()
 
+
+def fund_history_days_for_ui(fund_code: str, default: int = 90, cap: int = 370) -> int:
+    """Return enough NAV history for buy-point and detail pages without fetching all history."""
+    today = datetime.now().date()
+    candidates = []
+    for raw in [
+        (BUY_POINT_REFS.get(fund_code, {}) or {}).get("ref_date"),
+        (FUND_SETTINGS.get(fund_code, {}) or {}).get("follow_date"),
+        (FUND_SETTINGS.get(fund_code, {}) or {}).get("historical_date"),
+    ]:
+        if not raw:
+            continue
+        try:
+            candidates.append(datetime.strptime(str(raw)[:10], "%Y-%m-%d").date())
+        except Exception:
+            pass
+    if not candidates:
+        return default
+    days = (today - min(candidates)).days + 12
+    return max(default, min(cap, days))
+
 # 成本净值缓存 — 支持用户"确定买入"
 COST_NAVS: Dict[str, dict] = {}
 
@@ -4093,8 +4114,9 @@ async def fetch_fund_from_eastmoney(fund_code: str, stock_index: Optional[IndexI
         else:
             # force 透传：force=1 时 period_returns / history 绕过 60s 子缓存
             period_returns_task = fetch_fund_period_returns(fund_code, force=force)
-            # history 拉 30 天（4 页 → 1 页，从 ~2s → ~0.5s/基金；实际只用到 30 天）
-            history_task = fetch_fund_history(fund_code, days=30, force=force)
+            # history 按买点/关注起始日动态拉取，保证买点二级页能展示完整明细。
+            history_days = fund_history_days_for_ui(fund_code)
+            history_task = fetch_fund_history(fund_code, days=history_days, force=force)
             holdings_task = fetch_fund_holdings(fund_code)
             period_returns, history, holdings = await asyncio.gather(
                 period_returns_task, history_task, holdings_task
