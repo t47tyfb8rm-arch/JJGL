@@ -3762,6 +3762,23 @@ body.dark .buy-second-date-summary div{background:#222}
 </style>`);
 function buySecondHistoryMeta(f,info,rows){const asc=(rows||[]).slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))),first=asc[0]||{};return{start:String(info?.start||'').slice(0,10),first:String(first.date||'').slice(0,10),count:(rows||[]).length,ref:String(info?.refDate||info?.start||'').slice(0,10)}}
 function buySecondHistoryHtml(f,info){const rows=buySecondHistoryRows(f,info.start);if(!rows.length||!info.ref)return'<div class="buy-second-empty">暂无买点日期后的净值记录，后台更新后自动补齐</div>';const meta=buySecondHistoryMeta(f,info,rows);return '<div class="buy-second-history"><div class="buy-second-history-title">买点以来收益 <span>净值明细</span></div><div class="buy-second-date-summary"><div><span>买点日期</span><b>'+esc(md(meta.start)||'--')+'</b></div><div><span>首条净值</span><b>'+esc(md(meta.first)||'--')+'</b></div><div><span>明细条数</span><b>'+meta.count+' 条</b></div></div><div class="buy-second-table-head"><span>日期</span><span style="text-align:right">当日</span><span style="text-align:right">净值</span><span style="text-align:right">累计</span></div>'+rows.map(x=>{const n=Number(x.nav||0),day=Number(x.change),cum=(n>0&&info.ref>0)?(n/info.ref-1)*100:null;return '<div class="buy-second-row"><span class="date">'+esc(md(x.date||''))+'</span><span class="day num" style="color:'+cc(day||0)+'">'+(Number.isFinite(day)?fp(day):'--')+'</span><span class="bp-nav num">'+(n?nav(n):'--')+'</span><span class="cum num" style="color:'+cc(cum||0)+'">'+(cum==null?'--':fp(cum))+'</span></div>'}).join('')+'</div>'}
+// buy-second-visual-tuning-v3-20260824: make buy-point tabs and date summary feel continuous, not separated cards.
+document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-visual-tuning-v3-20260824">
+#fund-second-page.buy-second-mode .buy-second-overview .fund-product-mini{grid-template-columns:repeat(3,minmax(0,1fr))!important;column-gap:10px!important;row-gap:2px!important;margin-left:0!important;margin-right:0!important}
+#fund-second-page.buy-second-mode .buy-second-overview .fund-product-mini>div{padding-left:0!important;padding-right:0!important}
+#fund-second-page.buy-second-mode .fund-product-tabs{display:flex!important;justify-content:center!important;gap:34px!important;padding:12px 18px 6px!important;background:var(--card)!important;border-bottom:1px solid var(--line)!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button{width:auto!important;min-width:72px!important;height:36px!important;padding:0 4px!important;border-radius:0!important;background:transparent!important;color:var(--muted)!important;font-size:14px!important;font-weight:650!important;box-shadow:none!important;position:relative!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button.active{background:transparent!important;color:var(--ink)!important;box-shadow:none!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button.active:after{content:""!important;display:block!important;position:absolute!important;left:20%!important;right:20%!important;bottom:0!important;height:2px!important;border-radius:2px!important;background:#2f6fd6!important}
+.buy-second-date-summary{display:flex!important;align-items:center!important;gap:0!important;margin:0 0 10px!important;padding:9px 0!important;border-top:1px solid var(--line)!important;border-bottom:1px solid var(--line)!important;background:transparent!important}
+.buy-second-date-summary div{flex:1 1 0!important;min-width:0!important;padding:0 9px!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;border-right:1px solid var(--line)!important}
+.buy-second-date-summary div:last-child{border-right:0!important}
+.buy-second-date-summary span{display:block!important;font-size:10.5px!important;color:var(--muted)!important;line-height:1.15!important;white-space:nowrap!important}
+.buy-second-date-summary b{display:block!important;margin-top:4px!important;font-size:12.5px!important;color:var(--ink)!important;line-height:1.2!important;font-weight:650!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body.dark #fund-second-page.buy-second-mode .fund-product-tabs{background:#191919!important}
+body.dark .buy-second-date-summary{background:transparent!important}
+body.dark .buy-second-date-summary div{background:transparent!important}
+</style>`);
 </script>
 </body>
 </html>
