@@ -3745,6 +3745,23 @@ function normalizeFundDateV3(v){const s=String(v||'').trim().slice(0,10);return 
 function firstFundDateV3(){const dates=[...arguments].map(normalizeFundDateV3).filter(Boolean);return dates.find(d=>d!=='2026-06-18')||dates[0]||''}
 function buyPointStartDateValue(f){const bp=f?.buy_point||{};return firstFundDateV3(bp.start_date,bp.follow_date,f?.follow_date,f?.buy_point_start_date,bp.ref_start_date,bp.buy_date,bp.ref_date,f?.buy_point_ref_date,f?.nav_date,lastData?.display_trade_date,lastData?.date,new Date().toISOString().slice(0,10))}
 function historyInfo(f){const bp=f.buy_point||{},hy=lastData?.historical_yields||{},old=hy[f.code]||{},tx=bp.transactions||bp.trades||[],hist=histTotal(f.code,old,bp,tx),histDate=firstFundDateV3(latestTxDate(tx),buyPointStartDateValue(f),old.date,bp.start_date,bp.follow_date,bp.ref_date,bp.buy_point_ref_date,f.buy_point_ref_date,HIST_BASE[f.code]?.date,'2026-06-18'),realized=pickNum(bp.realized_yield_pct),holding=bp.is_holding?holdPct(f):null,buyPoint=pickNum(bp.buy_point_yield),days=bp.is_holding?(bp.hold_days||0):0;return{bp,tx,hist,histDate,realized,holding,buyPoint,days}}
+// buy-second-tabs-date-summary-v3-20260824: separate buy-point tabs and explain why first NAV may start after the selected date.
+document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-tabs-date-summary-v3-20260824">
+#fund-second-page.buy-second-mode .fund-product-tabs{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;margin:0!important;padding:12px 18px!important;background:var(--card)!important;border-bottom:1px solid var(--line)!important;border-radius:0!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button{height:38px!important;border-radius:11px!important;background:var(--soft)!important;color:var(--muted)!important;font-size:14px!important;font-weight:650!important;box-shadow:none!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button.active{background:rgba(47,111,214,.12)!important;color:var(--brand-dark)!important;box-shadow:inset 0 0 0 1px rgba(47,111,214,.18)!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button.active:after{display:none!important}
+.buy-second-date-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}
+.buy-second-date-summary div{min-width:0;padding:9px 8px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+.buy-second-date-summary span{display:block;font-size:10.5px;color:var(--muted);white-space:nowrap}
+.buy-second-date-summary b{display:block;margin-top:4px;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.dark #fund-second-page.buy-second-mode .fund-product-tabs{background:#191919!important}
+body.dark #fund-second-page.buy-second-mode .fund-product-tabs button{background:#222!important}
+body.dark #fund-second-page.buy-second-mode .fund-product-tabs button.active{background:rgba(82,145,255,.18)!important;color:#9ec1ff!important}
+body.dark .buy-second-date-summary div{background:#222}
+</style>`);
+function buySecondHistoryMeta(f,info,rows){const asc=(rows||[]).slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))),first=asc[0]||{};return{start:String(info?.start||'').slice(0,10),first:String(first.date||'').slice(0,10),count:(rows||[]).length,ref:String(info?.refDate||info?.start||'').slice(0,10)}}
+function buySecondHistoryHtml(f,info){const rows=buySecondHistoryRows(f,info.start);if(!rows.length||!info.ref)return'<div class="buy-second-empty">暂无买点日期后的净值记录，后台更新后自动补齐</div>';const meta=buySecondHistoryMeta(f,info,rows);return '<div class="buy-second-history"><div class="buy-second-history-title">买点以来收益 <span>净值明细</span></div><div class="buy-second-date-summary"><div><span>买点日期</span><b>'+esc(md(meta.start)||'--')+'</b></div><div><span>首条净值</span><b>'+esc(md(meta.first)||'--')+'</b></div><div><span>明细条数</span><b>'+meta.count+' 条</b></div></div><div class="buy-second-table-head"><span>日期</span><span style="text-align:right">当日</span><span style="text-align:right">净值</span><span style="text-align:right">累计</span></div>'+rows.map(x=>{const n=Number(x.nav||0),day=Number(x.change),cum=(n>0&&info.ref>0)?(n/info.ref-1)*100:null;return '<div class="buy-second-row"><span class="date">'+esc(md(x.date||''))+'</span><span class="day num" style="color:'+cc(day||0)+'">'+(Number.isFinite(day)?fp(day):'--')+'</span><span class="bp-nav num">'+(n?nav(n):'--')+'</span><span class="cum num" style="color:'+cc(cum||0)+'">'+(cum==null?'--':fp(cum))+'</span></div>'}).join('')+'</div>'}
 </script>
 </body>
 </html>
