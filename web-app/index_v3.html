@@ -3792,6 +3792,26 @@ document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-tab-form-bal
 #fund-second-page.buy-second-mode .buy-second-setting input[type="date"]::-webkit-date-and-time-value{text-align:center!important}
 @media(max-width:360px){#fund-second-page.buy-second-mode .buy-second-setting .trade-field{grid-template-columns:104px minmax(0,1fr)!important;gap:8px!important}}
 </style>`);
+// buy-second-date-picker-row-v3-20260824: replace long iOS date input with compact app-style date row.
+document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-date-picker-row-v3-20260824">
+#fund-second-page.buy-second-mode .buy-second-setting{padding:16px 18px 18px!important}
+.buy-setting-list{display:grid!important;gap:10px!important;margin-top:13px!important}
+.buy-setting-row{display:grid!important;grid-template-columns:minmax(0,1fr) 128px!important;gap:12px!important;align-items:center!important;min-height:44px!important;padding:0 0 10px!important;border-bottom:1px solid var(--line)!important}
+.buy-setting-row:last-of-type{border-bottom:0!important;padding-bottom:0!important}
+.buy-setting-row label{font-size:13px!important;color:var(--t2)!important;white-space:nowrap!important}
+.buy-setting-date-btn{width:100%!important;height:38px!important;border:1px solid var(--line)!important;border-radius:11px!important;background:var(--soft)!important;color:var(--ink)!important;font-size:14px!important;font-weight:650!important;text-align:center!important}
+.buy-setting-date-btn:after{content:"›";margin-left:7px;color:var(--muted);font-weight:700}
+.buy-setting-hidden-date{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important}
+#fund-second-page.buy-second-mode .buy-setting-row input[type="number"]{width:100%!important;height:38px!important;border-radius:11px!important;text-align:center!important;background:var(--card)!important}
+#fund-second-page.buy-second-mode .buy-second-setting .trade-field{display:block!important;margin:0!important}
+#fund-second-page.buy-second-mode .buy-second-setting .trade-field label{display:block!important}
+body.dark .buy-setting-date-btn{background:#222!important}
+@media(max-width:360px){.buy-setting-row{grid-template-columns:minmax(0,1fr) 112px!important}.buy-setting-row label{font-size:12px!important}}
+</style>`);
+function buyDateShortV3(v){const s=String(v||'').slice(0,10);return md(s)||'--'}
+function syncBuyDateLabelV3(code){const input=document.getElementById('bp-start-'+code),btn=document.getElementById('bp-start-btn-'+code);if(input&&btn)btn.textContent=buyDateShortV3(input.value)}
+function openBuyPointDatePickerV3(code){const input=document.getElementById('bp-start-'+code);if(!input)return;if(input.showPicker){try{input.showPicker();return}catch(e){}}input.focus();input.click()}
+function buySecondSettingsHtml(f,holding){const code=esc(f.code),bp=f.buy_point||{},s=buyState(f),target=bp.target_nav?nav(bp.target_nav):'--',threshold=buyPointThresholdValue(f),start=buyPointStartDateValue(f);if(holding)return '<div class="buy-second-setting"><div class="fund-product-card-title">买点设置 <span>持仓中暂停</span></div><div class="fund-product-advice">当前基金处于持仓中，买点监控只显示状态，不允许修改开始日期和阈值。卖出后再重新进入买点判断。</div><div class="fund-product-tags"><span>'+esc(s.label)+'</span><span>目标 '+target+'</span><span>阈值 '+esc(threshold)+'%</span></div></div>';return '<div class="buy-second-setting"><div class="fund-product-card-title">买点设置 <span>保存后重新计算</span></div><div class="buy-setting-list"><div class="buy-setting-row"><label>买点判断开始日期</label><button id="bp-start-btn-'+code+'" class="buy-setting-date-btn" onclick="openBuyPointDatePickerV3(\''+code+'\')">'+esc(buyDateShortV3(start))+'</button><input class="buy-setting-hidden-date" id="bp-start-'+code+'" type="date" value="'+esc(start)+'" onchange="syncBuyDateLabelV3(\''+code+'\')"></div><div class="buy-setting-row"><label>买点下跌阈值 %</label><input id="bp-drop-'+code+'" type="number" inputmode="decimal" step="0.01" value="'+esc(threshold)+'"></div></div><button class="subtle-btn" onclick="saveBuyPointSetting(\''+code+'\',\'buy-second\')">保存买点设置</button><div class="muted" style="margin-top:9px;text-align:center">保存后会按开始日期重新确定参考净值。</div></div>'}
 </script>
 </body>
 </html>
