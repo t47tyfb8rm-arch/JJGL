@@ -3854,6 +3854,39 @@ document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-clean-underl
 body.dark #fund-second-page.buy-second-mode .fund-product-tabs{background:#191919!important}
 body.dark #fund-second-page.buy-second-mode .fund-product-tabs button.active{color:#f2f5fb!important}
 </style>`);
+// fund-trend-polish-return-v3-20260824: correct displayed return from series and simplify the fund trend visual.
+document.head.insertAdjacentHTML('beforeend',`<style id="fund-trend-polish-return-v3-20260824">
+.fund-trend-clean{padding:16px 16px 18px!important;background:var(--card)!important;min-height:0!important}
+.fund-trend-clean .fund-performance-head{align-items:flex-start!important}
+.fund-trend-clean .fund-performance-title{font-size:16px!important;font-weight:700!important;color:var(--ink)!important}
+.fund-trend-clean .fund-performance-note{font-size:11px!important;color:var(--muted)!important;margin-top:3px!important}
+.fund-trend-metrics{display:grid;grid-template-columns:1.2fr .9fr .9fr;gap:8px;margin-top:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.fund-trend-metric span{display:block;font-size:11px;color:var(--muted)}
+.fund-trend-metric b{display:block;margin-top:5px;font-size:15px;line-height:1.1;color:var(--ink)}
+.fund-trend-metric:first-child b{font-size:22px;font-weight:720}
+.fund-trend-plot{margin-top:13px}
+.fund-trend-plot svg{display:block;width:100%;height:178px;overflow:visible}
+.fund-trend-grid{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.fund-trend-area{fill:url(#fundTrendFillClean)}
+.fund-trend-line{fill:none;stroke:#2f6fd6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.fund-trend-dot{fill:#2f6fd6;stroke:var(--card);stroke-width:2;vector-effect:non-scaling-stroke}
+.fund-trend-axis{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted)}
+.fund-trend-ranges{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0 2px}
+.fund-trend-ranges button{height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:12px}
+.fund-trend-ranges button.active{background:#edf3fc;color:#245eaa;font-weight:700}
+.fund-trend-recent{margin-top:12px;border-top:1px solid var(--line)}
+.fund-trend-recent-head{display:flex;align-items:center;justify-content:space-between;padding:11px 0 5px;font-size:13px;font-weight:700;color:var(--ink)}
+.fund-trend-recent-head button{border:0;background:transparent;color:var(--brand-dark);font-size:12px;font-weight:650}
+.fund-trend-row{display:grid;grid-template-columns:1fr .8fr .8fr;align-items:center;min-height:31px;font-size:12px;color:var(--t2);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.fund-trend-row span:nth-child(2),.fund-trend-row span:nth-child(3){text-align:right}
+body.dark .fund-trend-ranges button.active{background:#253142;color:#8dbaf1}
+</style>`);
+function trendDateLabelV3(s){return s?String(s).slice(5,10).replace('-','/'):'--'}
+function trendPctV3(n){return Number.isFinite(Number(n))?fp(Number(n)):'--'}
+function trendStatsV3(d){const pts=(d.fund_series||[]).filter(x=>x&&x.date&&Number.isFinite(Number(x.raw))&&Number(x.raw)>0),ret=pts.length>1?(Number(pts[pts.length-1].raw)/Number(pts[0].raw)-1)*100:Number(d.fund_return),vals=pts.map(x=>Number(x.raw)),hi=vals.length?Math.max(...vals):null,lo=vals.length?Math.min(...vals):null,last=pts[pts.length-1]||{};return{pts,ret,hi,lo,last}}
+function singleTrendSvg(d){const stat=trendStatsV3(d),pts=stat.pts;if(pts.length<2)return '<div class="fund-performance-empty" style="height:190px">历史数据不足</div>';const w=680,h=178,px=14,py=14,vals=pts.map(x=>Number(x.raw)),lo0=Math.min(...vals),hi0=Math.max(...vals),span=Math.max(.0001,hi0-lo0),lo=lo0-span*.16,hi=hi0+span*.12,range=Math.max(.0001,hi-lo),coords=pts.map((x,i)=>[px+i/(pts.length-1)*(w-px*2),py+(hi-Number(x.raw))/range*(h-py*2-10)]),path=coords.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '),area=path+' L '+coords[coords.length-1][0].toFixed(1)+' '+(h-8)+' L '+coords[0][0].toFixed(1)+' '+(h-8)+' Z',last=coords[coords.length-1],midY=py+(h-py*2-10)/2;return '<div class="fund-trend-plot"><svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-label="基金净值趋势"><defs><linearGradient id="fundTrendFillClean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6fd6" stop-opacity=".18"/><stop offset="1" stop-color="#2f6fd6" stop-opacity=".02"/></linearGradient></defs><line class="fund-trend-grid" x1="'+px+'" y1="'+py+'" x2="'+(w-px)+'" y2="'+py+'"/><line class="fund-trend-grid" x1="'+px+'" y1="'+midY.toFixed(1)+'" x2="'+(w-px)+'" y2="'+midY.toFixed(1)+'" stroke-dasharray="5 7"/><line class="fund-trend-grid" x1="'+px+'" y1="'+(h-8)+'" x2="'+(w-px)+'" y2="'+(h-8)+'"/><path class="fund-trend-area" d="'+area+'"/><path class="fund-trend-line" d="'+path+'"/><circle class="fund-trend-dot" cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="4"/></svg><div class="fund-trend-axis"><span>'+trendDateLabelV3(pts[0].date)+'</span><span>'+trendDateLabelV3(pts[Math.floor((pts.length-1)/2)].date)+'</span><span>'+trendDateLabelV3(pts[pts.length-1].date)+'</span></div></div>'}
+function fundTrendRowsV3(rows,code){const list=(rows||[]).slice(0,5);if(!list.length)return'';return '<div class="fund-trend-recent"><div class="fund-trend-recent-head"><span>最近净值</span><button onclick="openFundNavDetail(\''+esc(code)+'\')">查看全部</button></div>'+list.map(x=>'<div class="fund-trend-row"><span>'+esc(ymd(x.date)||x.date||'--')+'</span><span class="num">'+nav(x.nav||0)+'</span><span class="num" style="color:'+cc(Number(x.change||0))+'">'+fp(Number(x.change||0))+'</span></div>').join('')+'</div>'}
+function renderFundSingleTrend(code,d){const box=document.getElementById('fund-linked-chart-'+code);if(!box)return;fundNavDetailCache[code]=d;const stat=trendStatsV3(d),ranges=[['1m','近1月'],['3m','近3月'],['6m','近6月'],['1y','近1年']],latestDate=stat.last.date||((d.latest_rows||[])[0]||{}).date||'',sub=d.has_intraday?'含盘中预估，仅供参考':'基于已披露净值';box.classList.add('fund-trend-clean');box.innerHTML='<div class="fund-performance-head"><div><div class="fund-performance-title">基金趋势</div><div class="fund-performance-note">'+esc(sub)+'</div></div></div><div class="fund-trend-metrics"><div class="fund-trend-metric"><span>区间收益</span><b class="num" style="color:'+performanceColor(stat.ret)+'">'+trendPctV3(stat.ret)+'</b></div><div class="fund-trend-metric"><span>最高净值</span><b class="num">'+(stat.hi==null?'--':nav(stat.hi))+'</b></div><div class="fund-trend-metric"><span>最新日期</span><b>'+esc(md(latestDate)||'--')+'</b></div></div>'+singleTrendSvg(d)+'<div class="fund-trend-ranges">'+ranges.map(x=>'<button class="'+(d.period===x[0]?'active':'')+'" onclick="loadFundLinkedChart(\''+esc(code)+'\',\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div>'+fundTrendRowsV3(d.latest_rows,code)}
 </script>
 </body>
 </html>
