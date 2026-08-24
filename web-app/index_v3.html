@@ -3779,6 +3779,19 @@ body.dark #fund-second-page.buy-second-mode .fund-product-tabs{background:#19191
 body.dark .buy-second-date-summary{background:transparent!important}
 body.dark .buy-second-date-summary div{background:transparent!important}
 </style>`);
+// buy-second-tab-form-balance-v3-20260824: align tabs with content and keep setting inputs compact.
+document.head.insertAdjacentHTML('beforeend',`<style id="buy-second-tab-form-balance-v3-20260824">
+#fund-second-page.buy-second-mode .fund-product-tabs{justify-content:flex-start!important;gap:26px!important;padding-left:18px!important;padding-right:18px!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button{min-width:64px!important;text-align:left!important}
+#fund-second-page.buy-second-mode .fund-product-tabs button.active:after{left:0!important;right:34%!important}
+#fund-second-page.buy-second-mode .buy-second-setting{padding:16px 18px 18px!important}
+#fund-second-page.buy-second-mode .buy-second-setting .trade-field{display:grid!important;grid-template-columns:118px minmax(0,1fr)!important;gap:10px!important;align-items:center!important;margin-top:12px!important}
+#fund-second-page.buy-second-mode .buy-second-setting .trade-field label{margin:0!important;font-size:12px!important;color:var(--muted)!important;white-space:nowrap!important}
+#fund-second-page.buy-second-mode .buy-second-setting input{width:100%!important;max-width:100%!important;height:38px!important;border-radius:10px!important;box-sizing:border-box!important;font-size:13px!important;text-align:center!important}
+#fund-second-page.buy-second-mode .buy-second-setting input[type="date"]{min-width:0!important}
+#fund-second-page.buy-second-mode .buy-second-setting input[type="date"]::-webkit-date-and-time-value{text-align:center!important}
+@media(max-width:360px){#fund-second-page.buy-second-mode .buy-second-setting .trade-field{grid-template-columns:104px minmax(0,1fr)!important;gap:8px!important}}
+</style>`);
 </script>
 </body>
 </html>
