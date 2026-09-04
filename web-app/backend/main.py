@@ -7119,6 +7119,9 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
     old_holding = bool(old.get("is_holding", False) and old.get("buy_nav", 0) > 0)
     current_units = float(old.get("shares", 1.0 if old_holding else 1.0) or 1.0)
     new_cost = round(buy_nav, 4)
+    current_nav = round(float(fund_latest.current_nav or 0.0), 4)
+    holding_yield_pct = round((current_nav / new_cost - 1.0) * 100.0, 2) if current_nav > 0 else 0.0
+    realized_yield_pct = float(old.get("realized_yield_pct", 0.0) or 0.0)
     transactions = list(old.get("transactions", []))
     transactions.append({
         "type": "buy" if not old_holding else "correct_cost",
@@ -7131,9 +7134,13 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
         "buy_nav": new_cost,
         "buy_date": old.get("buy_date") if old_holding else buy_date,
         "buy_price": new_cost,
+        "current_nav": current_nav,
         "shares": round(current_units, 4),
         "is_holding": True,
-        "realized_yield_pct": float(old.get("realized_yield_pct", 0.0) or 0.0),
+        "yield_pct": holding_yield_pct,
+        "holding_yield_pct": holding_yield_pct,
+        "realized_yield_pct": realized_yield_pct,
+        "total_return": round(realized_yield_pct + holding_yield_pct, 2),
         "transactions": transactions
     }
     save_cost_navs_to_file(COST_NAVS)
@@ -7147,6 +7154,11 @@ async def confirm_buy(fund_code: str, payload: Optional[dict] = None):
         "name": fund_latest.name,
         "buy_price": new_cost,
         "cost_nav": new_cost,
+        "current_nav": current_nav,
+        "yield_pct": holding_yield_pct,
+        "holding_yield_pct": holding_yield_pct,
+        "realized_yield_pct": realized_yield_pct,
+        "total_return": round(realized_yield_pct + holding_yield_pct, 2),
         "buy_date": COST_NAVS[fund_code]["buy_date"],
         "is_holding": True,
         "is_additional_buy": old_holding
@@ -7388,6 +7400,9 @@ async def correct_position_cost(fund_code: str, payload: Optional[dict] = None):
 
     correct_date = str(payload.get("date") or payload.get("buy_date") or old.get("buy_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     old_cost = float(old.get("buy_nav", 0.0) or 0.0)
+    current_nav = float(payload.get("current_nav") or old.get("current_nav") or 0.0)
+    holding_yield_pct = round((current_nav / cost_nav - 1.0) * 100.0, 2) if current_nav > 0 else 0.0
+    realized_yield_pct = float(old.get("realized_yield_pct", 0.0) or 0.0)
     transactions = list(old.get("transactions", []))
     transactions.append({
         "type": "correct_cost",
@@ -7401,9 +7416,14 @@ async def correct_position_cost(fund_code: str, payload: Optional[dict] = None):
     updated.update({
         "buy_nav": round(cost_nav, 4),
         "buy_price": round(cost_nav, 4),
+        "current_nav": round(current_nav, 4),
         "buy_date": correct_date,
         "shares": round(shares, 4),
         "is_holding": True,
+        "yield_pct": holding_yield_pct,
+        "holding_yield_pct": holding_yield_pct,
+        "realized_yield_pct": realized_yield_pct,
+        "total_return": round(realized_yield_pct + holding_yield_pct, 2),
         "transactions": transactions
     })
     COST_NAVS[fund_code] = updated
