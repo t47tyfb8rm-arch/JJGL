@@ -406,6 +406,17 @@ def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
                     (code, now_ts, _json_payload(payload)),
                 )
                 if isinstance(payload, dict):
+                    is_holding = bool(payload.get("is_holding", False))
+                    cost_nav = _db_float(payload.get("buy_nav", payload.get("cost_nav", payload.get("buy_price", 0.0))))
+                    current_nav = _db_float(payload.get("current_nav", 0.0))
+                    realized_yield_pct = _db_float(payload.get("realized_yield_pct", 0.0))
+                    if is_holding and cost_nav > 0 and current_nav > 0:
+                        holding_yield_pct = round((current_nav / cost_nav - 1.0) * 100.0, 2)
+                    elif is_holding:
+                        holding_yield_pct = _db_float(payload.get("holding_yield_pct", payload.get("current_return", 0.0)))
+                    else:
+                        holding_yield_pct = 0.0
+                    total_return_pct = round(realized_yield_pct + holding_yield_pct, 2) if is_holding else _db_float(payload.get("total_return", realized_yield_pct))
                     conn.execute(
                         """
                         INSERT OR REPLACE INTO fund_positions
@@ -415,13 +426,13 @@ def save_cost_navs_to_db(cost_navs: Dict[str, dict]):
                         """,
                         (
                             code,
-                            1 if payload.get("is_holding", False) else 0,
-                            _db_float(payload.get("buy_nav", payload.get("cost_nav", payload.get("buy_price", 0.0)))),
+                            1 if is_holding else 0,
+                            cost_nav,
                             str(payload.get("buy_date", "")),
                             _db_float(payload.get("shares", 0.0)),
-                            _db_float(payload.get("realized_yield_pct", 0.0)),
-                            _db_float(payload.get("yield_pct", payload.get("holding_yield_pct", 0.0))),
-                            _db_float(payload.get("total_return", payload.get("yield_pct", 0.0))),
+                            realized_yield_pct,
+                            holding_yield_pct,
+                            total_return_pct,
                             str(payload.get("sell_date", "")),
                             _db_float(payload.get("sell_price", 0.0)),
                             _json_payload(payload),
@@ -631,7 +642,12 @@ def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
     is_holding = bool(getattr(bp, "is_holding", False)) if bp else False
     holding_yield = _db_float(getattr(bp, "yield_pct", 0.0) if bp else 0.0)
     realized_yield = _db_float(getattr(bp, "realized_yield_pct", 0.0) if bp else 0.0)
+    current_nav = _db_float(getattr(fund, "current_nav", 0.0))
+    if is_holding and cost_nav > 0 and current_nav > 0:
+        holding_yield = round((current_nav / cost_nav - 1.0) * 100.0, 2)
     total_return = _db_float(getattr(bp, "total_return", holding_yield) if bp else holding_yield)
+    if is_holding:
+        total_return = round(realized_yield + holding_yield, 2)
     expected_date = str(getattr(fund, "expected_nav_date", "") or expected_actual_nav_date())[:10]
     nav_date = str(getattr(fund, "nav_date", "") or "")[:10]
     ready = bool(getattr(fund, "latest_nav_ready", False)) or bool(nav_date and expected_date and nav_date >= expected_date)
@@ -653,7 +669,7 @@ def _fund_return_ledger_row(fund, trade_date: str, now_ts: float) -> tuple:
         getattr(fund, "nav_date", ""),
         1 if ready else 0,
         1 if stale else 0,
-        _db_float(getattr(fund, "current_nav", 0.0)),
+        current_nav,
         _db_float(getattr(fund, "previous_nav", 0.0)),
         _db_float(getattr(fund, "daily_change", 0.0)),
         _db_float(getattr(fund, "estimated_change", 0.0)),
@@ -6077,9 +6093,12 @@ def apply_return_ledger_to_response(response: PortfolioResponse) -> PortfolioRes
             bp.current_nav = fund.current_nav
             bp.cost_nav = _db_float(row.get("cost_nav"), bp.cost_nav)
             bp.buy_price = bp.cost_nav
-            bp.yield_pct = _db_float(row.get("holding_yield_pct"), bp.yield_pct)
+            if bool(row.get("is_holding")) and bp.cost_nav and fund.current_nav:
+                bp.yield_pct = round((fund.current_nav / bp.cost_nav - 1.0) * 100.0, 2)
+            else:
+                bp.yield_pct = _db_float(row.get("holding_yield_pct"), bp.yield_pct)
             bp.realized_yield_pct = _db_float(row.get("realized_yield_pct"), bp.realized_yield_pct)
-            bp.total_return = _db_float(row.get("total_return_pct"), bp.total_return)
+            bp.total_return = round(bp.realized_yield_pct + bp.yield_pct, 2) if bool(row.get("is_holding")) else _db_float(row.get("total_return_pct"), bp.total_return)
             bp.shares = _db_float(row.get("shares"), getattr(bp, "shares", 0.0))
             bp.is_holding = bool(row.get("is_holding"))
     return response
